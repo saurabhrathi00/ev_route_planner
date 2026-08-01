@@ -2313,21 +2313,54 @@ function milestone(sim, samples, pct){
 /* ============================================================
    3. ROUTE — OSRM
    ============================================================ */
-/* No traffic service without a key, but the clock is not nothing — the app
-   already knows the day and hour it will be at every point. A rule of thumb
-   for Indian roads, not a measurement, and the result says which it was. It
-   only runs when the driver leaves the setting on Auto. */
-function trafficFromClock(departAt){
+/* Without a traffic service, two things are still known, and only one of
+   them is a guess.
+
+   The guess is the hour: rush hour is worse than three in the morning. On
+   its own that is close to useless, because it hands a mountain highway the
+   same penalty as the middle of Mumbai.
+
+   The fact is the road. The router gives a free-flow speed for every
+   segment, and the share of the route that sits below 50 km/h separates a
+   city crawl from a highway run — measured: 6% Manali to Shimla, 9% Pune to
+   Nashik, 74% Andheri to Colaba. Rush hour lands on the urban part; an empty
+   ghat road at 9am is still an empty ghat road.
+
+   So the hour sets how bad the peak is, and the road decides how much of the
+   route that peak can actually touch. Still an estimate, but one with the
+   route's own data underneath it rather than a lookup table alone. */
+function urbanShare(samples){
+  if(!samples || samples.length<2) return 0.35;
+  let slow=0, total=0;
+  for(let i=1;i<samples.length;i++){
+    const d=samples[i].s-samples[i-1].s;
+    total+=d;
+    if((samples[i].spd||0)*3.6 < 50) slow+=d;
+  }
+  return total>0 ? slow/total : 0.35;
+}
+
+function trafficFromClock(departAt, samples){
   const d=departAt||new Date();
   const h=d.getHours(), weekend=d.getDay()===0 || d.getDay()===6;
-  if(h>=22 || h<6)  return {ratio:1.00, why:'overnight, roads clear'};
-  if(weekend)       return (h>=11 && h<20)
-                      ? {ratio:1.15, why:'weekend daytime'}
-                      : {ratio:1.05, why:'weekend, off-peak'};
-  if(h>=8 && h<11)  return {ratio:1.35, why:'weekday morning peak'};
-  if(h>=17 && h<21) return {ratio:1.35, why:'weekday evening peak'};
-  if(h>=11 && h<17) return {ratio:1.15, why:'weekday, between peaks'};
-  return {ratio:1.05, why:'early, before the rush'};
+
+  let peak, when;
+  if(h>=22 || h<6)       { peak=1.00; when='overnight'; }
+  else if(weekend)       { peak=(h>=11&&h<20) ? 1.18 : 1.06; when='weekend'; }
+  else if(h>=8 && h<11)  { peak=1.55; when='weekday morning peak'; }
+  else if(h>=17 && h<21) { peak=1.55; when='weekday evening peak'; }
+  else if(h>=11 && h<17) { peak=1.20; when='weekday, between peaks'; }
+  else                   { peak=1.06; when='early, before the rush'; }
+
+  const urban=urbanShare(samples);
+  // a highway still crawls at its city ends, so never discount it entirely
+  const exposure=0.15+0.85*urban;
+  const ratio=1+(peak-1)*exposure;
+  const road = urban>0.55 ? 'mostly city streets'
+             : urban>0.25 ? 'a mix of town and open road'
+             : 'mostly open road';
+  return {ratio:Math.round(ratio*100)/100,
+          why:`${when}, ${road} (${Math.round(urban*100)}% of it under 50 km/h)`};
 }
 
 /* Two OSRM instances, same API. routing.openstreetmap.de is the one the
@@ -4179,11 +4212,17 @@ async function plan(e){
     say('Finding the route…');
     const route=await getRoute(S.from,S.to); done();
 
-    /* Traffic, in order of how much it is worth trusting: what Google
-       measured for that hour, then the driver's own explicit choice, then a
-       guess from the clock. Asking someone to predict traffic they are not
-       there to see was never a good question — the app knows the day and the
-       hour, and with a key it can know the actual delay. */
+    const raw=flatten(route);
+    const step=Math.min(parseInt($('sampling').value,10), Math.max(50, Math.round(route.distance/25)));
+    cfg.smoothWin=smoothWindow(step); cfg.step=step;
+    const samples=resample(raw,step);
+
+    /* Traffic, in the order the sources deserve to be believed: the driver's
+       own choice, then the delay Google measured for that hour, then an
+       estimate from the departure time weighed against how urban the route
+       actually is. It has to sit here rather than beside the other settings
+       because the last of those needs the resampled route to read speeds
+       from — cfg carries a placeholder until this point. */
     const pick=$('traffic').value;
     if(pick!=='auto'){
       cfg.trafficRatio=parseFloat(pick);
@@ -4192,15 +4231,10 @@ async function plan(e){
       cfg.trafficRatio=GOOGLE_TRAFFIC;
       cfg.trafficWhy=`measured by Google for that hour — ${fmt((GOOGLE_TRAFFIC-1)*100)}% slower than an empty road`;
     } else {
-      const g=trafficFromClock(departAt);
+      const g=trafficFromClock(departAt, samples);
       cfg.trafficRatio=g.ratio;
-      cfg.trafficWhy=`estimated from the clock — ${g.why}`;
+      cfg.trafficWhy=`estimated — ${g.why}`;
     }
-
-    const raw=flatten(route);
-    const step=Math.min(parseInt($('sampling').value,10), Math.max(50, Math.round(route.distance/25)));
-    cfg.smoothWin=smoothWindow(step); cfg.step=step;
-    const samples=resample(raw,step);
 
     const legCount=Math.ceil((samples.length-1)/LEG_MAX);
     say(`${samples.length} samples — reading terrain in ${legCount} leg${legCount>1?'s':''}…`);
