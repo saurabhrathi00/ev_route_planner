@@ -1872,6 +1872,42 @@ function label(p){
   const bits=[p.name, p.street&&!p.name?p.street:null, p.city||p.county, p.state, p.country].filter(Boolean);
   return {main:bits[0]||'', sec:bits.slice(1).join(', ')};
 }
+/* Nominatim is OpenStreetMap's own geocoder. Checked against Photon on eight
+   Indian place names — Manali, Shimla, Nashik, Lonavala, Coorg, Mussoorie,
+   Alibaug, Rishikesh — and it returned identical coordinates for every one,
+   so this is redundancy rather than an upgrade.
+
+   It stays strictly a fallback. Nominatim runs on donated hardware and its
+   usage policy asks for no bulk use and at most a request a second; only
+   reaching for it when Photon has actually failed keeps us well inside that.
+   Without it, Photon going down means no place can be resolved at all and the
+   app cannot start a plan — the last single point of failure in the chain. */
+async function placesNominatim(text, limit){
+  const u=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}`
+        + `&format=jsonv2&limit=${limit||6}&addressdetails=1`;
+  const r=await chgFetch(u, {}, 12000);
+  if(!r.ok) throw new Error('Nominatim HTTP '+r.status);
+  const j=await r.json();
+  return (j||[]).map(f=>{
+    const bits=String(f.display_name||'').split(',').map(x=>x.trim()).filter(Boolean);
+    const main=f.name || bits[0] || '';
+    const sec=bits.filter(x=>x!==main).slice(0,3).join(', ');
+    return {main, sec, lat:parseFloat(f.lat), lng:parseFloat(f.lon),
+            name:[main,sec].filter(Boolean).join(', ')};
+  }).filter(x=>isFinite(x.lat)&&isFinite(x.lng));
+}
+
+async function reverseNominatim(ll){
+  const u=`https://nominatim.openstreetmap.org/reverse?lat=${ll.lat.toFixed(5)}`
+        + `&lon=${ll.lng.toFixed(5)}&format=jsonv2`;
+  const r=await chgFetch(u, {}, 12000);
+  if(!r.ok) throw new Error('Nominatim HTTP '+r.status);
+  const j=await r.json();
+  const a=j.address||{};
+  const town=a.city||a.town||a.village||a.hamlet||a.suburb||a.county;
+  return [j.name||a.road, town, a.state].filter(Boolean).join(', ') || null;
+}
+
 function attachPlaces(inputId, menuId, slot){
   const input=$(inputId), menu=$(menuId);
   let timer=null, items=[], cursor=-1;
@@ -1883,13 +1919,21 @@ function attachPlaces(inputId, menuId, slot){
         if(g.length) return g;
       }catch(e){ SRC_USED.places='Photon · OpenStreetMap (Google failed)'; }
     }
-    const u=`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=6&lang=en`;
-    const r=await fetch(u); const j=await r.json();
-    return (j.features||[]).map(f=>{
-      const l=label(f.properties);
-      return {...l, lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0],
-              name:[l.main,l.sec].filter(Boolean).join(', ')};
-    });
+    try{
+      const u=`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=6&lang=en`;
+      const r=await chgFetch(u, {}, 10000);
+      if(!r.ok) throw new Error('Photon HTTP '+r.status);
+      const j=await r.json();
+      const out=(j.features||[]).map(f=>{
+        const l=label(f.properties);
+        return {...l, lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0],
+                name:[l.main,l.sec].filter(Boolean).join(', ')};
+      });
+      if(out.length){ SRC_USED.places='Photon · OpenStreetMap'; return out; }
+    }catch(e){ /* fall through */ }
+    const alt=await placesNominatim(text, 6);
+    SRC_USED.places='Nominatim · OpenStreetMap';
+    return alt;
   }
   function render(){
     menu.innerHTML=items.map((it,i)=>`<button type="button" data-i="${i}" class="${i===cursor?'on':''}"><b>${it.main}</b><small>${it.sec}</small></button>`).join('');
@@ -1934,11 +1978,21 @@ async function resolveTyped(text){
     try{ const g=await searchTextGoogle(text, gmapKey()); SRC_USED.places='Google Places'; return g; }
     catch(e){ /* fall through to the free geocoder */ }
   }
-  const r=await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=1&lang=en`);
-  const j=await r.json();
-  if(!j.features||!j.features.length) throw new Error(`No place found for "${text}". Try adding the state or country.`);
-  const f=j.features[0], l=label(f.properties);
-  return {lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0], name:[l.main,l.sec].filter(Boolean).join(', ')};
+  try{
+    const r=await chgFetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=1&lang=en`, {}, 12000);
+    if(!r.ok) throw new Error('Photon HTTP '+r.status);
+    const j=await r.json();
+    if(j.features && j.features.length){
+      const f=j.features[0], l=label(f.properties);
+      SRC_USED.places='Photon · OpenStreetMap';
+      return {lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0],
+              name:[l.main,l.sec].filter(Boolean).join(', ')};
+    }
+  }catch(e){ /* fall through to OpenStreetMap's own geocoder */ }
+  const alt=await placesNominatim(text, 1);
+  if(!alt.length) throw new Error(`No place found for "${text}". Try adding the state or country.`);
+  SRC_USED.places='Nominatim · OpenStreetMap';
+  return alt[0];
 }
 
 /* Nearest named place to a point, so a distance along the route can be
@@ -1960,8 +2014,10 @@ async function reverseName(ll){
     const a=pick(near&&near.features&&near.features[0]);
     const b=pick(town&&town.features&&town.features[0]);
     if(a&&b&&a!==b) return `${a} — nearest town ${b}`;
-    return a||b||null;
-  }catch(e){ return null; }
+    if(a||b) return a||b;
+  }catch(e){ /* fall through */ }
+  // a stop with no name at all is a worse answer than a slightly rougher one
+  try{ return await reverseNominatim(ll); }catch(e){ return null; }
 }
 
 /* First point on the route where charge falls to a given level. */
