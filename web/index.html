@@ -390,9 +390,9 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
 .verdict .lede{font-family:"Bricolage Grotesque",sans-serif;font-size:clamp(22px,4.6vw,31px);
   font-weight:600;line-height:1.14;letter-spacing:-.025em}
 .verdict .sub{color:var(--ink2);margin-top:9px;max-width:64ch}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:1px;
+.kpis{display:flex;flex-wrap:wrap;gap:1px;
   background:var(--rule2);border:1px solid var(--rule2);margin-top:20px;border-radius:var(--r-m);overflow:hidden}
-.kpi{background:var(--sheet);padding:13px 14px}
+.kpi{background:var(--sheet);padding:13px 14px;flex:1 1 112px;min-width:112px}
 .kpi .v{font-family:"IBM Plex Mono",monospace;font-size:23px;font-weight:500;letter-spacing:-.03em}
 .kpi .l{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);
   font-family:"IBM Plex Mono",monospace;margin-top:3px}
@@ -548,8 +548,8 @@ input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:va
 /* ---- drive it: the interactive scrubber ---------------------- */
 .scrub{margin:16px 0 4px;border:1px solid var(--rule);border-radius:var(--r-m);
   background:var(--paper);overflow:hidden}
-.scrub-read{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:1px;background:var(--rule2)}
-.sr{background:var(--sheet);padding:10px 12px;min-width:0}
+.scrub-read{display:flex;flex-wrap:wrap;gap:1px;background:var(--rule2)}
+.sr{background:var(--sheet);padding:10px 12px;flex:1 1 84px;min-width:84px}
 .sr .v{display:block;font:500 19px/1.15 "IBM Plex Mono",monospace;letter-spacing:-.02em;
   color:var(--ink);white-space:nowrap}
 .sr.big .v{font-size:27px;color:var(--charge)}
@@ -659,7 +659,19 @@ input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:va
   @keyframes batgrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 }
 .mapbox .gm-style{font-family:"Public Sans",sans-serif}
-.chartwrap{padding:2px 0 0;overflow-x:auto}
+.chartwrap{padding:2px 0 0;overflow-x:auto;position:relative}
+/* base first, then the narrow-screen override — the other way round the
+   unconditional rule wins and the hint never shows */
+.chartnote{display:none;padding:6px 18px 0;font:500 11px "IBM Plex Mono",monospace;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+@media (max-width:700px){
+  .chartwrap{
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
+    mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
+  }
+  .chartwrap.at-end{-webkit-mask-image:none;mask-image:none}
+  .chartnote{display:block}
+}
 svg.section{display:block;width:100%;min-width:620px;height:340px}
 .legend{display:flex;gap:16px;flex-wrap:wrap;padding:10px 18px 16px;font-size:12px;color:var(--ink2);
   font-family:"IBM Plex Mono",monospace}
@@ -707,9 +719,9 @@ details summary{cursor:pointer;font-family:"IBM Plex Mono",monospace;font-size:1
 details summary::-webkit-details-marker{display:none}
 details summary::before{content:"▸ ";display:inline-block;transition:transform var(--t2) var(--e-out)}
 details[open] summary::before{transform:rotate(90deg)}
-.sources{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--rule2);
+.sources{display:flex;flex-wrap:wrap;gap:1px;background:var(--rule2);
   border:1px solid var(--rule2);border-radius:var(--r-m);overflow:hidden}
-.src{background:var(--sheet);padding:12px 13px}
+.src{background:var(--sheet);padding:12px 13px;flex:1 1 170px;min-width:170px}
 .src b{display:block;font:500 10px "IBM Plex Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
 .src span{font-size:13.5px}
 .trip-row{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;
@@ -3646,6 +3658,15 @@ function journeyTrace(sim, samples, elev, it, cfg){
   return {soc, mins, km, elev, events, samples};
 }
 
+/* Its own panel, drawn from the simulation rather than from the stop list,
+   so a drive that needs no charging still gets the thing worth touching. */
+function scrubPanel(reserve, stops){
+  return `<section class="panel">
+    <div class="head"><h2>Drive it</h2><span class="tag">${stops?'drag, or press play':'no stop needed — see the margin'}</span></div>
+    <div class="body">${scrubView(reserve)}</div>
+  </section>`;
+}
+
 function scrubView(reserve){
   return `<div class="scrub" id="scrub">
     <div class="scrub-read">
@@ -3765,7 +3786,7 @@ function mountScrub(reserve, cfg){
     } else if(idx>=n-1){
       note.className='scrub-note '+(t.soc[idx]<reserve?'bad':'good');
       note.innerHTML=`<strong>Destination — ${fmt(t.soc[idx])}% left.</strong>
-        ${fmt(totalKm)} km in ${hhmm(t.mins[idx]*60)}.`;
+        ${fmt(totalKm)} km in ${hhmm(t.mins[idx]*60)}${t.events.length?'':', no charging needed'}.`;
     } else {
       note.className='scrub-note';
       const climb=idx>2 ? t.elev[idx]-t.elev[idx-3] : 0;
@@ -3938,7 +3959,6 @@ function itineraryTable(it, reserve){
         ? 'Built around the chargers found along the route.'
         : 'Charge levels assume you find a charger near each point below. Verify each one before setting off — the app can do that for you with the charger search on.'}
         Every stop is sized to arrive at the next one with your ${fmt(reserve)}% floor intact, plus ${MODEL_MARGIN_PCT} points for prediction error.</p>
-      ${scrubView(reserve)}
       ${journeyView(it, reserve)}
       <details style="margin-top:16px"><summary>The same thing as a table</summary>
         <div style="overflow-x:auto;padding-top:8px"><table style="min-width:640px"><thead><tr>
@@ -4157,9 +4177,11 @@ function render(o){
     </div>
     <div class="legend"><span id="map-note">Loading…</span></div>
   </section>
+  ${SCRUB ? scrubPanel(reserve, (itinerary&&itinerary.stopCount)||0) : ''}
   <section class="panel">
     <div class="head"><h2>The road, in section</h2><span class="tag">terrain vs charge</span></div>
-    <div class="chartwrap">${sectionChart(sim,samples,reserve,stops)}</div>
+    <div class="chartwrap" id="chartwrap">${sectionChart(sim,samples,reserve,stops)}</div>
+    <div class="chartnote">swipe the chart sideways for the rest of the route →</div>
     <div class="legend">
       <span><i style="border-color:var(--terrain-dk)"></i>ground height (m, left)</span>
       <span><i style="border-color:var(--charge)"></i>charge remaining (%, right)</span>
@@ -4201,6 +4223,11 @@ function render(o){
     </div>
   </section>`;
   if(window.UI) UI.afterRender();
+  /* drop the edge fade once there is nothing further to scroll to */
+  const cw=$('chartwrap');
+  if(cw) cw.addEventListener('scroll',()=>{
+    cw.classList.toggle('at-end', cw.scrollLeft+cw.clientWidth >= cw.scrollWidth-4);
+  },{passive:true});
   mountMap(samples, itinerary);
   if(SCRUB) mountScrub(reserve, cfg);
 }
