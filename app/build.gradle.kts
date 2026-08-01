@@ -58,11 +58,11 @@ android {
     kotlinOptions { jvmTarget = "17" }
 
     // the built file is named for the app rather than the module, so what lands
-    // in Downloads reads as ev-route-planner-debug.apk, not app-debug.apk
+    // in Downloads reads as evroute-debug.apk, not app-debug.apk
     applicationVariants.all {
         outputs.all {
             (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
-                .outputFileName = "ev-route-planner-${buildType.name}.apk"
+                .outputFileName = "evroute-${buildType.name}.apk"
         }
     }
 }

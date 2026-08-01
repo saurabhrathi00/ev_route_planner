@@ -1,7 +1,7 @@
 {
-  "name": "EV Route Planner",
-  "short_name": "EV Route Planner",
-  "description": "Reads the road's cross-section and tells you the charge you'll have left on arrival.",
+  "name": "EVRoute",
+  "short_name": "EVRoute",
+  "description": "Smart route, maximum range. Reads the road's cross-section and tells you the charge you'll have left on arrival.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

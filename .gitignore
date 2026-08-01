@@ -1,31 +1,29 @@
-# Real API keys — never commit. See secrets.env.example for the template.
-secrets.env
-
-# Build output. tools/build.sh injects the keys from secrets.env into these,
-# so they contain live credentials and must stay out of git.
-dist/
-app/src/main/assets/index.html
-ios/Resources/index.html
-
-# Gradle
+*.iml
 .gradle/
-build/
-app/build/
 local.properties
+.idea/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
 
-# macOS
-.DS_Store
-
-# Play signing — losing these means you can never update the app; never commit
-keystore.properties
-*.jks
-*.keystore
-
-# iOS build output
+# iOS
 ios/build/
 DerivedData/
 *.xcuserstate
 xcuserdata/
 
-# Kotlin daemon scratch
-.kotlin/
+# secrets
+secrets.env
+dist/
+
+# Play signing — never commit these
+keystore.properties
+*.jks
+*.keystore
+
+# Build output. tools/build.sh injects the keys from secrets.env into these,
+# so they contain live credentials and must never be committed.
+dist/
+app/src/main/assets/index.html
+ios/Resources/index.html

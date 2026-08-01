@@ -1,4 +1,4 @@
-# EV Route Planner — iOS
+# EVRoute — iOS
 
 A WKWebView around the same `index.html` that runs in the browser and in the
 Android app. No iOS-specific planner code exists, and none should: the physics,

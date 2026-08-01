@@ -87,7 +87,7 @@ PY
 SHA=$(shasum -a 256 app/src/main/assets/index.html | cut -d' ' -f1)
 BYTES=$(wc -c < app/src/main/assets/index.html | tr -d ' ')
 STAMP=$(grep -oE 'build [0-9]{4}-[0-9]{2}-[0-9]{2} r[0-9]+' "$SRC" | head -1 | sed 's/^build //')
-printf 'Route Section — build %s\n\nplanner sha256   %s\nplanner bytes    %s\n' \
+printf 'EVRoute — build %s\n\nplanner sha256   %s\nplanner bytes    %s\n' \
   "${STAMP:-unstamped}" "$SHA" "$BYTES" > BUILD.txt
 
 # a bundled key must never reach git through the source file

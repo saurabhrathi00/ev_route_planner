@@ -1,4 +1,4 @@
-# Route Section — Android
+# EVRoute — Android
 
 EV trip energy planner. Reads the road's cross-section, adds the air you'll
 push through, and tells you the charge you'll have left on arrival.
@@ -12,7 +12,7 @@ push through, and tells you the charge you'll have left on arrival.
 Command line, once a wrapper exists (`gradle wrapper` or Android Studio's sync):
 
     ./gradlew assembleDebug
-    # app/build/outputs/apk/debug/ev-route-planner-debug.apk
+    # app/build/outputs/apk/debug/evroute-debug.apk
 
 Requires JDK 17, compileSdk 35, minSdk 26 (Android 8.0).
 

@@ -1,8 +1,8 @@
-# Privacy Policy — EV Route Planner
+# Privacy Policy — EVRoute
 
 **Last updated: 1 August 2026**
 
-EV Route Planner ("the app") plans an electric-car journey: how much charge a
+EVRoute ("the app") plans an electric-car journey: how much charge a
 drive will cost, where you drop to your reserve, and where you could charge.
 
 **There is no account, no login, no advertising and no analytics. We operate no
