@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- a road section: terrain profile with the charge curve falling across it -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path
+        android:pathData="M27,74 L38,66 L46,70 L56,52 L66,58 L74,40 L81,46 L81,80 L27,80 Z"
+        android:fillColor="#6E7868" android:fillAlpha="0.35" />
+    <path
+        android:pathData="M27,74 L38,66 L46,70 L56,52 L66,58 L74,40 L81,46"
+        android:strokeColor="#6E7868" android:strokeWidth="4"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M27,38 C40,40 52,52 63,62 C70,68 76,72 81,74"
+        android:strokeColor="#1C5C86" android:strokeWidth="5"
+        android:strokeLineCap="round" />
+</vector>

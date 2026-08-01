@@ -1,0 +1,17 @@
+# Real API keys — never commit. See secrets.env.example for the template.
+secrets.env
+
+# Build output. tools/build.sh injects the keys from secrets.env into these,
+# so they contain live credentials and must stay out of git.
+dist/
+app/src/main/assets/index.html
+ios/Resources/index.html
+
+# Gradle
+.gradle/
+build/
+app/build/
+local.properties
+
+# macOS
+.DS_Store

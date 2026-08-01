@@ -1,0 +1,29 @@
+{
+  "name": "EV Route Planner",
+  "short_name": "EV Route Planner",
+  "description": "Reads the road's cross-section and tells you the charge you'll have left on arrival.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#E7EAE2",
+  "theme_color": "#E7EAE2",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
