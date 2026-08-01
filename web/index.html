@@ -188,7 +188,7 @@ label.f > span{
   display:block;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);
   margin-bottom:6px;font-family:"IBM Plex Mono",monospace;
 }
-input[type=text],input[type=number],select{
+input[type=text],input[type=number],input[type=datetime-local],select{
   width:100%;padding:12px 13px;border:1px solid var(--rule);background:var(--raise);color:var(--ink);
   border-radius:var(--r-m);font:500 15px/1.3 "IBM Plex Mono",monospace;
   transition:border-color var(--t1) var(--e-out),box-shadow var(--t1) var(--e-out),background var(--t1);
@@ -199,8 +199,8 @@ select{
   background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238C948E' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 11px center;background-size:16px;
 }
-input:focus,select:focus{outline:0;border-color:var(--charge);box-shadow:0 0 0 3px rgba(28,92,134,.18)}
-input:focus,select:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--charge) 18%,transparent)}
+input:focus,select:focus{outline:0;border-color:var(--brand-green);box-shadow:0 0 0 3px rgba(62,168,69,.18)}
+input:focus,select:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-green) 18%,transparent)}
 button:focus-visible,[role=tab]:focus-visible{outline:2px solid var(--charge);outline-offset:2px}
 input::placeholder{color:var(--ink3)}
 .hint{font-size:12.5px;color:var(--ink3);margin-top:8px;line-height:1.5}
@@ -432,6 +432,46 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
 .depart{display:flex;gap:8px;align-items:stretch}
 .depart input{flex:1;min-width:0}
 .depart button{flex:none;padding:0 14px;font-size:13px}
+/* A native datetime control brings its own typography and a grey system
+   glyph. Match it to every other field, and recolour the calendar button so
+   it is not a bright artefact sitting in a dark card. */
+input[type=datetime-local]{
+  font:500 15px/1.3 "IBM Plex Mono",monospace;color:var(--ink);
+  min-height:45px;padding:11px 12px;
+}
+input[type=datetime-local]::-webkit-datetime-edit{padding:0;color:var(--ink)}
+input[type=datetime-local]::-webkit-datetime-edit-fields-wrapper{padding:0}
+input[type=datetime-local]::-webkit-datetime-edit-text{color:var(--ink3);padding:0 2px}
+input[type=datetime-local]::-webkit-datetime-edit-year-field,
+input[type=datetime-local]::-webkit-datetime-edit-month-field,
+input[type=datetime-local]::-webkit-datetime-edit-day-field,
+input[type=datetime-local]::-webkit-datetime-edit-hour-field,
+input[type=datetime-local]::-webkit-datetime-edit-minute-field,
+input[type=datetime-local]::-webkit-datetime-edit-ampm-field{
+  color:var(--ink);border-radius:4px;padding:1px 2px;
+}
+input[type=datetime-local]::-webkit-datetime-edit-year-field:focus,
+input[type=datetime-local]::-webkit-datetime-edit-month-field:focus,
+input[type=datetime-local]::-webkit-datetime-edit-day-field:focus,
+input[type=datetime-local]::-webkit-datetime-edit-hour-field:focus,
+input[type=datetime-local]::-webkit-datetime-edit-minute-field:focus,
+input[type=datetime-local]::-webkit-datetime-edit-ampm-field:focus{
+  background:var(--brand-green);color:#fff;outline:none;
+}
+input[type=datetime-local]::-webkit-calendar-picker-indicator{
+  cursor:pointer;opacity:.55;border-radius:4px;padding:2px;
+  transition:opacity var(--t1),background var(--t1);
+}
+input[type=datetime-local]::-webkit-calendar-picker-indicator:hover{
+  opacity:1;background:color-mix(in srgb,var(--brand-green) 16%,transparent);
+}
+:root[data-theme=dark] input[type=datetime-local]::-webkit-calendar-picker-indicator,
+:root:not([data-theme=light]) input[type=datetime-local]::-webkit-calendar-picker-indicator{
+  filter:invert(1) brightness(1.6);
+}
+/* empty reads as "now", so make that legible rather than a row of dashes */
+input[type=datetime-local]:not(:focus):invalid::-webkit-datetime-edit,
+input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:var(--ink3)}
 .navrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:12px 18px 4px}
 
 /* ============================================================
@@ -948,8 +988,9 @@ details[open] summary::before{transform:rotate(90deg)}
             </label>
             <label class="f"><span>Traffic you expect</span>
               <select id="traffic">
+                <option value="auto" selected>Work it out for me</option>
                 <option value="1">Clear roads</option>
-                <option value="1.15" selected>Normal</option>
+                <option value="1.15">Normal</option>
                 <option value="1.35">Busy</option>
                 <option value="1.7">Jammed</option>
               </select>
@@ -1002,6 +1043,7 @@ details[open] summary::before{transform:rotate(90deg)}
               </div>
             </label>
           </div>
+          <p class="hint">Leave traffic on <strong>Work it out for me</strong> and the app decides from your departure time — with a Google key it uses the delay Google measured for that hour, otherwise a rule of thumb from the clock. Override it if you know better than both.</p>
           <p class="hint" id="depart-note">Leave departure empty for now. Setting it matters more than it looks: the app fetches the temperature and wind for the hour you will actually be at each point, and a hot afternoon can cost several points of charge more than the same drive at dawn.</p>
           <p class="hint">Chargers are off by default — the plan still tells you where you drop to your floor, what to charge to and where to look. Switch it on to have the app find and rank actual chargers, which adds a few seconds.</p>
           <p class="hint">Speed comes from your driving style — gentle means both softer acceleration and a lower cruise. The router's own speed for each road still wins where it is lower, so nobody cruises at 82 km/h through a village.</p>
@@ -1833,13 +1875,19 @@ function decodePolyline(str){
 
 /* Returns the same shape as the OSRM route, so flatten() and everything
    downstream cannot tell the difference. */
-async function routeGoogle(a, b, key){
+/* Filled in by routeGoogle when Google could measure traffic for the
+   departure hour: how much longer the drive takes than on an empty road.
+   That ratio is exactly what the simulation means by traffic, so where it
+   exists there is nothing left for the driver to guess. */
+let GOOGLE_TRAFFIC = null;
+
+async function routeGoogle(a, b, key, departAt){
   const r = await chgFetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
     method:'POST',
     headers:{
       'Content-Type':'application/json',
       'X-Goog-Api-Key':key,
-      'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,'
+      'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,routes.staticDuration,'
         +'routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.distanceMeters,'
         +'routes.legs.steps.staticDuration'
     },
@@ -1847,11 +1895,13 @@ async function routeGoogle(a, b, key){
       origin:{location:{latLng:{latitude:a.lat, longitude:a.lng}}},
       destination:{location:{latLng:{latitude:b.lat, longitude:b.lng}}},
       travelMode:'DRIVE',
-      /* Deliberately traffic-unaware. The step durations become the road's
-         free-flow speed, which is what the simulation wants — it applies the
-         driver's own traffic setting on top. Asking for live traffic here
-         would count the same jam twice. */
-      routingPreference:'TRAFFIC_UNAWARE',
+      /* Traffic-aware, but step speeds still come from staticDuration below,
+         so a jam is never counted twice: traffic surfaces only as the ratio
+         between the two totals, which then replaces the driver's guess.
+         Google rejects a departureTime in the past. */
+      routingPreference:'TRAFFIC_AWARE',
+      ...(departAt && departAt.getTime() > Date.now()+60000
+          ? {departureTime: new Date(departAt).toISOString()} : {}),
       polylineQuality:'HIGH_QUALITY',
       computeAlternativeRoutes:false
     })
@@ -1865,6 +1915,11 @@ async function routeGoogle(a, b, key){
   const j=await r.json();
   if(!j.routes||!j.routes.length) throw new Error('no drivable route between those two points');
   const rt=j.routes[0];
+
+  const secs = t => parseFloat(String(t||'0s').replace('s','')) || 0;
+  const withTraffic=secs(rt.duration), freeFlow=secs(rt.staticDuration);
+  GOOGLE_TRAFFIC = (freeFlow>60 && withTraffic>=freeFlow)
+    ? Math.min(2.2, withTraffic/freeFlow) : null;
 
   const steps=[];
   (rt.legs||[]).forEach(leg=>(leg.steps||[]).forEach(st=>{
@@ -2258,6 +2313,23 @@ function milestone(sim, samples, pct){
 /* ============================================================
    3. ROUTE — OSRM
    ============================================================ */
+/* No traffic service without a key, but the clock is not nothing — the app
+   already knows the day and hour it will be at every point. A rule of thumb
+   for Indian roads, not a measurement, and the result says which it was. It
+   only runs when the driver leaves the setting on Auto. */
+function trafficFromClock(departAt){
+  const d=departAt||new Date();
+  const h=d.getHours(), weekend=d.getDay()===0 || d.getDay()===6;
+  if(h>=22 || h<6)  return {ratio:1.00, why:'overnight, roads clear'};
+  if(weekend)       return (h>=11 && h<20)
+                      ? {ratio:1.15, why:'weekend daytime'}
+                      : {ratio:1.05, why:'weekend, off-peak'};
+  if(h>=8 && h<11)  return {ratio:1.35, why:'weekday morning peak'};
+  if(h>=17 && h<21) return {ratio:1.35, why:'weekday evening peak'};
+  if(h>=11 && h<17) return {ratio:1.15, why:'weekday, between peaks'};
+  return {ratio:1.05, why:'early, before the rush'};
+}
+
 /* Two OSRM instances, same API. routing.openstreetmap.de is the one the
    OpenStreetMap website itself routes with — a real service on donated
    infrastructure — while router.project-osrm.org is the project's test box
@@ -2289,7 +2361,7 @@ async function getRoute(a,b){
   const tried=[];
   if(useGoogle()){
     try{
-      const r=await routeGoogle(a,b,gmapKey());
+      const r=await routeGoogle(a,b,gmapKey(),getRoute.departAt);
       SRC_USED.route='Google Routes API';
       return r;
     }catch(e){
@@ -3313,7 +3385,7 @@ function routeFactors(sim, cfg, marks, samples, headMean){
           : 'barely a factor' },
     { label:'Traffic', v:jam,
       ...(()=>{ const [t,c]=band(jam,6,14); return {tag:t,cls:c}; })(),
-      note:`${fmt(jam,1)}% of the energy, ${$('traffic').selectedOptions[0].text.toLowerCase()}` },
+      note:`${fmt(jam,1)}% of the energy · ${cfg.trafficWhy}` },
     { label:'Climate', v:hvac,
       ...(()=>{ const [t,c]=band(hvac,8,16); return {tag:t,cls:c}; })(),
       note:`${fmt(avgT,0)} °C outside, cabin ${cfg.ac?'on':'off'}` }
@@ -4050,7 +4122,7 @@ function render(o){
         <td>${m.eta.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
         <td>${fmt(m.temp,1)} °C</td><td>${fmt(m.wind*3.6)} km/h from ${fmt(m.wdir)}°</td>
         <td>${m.rain>0.05?fmt(m.rain,1)+' mm':'—'}</td></tr>`).join('')}</tbody></table>
-      <p class="note">Model: calibrated on trips averaging ${fmt(cal.vA)} and ${fmt(cal.vB)} km/h${cal.assumed?' (assumed — enter real driving times)':''}, drivetrain ${fmt(cal.eta*100,1)}%, regen ${fmt(cfg.regen*100)}%, ${fmt(sim.mass)} kg on board, road-load scale ${fmt(cal.C,3)}${S.learn!==1?`, trip-log correction ×${fmt(S.learn,3)}`:''}. Driving style ${STYLES[cfg.styleKey].label.toLowerCase()}, so up to ${fmt(cfg.vhwy)} km/h on highways and ${fmt(cfg.vroad)} on other roads, with ${fmt(cfg.regen*100)}% regen recovery. Traffic assumed ${$('traffic').selectedOptions[0].text.toLowerCase()}. Terrain read every ${cfg.step>=1000?fmt(cfg.step/1000,0)+' km':fmt(cfg.step)+' m'}${cfg.step>=500?', so short climb-and-drop bumps inside that span are averaged out and the climbing total reads low':''}.</p>
+      <p class="note">Model: calibrated on trips averaging ${fmt(cal.vA)} and ${fmt(cal.vB)} km/h${cal.assumed?' (assumed — enter real driving times)':''}, drivetrain ${fmt(cal.eta*100,1)}%, regen ${fmt(cfg.regen*100)}%, ${fmt(sim.mass)} kg on board, road-load scale ${fmt(cal.C,3)}${S.learn!==1?`, trip-log correction ×${fmt(S.learn,3)}`:''}. Driving style ${STYLES[cfg.styleKey].label.toLowerCase()}, so up to ${fmt(cfg.vhwy)} km/h on highways and ${fmt(cfg.vroad)} on other roads, with ${fmt(cfg.regen*100)}% regen recovery. Traffic ×${fmt(cfg.trafficRatio,2)} (${cfg.trafficWhy}). Terrain read every ${cfg.step>=1000?fmt(cfg.step/1000,0)+' km':fmt(cfg.step)+' m'}${cfg.step>=500?', so short climb-and-drop bumps inside that span are averaged out and the climbing total reads low':''}.</p>
       <details style="margin-top:14px"><summary>How the route was split — ${legs.length} leg${legs.length>1?'s':''}</summary>
         <div style="padding-top:10px">${legTable(sim,samples,legs)}</div></details>
       <div class="sources" style="margin-top:16px">
@@ -4084,7 +4156,8 @@ async function plan(e){
     const cfg={cap:num('cap'),kerb:num('kerb'),people:num('people'),bags:num('bags'),
       ac:S.ac,cdA:num('cdA'),crr:num('crr'),
       style:refMeasured?ST.accel:1, styleKey:$('style').value, vhwy:ST.hwy, vroad:ST.road,
-      regen:clamp((num('regeneff')||0.25)*ST.regen,0.05,0.9), regenKW:num('regenkw'),dckw:num('dckw'),trafficRatio:parseFloat($('traffic').value)};
+      regen:clamp((num('regeneff')||0.25)*ST.regen,0.05,0.9), regenKW:num('regenkw'),dckw:num('dckw'),
+      trafficRatio:1.15, trafficWhy:''};        // settled once the route is in
     const startPct=num('soc0'), reserve=num('reserve');
 
     let departAt=new Date();
@@ -4101,8 +4174,28 @@ async function plan(e){
     if(aheadDays>FORECAST_DAYS-0.25 && window.UI)
       UI.toast(`Weather is only forecast ${FORECAST_DAYS} days out — beyond that the conditions are a guess.`, true, 7000);
 
+    GOOGLE_TRAFFIC=null;
+    getRoute.departAt=departAt;                 // Routes API wants the hour to price
     say('Finding the route…');
     const route=await getRoute(S.from,S.to); done();
+
+    /* Traffic, in order of how much it is worth trusting: what Google
+       measured for that hour, then the driver's own explicit choice, then a
+       guess from the clock. Asking someone to predict traffic they are not
+       there to see was never a good question — the app knows the day and the
+       hour, and with a key it can know the actual delay. */
+    const pick=$('traffic').value;
+    if(pick!=='auto'){
+      cfg.trafficRatio=parseFloat(pick);
+      cfg.trafficWhy=`you chose ${$('traffic').selectedOptions[0].text.toLowerCase()}`;
+    } else if(GOOGLE_TRAFFIC){
+      cfg.trafficRatio=GOOGLE_TRAFFIC;
+      cfg.trafficWhy=`measured by Google for that hour — ${fmt((GOOGLE_TRAFFIC-1)*100)}% slower than an empty road`;
+    } else {
+      const g=trafficFromClock(departAt);
+      cfg.trafficRatio=g.ratio;
+      cfg.trafficWhy=`estimated from the clock — ${g.why}`;
+    }
 
     const raw=flatten(route);
     const step=Math.min(parseInt($('sampling').value,10), Math.max(50, Math.round(route.distance/25)));
