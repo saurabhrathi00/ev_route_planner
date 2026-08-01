@@ -22,16 +22,16 @@
    the whole app moves as one piece.
    ============================================================ */
 :root{
-  --paper:#E7EAE2; --sheet:#F4F6F0; --raise:#FFFFFF;
-  --ink:#141A18; --ink2:#5A6560; --ink3:#8C948E;
-  --rule:#C2C8BC; --rule2:#D9DED2;
+  --paper:#F1F4F2; --sheet:#FFFFFF; --raise:#FFFFFF;
+  --ink:#15201C; --ink2:#5C6B65; --ink3:#909C96;
+  --rule:#DDE4E0; --rule2:#E9EEEB;
   --terrain:#9AA391; --terrain-dk:#6E7868;
   --charge:#1C5C86; --charge-soft:#E8F1F7;
   --warn:#B87613; --stop:#9E2F28; --ok:#2E6B4F;
-  --grid:rgba(20,26,24,.055);
-  --shadow-1:0 1px 2px rgba(20,26,24,.05);
-  --shadow-2:0 2px 6px -2px rgba(20,26,24,.10), 0 10px 24px -18px rgba(20,26,24,.45);
-  --shadow-3:0 8px 20px -8px rgba(20,26,24,.18), 0 30px 60px -40px rgba(20,26,24,.55);
+  --grid:rgba(20,32,28,.035);
+  --shadow-1:0 1px 2px rgba(20,40,32,.05), 0 1px 3px rgba(20,40,32,.04);
+  --shadow-2:0 2px 8px -2px rgba(20,40,32,.09), 0 12px 26px -18px rgba(20,40,32,.30);
+  --shadow-3:0 10px 24px -10px rgba(20,40,32,.14), 0 34px 60px -40px rgba(20,40,32,.42);
   --brand-green:#3EA845; --brand-blue:#2C7FC4;
   --r-s:8px; --r-m:12px; --r-l:18px; --r-xl:26px;
   --e-out:cubic-bezier(.22,.85,.24,1);
@@ -166,7 +166,7 @@ a{color:var(--charge)}
 }
 .card > .head .num{
   width:23px;height:23px;flex:none;display:grid;place-items:center;border-radius:50%;
-  background:var(--ink);color:var(--sheet);font:600 11px "IBM Plex Mono",monospace;
+  background:var(--brand-green);color:#fff;font:600 11px "IBM Plex Mono",monospace;
 }
 .card .body{padding:0 18px 18px}
 .card .body > :first-child{margin-top:0}
@@ -256,13 +256,13 @@ input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px rgba(
 button.run,a.run{
   position:relative;overflow:hidden;
   font-family:"Bricolage Grotesque",sans-serif;font-size:16px;font-weight:600;
-  background:var(--ink);color:var(--sheet);border:0;padding:15px 26px;border-radius:var(--r-m);
+  background:var(--brand-green);color:#fff;border:0;padding:15px 26px;border-radius:var(--r-m);
   cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:9px;
   transition:transform var(--t1) var(--e-spring),background var(--t2) var(--e-out),opacity var(--t2);
 }
 :root[data-theme=dark] button.run,:root:not([data-theme=light]) button.run,
-:root[data-theme=dark] a.run,:root:not([data-theme=light]) a.run{color:var(--paper)}
-button.run:hover,a.run:hover{background:var(--charge)}
+:root[data-theme=dark] a.run,:root:not([data-theme=light]) a.run{color:#08120E}
+button.run:hover,a.run:hover{background:var(--brand-blue)}
 button.run:active,a.run:active{transform:scale(.975)}
 button.run[disabled]{opacity:.5;cursor:progress}
 button.run .spin{width:16px;height:16px;flex:none;display:none}
@@ -592,6 +592,24 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
 .jkey .k-drain{background:repeating-linear-gradient(135deg,var(--ink3) 0 3px,transparent 3px 7px)}
 .jkey .k-add{background:var(--ok)}
 .jkey .k-res{background:var(--warn);width:3px}
+
+/* ---- route factors ------------------------------------------- */
+.factors{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px 22px}
+.factor{min-width:0}
+.fh{display:flex;align-items:baseline;gap:10px;margin-bottom:7px}
+.fl{font-weight:600;font-size:14.5px}
+.ft{margin-left:auto;font:500 11.5px "IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase}
+.ft.ok{color:var(--ok)} .ft.warn{color:var(--warn)} .ft.stop{color:var(--stop)}
+.fbar{height:7px;border-radius:100px;background:var(--rule2);overflow:hidden}
+.fbar i{display:block;height:100%;border-radius:100px;transform-origin:left center}
+.fbar i.ok{background:var(--ok)} .fbar i.warn{background:var(--warn)} .fbar i.stop{background:var(--stop)}
+.fn{margin-top:6px;font:500 12px "IBM Plex Mono",monospace;color:var(--ink3)}
+@media (prefers-reduced-motion:no-preference){
+  .fbar i{animation:barIn var(--t4) var(--e-out) both}
+}
+.kpi .state{display:block;font:500 10.5px "IBM Plex Mono",monospace;letter-spacing:.06em;
+  text-transform:uppercase;margin-top:4px}
+.kpi .state.ok{color:var(--ok)} .kpi .state.warn{color:var(--warn)} .kpi .state.stop{color:var(--stop)}
 @media (prefers-reduced-motion:no-preference){
   .journey li{animation:reveal var(--t3) var(--e-out) both;animation-delay:calc(var(--i,0)*70ms)}
   .bat i{animation:batgrow var(--t4) var(--e-out) both;animation-delay:calc(var(--i,0)*70ms + 120ms)}
@@ -3260,6 +3278,50 @@ function sectionChart(sim, samples, reserve, stops){
     <text x="${L}" y="${H-4}" class="ax">km along route →</text></svg>`;
 }
 
+/* What actually made this drive expensive, at a glance. Every figure is
+   already computed — the ledger knows where each kWh went, the weather
+   marks know the wind, and the traffic multiplier is the driver's own
+   setting. This only names them and says whether each one mattered. */
+function routeFactors(sim, cfg, marks, samples, headMean){
+  const pct = k => Math.abs(sim.ledger[k]||0)/Math.max(0.001,sim.kWh)*100;
+  const band = (v,lo,hi) => v<lo ? ['Low','ok'] : v<hi ? ['Moderate','warn'] : ['High','stop'];
+
+  const climb = pct('climb');
+  const hvac  = pct('hvac') + pct('aux');
+  const jam   = pct('stopgo');          // the accumulator is stopgo, not jam
+  const wind  = Math.abs(headMean);
+  const avgT  = marks.reduce((a,m)=>a+m.temp,0)/marks.length;
+
+  const rows=[
+    { label:'Elevation', v:climb, ...(()=>{ const [t,c]=band(climb,12,28); return {tag:t,cls:c}; })(),
+      note:`${fmt(sim.gain)} m up, ${fmt(sim.loss)} m down` },
+    { label:'Wind', v:Math.min(100, wind*4),
+      ...(()=>{ const [t,c]=band(wind,6,14); return {tag:headMean<-3?'Helping':t, cls:headMean<-3?'ok':c}; })(),
+      note: headMean>3 ? `${fmt(headMean)} km/h headwind`
+          : headMean<-3 ? `${fmt(-headMean)} km/h tailwind`
+          : 'barely a factor' },
+    { label:'Traffic', v:jam,
+      ...(()=>{ const [t,c]=band(jam,6,14); return {tag:t,cls:c}; })(),
+      note:`${fmt(jam,1)}% of the energy, ${$('traffic').selectedOptions[0].text.toLowerCase()}` },
+    { label:'Climate', v:hvac,
+      ...(()=>{ const [t,c]=band(hvac,8,16); return {tag:t,cls:c}; })(),
+      note:`${fmt(avgT,0)} °C outside, cabin ${cfg.ac?'on':'off'}` }
+  ];
+
+  return `<section class="panel">
+    <div class="head"><h2>What this drive costs you</h2><span class="tag">route factors</span></div>
+    <div class="body"><div class="factors">
+      ${rows.map(r=>`
+        <div class="factor">
+          <div class="fh"><span class="fl">${r.label}</span><span class="ft ${r.cls}">${r.tag}</span></div>
+          <div class="fbar"><i class="${r.cls}" style="width:${Math.max(3,Math.min(100,r.v)).toFixed(0)}%"></i></div>
+          <div class="fn">${r.note}</div>
+        </div>`).join('')}
+    </div>
+    <p class="note">Elevation, traffic and climate bars are that factor's share of the energy this drive uses. Wind is the only one that is not an energy share — it is the average headwind along the route, and a tailwind shows as helping because it gives charge back rather than taking it.</p>
+    </div></section>`;
+}
+
 function ledgerTable(sim){
   const L=sim.ledger;
   const rows=[
@@ -3916,7 +3978,9 @@ function render(o){
   <div class="verdict ${cls}">
     <div class="lede">${lede}</div><div class="sub">${sub}</div>
     <div class="kpis">
-      <div class="kpi"><div class="v">${fmt(arriveWith)}%</div><div class="l">${planWorks?`on arrival, after ${nStops} stop${nStops===1?'':'s'}`:'charge on arrival'}</div></div>
+      <div class="kpi"><div class="v">${fmt(arriveWith)}%</div><div class="l">${planWorks?`on arrival, after ${nStops} stop${nStops===1?'':'s'}`:'charge on arrival'}</div>
+        <span class="state ${arriveWith<reserve?'stop':arriveWith<reserve+10?'warn':'ok'}">${
+          arriveWith<reserve ? 'below your floor' : arriveWith<reserve+10 ? 'cutting it fine' : 'comfortable'}</span></div>
       ${planWorks?`<div class="kpi"><div class="v">${fmt(end)}%</div><div class="l">if you never charged</div></div>`:''}
       <div class="kpi"><div class="v">${fmt(sim.used,1)}%</div><div class="l">charge used</div></div>
       <div class="kpi"><div class="v">${fmt(sim.kWh,1)}</div><div class="l">kWh</div></div>
@@ -3956,6 +4020,7 @@ function render(o){
   ${itinerary && itinerary.stopCount ? itineraryTable(itinerary, reserve) : ''}
   ${runDown}
   ${stopHtml}
+  ${routeFactors(sim, cfg, marks, samples, headMean)}
   <section class="panel">
     <div class="head"><h2>Energy ledger</h2><span class="tag">${fmt(sim.kWh,1)} kWh total</span></div>
     <div class="body">${ledgerTable(sim)}
