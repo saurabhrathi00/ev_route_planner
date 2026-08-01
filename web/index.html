@@ -32,6 +32,7 @@
   --shadow-1:0 1px 2px rgba(20,26,24,.05);
   --shadow-2:0 2px 6px -2px rgba(20,26,24,.10), 0 10px 24px -18px rgba(20,26,24,.45);
   --shadow-3:0 8px 20px -8px rgba(20,26,24,.18), 0 30px 60px -40px rgba(20,26,24,.55);
+  --brand-green:#3EA845; --brand-blue:#2C7FC4;
   --r-s:8px; --r-m:12px; --r-l:18px; --r-xl:26px;
   --e-out:cubic-bezier(.22,.85,.24,1);
   --e-spring:cubic-bezier(.34,1.4,.5,1);
@@ -46,6 +47,7 @@
   --charge:#6DB4E4; --charge-soft:#13242E;
   --warn:#DFA54A; --stop:#E4685F; --ok:#5CBE8D;
   --grid:rgba(231,237,232,.045);
+  --brand-green:#5FBF5A; --brand-blue:#5FA8E0;
   --shadow-1:0 1px 2px rgba(0,0,0,.4);
   --shadow-2:0 2px 8px -2px rgba(0,0,0,.5), 0 12px 28px -20px #000;
   --shadow-3:0 10px 24px -10px rgba(0,0,0,.6), 0 40px 70px -45px #000;
@@ -60,6 +62,7 @@
     --charge:#6DB4E4; --charge-soft:#13242E;
     --warn:#DFA54A; --stop:#E4685F; --ok:#5CBE8D;
     --grid:rgba(231,237,232,.045);
+    --brand-green:#5FBF5A; --brand-blue:#5FA8E0;
     --shadow-1:0 1px 2px rgba(0,0,0,.4);
     --shadow-2:0 2px 8px -2px rgba(0,0,0,.5), 0 12px 28px -20px #000;
     --shadow-3:0 10px 24px -10px rgba(0,0,0,.6), 0 40px 70px -45px #000;
@@ -102,9 +105,10 @@ a{color:var(--charge)}
 }
 .topbar.stuck{border-bottom-color:var(--rule);box-shadow:var(--shadow-1)}
 .brand{display:flex;align-items:center;gap:9px;font-family:"Bricolage Grotesque",sans-serif;font-weight:800;font-size:17px;letter-spacing:-.03em}
-.brand em{font-style:normal;color:var(--charge)}
-.brand .mark{width:20px;height:20px;flex:none}
-.brand .mark path{stroke:var(--charge);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.brand .wm-ev{color:var(--brand-green)}
+.brand .wm-route{color:var(--ink)}
+.brand > span + span{margin-left:-1px}
+.brand .mark{width:24px;height:24px;flex:none;border-radius:7px}
 .topbar .spacer{flex:1}
 .icon-btn{
   width:38px;height:38px;flex:none;display:grid;place-items:center;
@@ -427,6 +431,58 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
 .osm-attr a{color:var(--ink2)}
 .navrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:12px 18px 4px}
 
+/* ============================================================
+   INTRO — shown once, skippable, four pages and no more.
+   Native horizontal scroll with snap points does the swiping, so
+   there is no gesture code to get wrong on a phone.
+   ============================================================ */
+.intro{position:fixed;inset:0;z-index:200;background:var(--paper);
+  display:flex;flex-direction:column;overscroll-behavior:contain}
+.intro-top{display:flex;justify-content:flex-end;
+  padding:calc(12px + env(safe-area-inset-top)) 16px 0}
+.intro-skip{background:none;border:0;color:var(--ink3);cursor:pointer;
+  font:500 14px "Public Sans",sans-serif;padding:8px 12px;border-radius:var(--r-s)}
+.intro-skip:hover{color:var(--ink)}
+.intro-rail{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.intro-rail::-webkit-scrollbar{display:none}
+.intro-page{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:8px 30px;min-width:0}
+.intro-art{height:190px;display:grid;place-items:center;margin-bottom:26px;width:100%}
+.brandmark{width:132px;height:132px;filter:drop-shadow(0 10px 26px rgba(0,0,0,.28))}
+.art-profile{width:min(300px,80vw)}
+.art-shield{width:110px}
+.intro-page h2{font-size:clamp(25px,7vw,33px);font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.wm-ev{color:var(--brand-green)}
+.wm-route{color:var(--ink)}
+.intro-tag{margin:6px 0 0;font:500 13px "IBM Plex Mono",monospace;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--brand-green)}
+.intro-page p{margin:14px 0 0;color:var(--ink2);font-size:15.5px;line-height:1.55;max-width:34ch}
+.intro-page p strong{color:var(--ink)}
+.intro-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+.intro-chips span{font:500 11.5px "IBM Plex Mono",monospace;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink2);border:1px solid var(--rule);
+  padding:5px 11px;border-radius:100px;background:var(--sheet)}
+.intro-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;text-align:left}
+.intro-steps li{display:flex;align-items:center;gap:13px;font-size:16px;color:var(--ink)}
+.intro-steps li span{width:30px;height:30px;flex:none;display:grid;place-items:center;
+  border-radius:50%;background:var(--brand-green);color:#fff;
+  font:600 14px "IBM Plex Mono",monospace}
+.intro-foot{display:flex;align-items:center;gap:14px;
+  padding:16px 22px calc(24px + env(safe-area-inset-bottom))}
+.intro-dots{display:flex;gap:7px;flex:1}
+.intro-dots i{width:7px;height:7px;border-radius:100px;background:var(--rule);
+  transition:width var(--t2) var(--e-out),background var(--t2)}
+.intro-dots i.on{width:22px;background:var(--brand-green)}
+.intro-foot .run{min-width:132px;background:var(--brand-green);color:#fff}
+.intro-foot .run:hover{background:var(--brand-blue)}
+@media (min-width:900px){
+  .intro-rail{max-width:560px;margin:0 auto;width:100%}
+  .intro-foot{max-width:560px;margin:0 auto;width:100%}
+  .intro-top{max-width:560px;margin:0 auto;width:100%}
+}
+
 /* ---- the "we cannot see your key" panel ---------------------- */
 .trust{
   display:flex;gap:12px;margin-top:14px;padding:14px 15px;
@@ -711,12 +767,117 @@ details[open] summary::before{transform:rotate(90deg)}
 </style>
 </head>
 <body>
+<div class="intro" id="intro" hidden>
+  <div class="intro-top">
+    <button type="button" class="intro-skip" id="intro-skip">Skip</button>
+  </div>
+
+  <div class="intro-rail" id="intro-rail">
+
+    <!-- 1 — what it is -->
+    <section class="intro-page">
+      <div class="intro-art">
+        <svg viewBox="0 0 120 120" class="brandmark" aria-hidden="true">
+          <defs>
+            <linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#5FBF5A"/><stop offset="1" stop-color="#2C7FC4"/>
+            </linearGradient>
+          </defs>
+          <rect x="4" y="4" width="112" height="112" rx="30" fill="url(#bg1)"/>
+          <path d="M4 96 L30 50 L48 74 L58 62 L74 88 L4 88 Z" fill="#1F6B39" opacity=".5"/>
+          <path d="M62 96 L84 58 L100 80 L116 62 L116 96 Z" fill="#123C63" opacity=".55"/>
+          <path d="M4 88 h112 v28 H4 Z" fill="#123C63" opacity=".22"/>
+          <path d="M34 116 C42 92 74 96 78 68" stroke="#fff" stroke-width="9" fill="none"
+                stroke-linecap="round"/>
+          <path d="M34 116 C42 92 74 96 78 68" stroke="#2C7FC4" stroke-width="1.8" fill="none"
+                stroke-linecap="round" stroke-dasharray="3 7" opacity=".65"/>
+          <rect x="92" y="66" width="13" height="19" rx="3" fill="#fff" opacity=".95"/>
+          <path d="M99 70 95 77h3l-.6 5 4.6-7h-3z" fill="#3EA845"/>
+          <path d="M62 18a17 17 0 0 1 17 17c0 12-17 27-17 27S45 47 45 35a17 17 0 0 1 17-17z"
+                fill="#fff"/>
+          <path d="M64 25 55 38h6l-1 9 8-13h-6z" fill="#3EA845"/>
+        </svg>
+      </div>
+      <h2><span class="wm-ev">EV</span><span class="wm-route">Route</span></h2>
+      <p class="intro-tag">Smart route. Maximum range.</p>
+      <p>Tells you the one number that matters: <strong>the charge you'll have left when you arrive.</strong></p>
+    </section>
+
+    <!-- 2 — why it is different -->
+    <section class="intro-page">
+      <div class="intro-art">
+        <svg viewBox="0 0 200 110" class="art-profile" aria-hidden="true">
+          <path d="M4 92 L34 52 L54 74 L78 34 L104 66 L130 44 L160 70 L196 40"
+                fill="none" stroke="var(--brand-green)" stroke-width="3.5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 92 L34 52 L54 74 L78 34 L104 66 L130 44 L160 70 L196 40 L196 104 L4 104 Z"
+                fill="var(--brand-green)" opacity=".14"/>
+          <path d="M4 30 C40 22 70 40 104 30 C140 20 166 34 196 26"
+                fill="none" stroke="var(--brand-blue)" stroke-width="3" stroke-linecap="round"
+                stroke-dasharray="1 9" opacity=".85"/>
+        </svg>
+      </div>
+      <h2>It reads the road</h2>
+      <p>Every <strong>100 metres</strong> of climb and descent, the air you push through, the weight you carry, the temperature outside.</p>
+      <div class="intro-chips">
+        <span>Elevation</span><span>Wind</span><span>Ascent &amp; descent</span><span>Weather</span>
+      </div>
+    </section>
+
+    <!-- 3 — how to use it -->
+    <section class="intro-page">
+      <div class="intro-art">
+        <ol class="intro-steps">
+          <li><span>1</span>Pick your car</li>
+          <li><span>2</span>Type where you're going</li>
+          <li><span>3</span>Press <strong>Plan this drive</strong></li>
+        </ol>
+      </div>
+      <h2>Three taps</h2>
+      <p>Then drag the car along the route to watch the battery drain, and see exactly where to stop and how much to put in.</p>
+    </section>
+
+    <!-- 4 — the promise -->
+    <section class="intro-page">
+      <div class="intro-art">
+        <svg viewBox="0 0 120 110" class="art-shield" aria-hidden="true">
+          <path d="M60 8 24 22v27c0 23 16 42 36 48 20-6 36-25 36-48V22z"
+                fill="none" stroke="var(--brand-green)" stroke-width="4"
+                stroke-linejoin="round"/>
+          <path d="M44 58l11 11 22-25" fill="none" stroke="var(--brand-green)"
+                stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2>Free, and yours</h2>
+      <p>No account. No sign-up. No API key needed. <strong>There is no server</strong> — every calculation happens on this phone, and nothing about your drives leaves it.</p>
+    </section>
+
+  </div>
+
+  <div class="intro-foot">
+    <div class="intro-dots" id="intro-dots" aria-hidden="true"></div>
+    <button type="button" class="run" id="intro-next">
+      <span id="intro-next-label">Next</span>
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+    </button>
+  </div>
+</div>
+
 <div class="shell">
 
   <header class="topbar" id="topbar">
     <div class="brand">
-      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18c3-9 6 3 9-4s5 2 9-6"/></svg>
-      <span>Route <em>Section</em></span>
+      <svg class="mark" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="tbg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#5FBF5A"/><stop offset="1" stop-color="#2C7FC4"/></linearGradient></defs>
+        <rect x="4" y="4" width="112" height="112" rx="30" fill="url(#tbg)"/>
+        <path d="M4 96 L30 50 L48 74 L58 62 L74 88 L4 88 Z" fill="#1F6B39" opacity=".5"/>
+        <path d="M34 116 C42 92 74 96 78 68" stroke="#fff" stroke-width="9" fill="none" stroke-linecap="round"/>
+        <path d="M62 18a17 17 0 0 1 17 17c0 12-17 27-17 27S45 47 45 35a17 17 0 0 1 17-17z" fill="#fff"/>
+        <path d="M64 25 55 38h6l-1 9 8-13h-6z" fill="#3EA845"/>
+      </svg>
+      <span class="wm-ev">EV</span><span class="wm-route">Route</span>
     </div>
     <div class="spacer"></div>
     <button type="button" class="icon-btn" id="themeBtn" aria-label="Switch between light and dark">
@@ -989,6 +1150,11 @@ details[open] summary::before{transform:rotate(90deg)}
       <section class="card reveal" style="--i:1">
         <div class="head"><h2>Appearance</h2><span class="tag">theme</span></div>
         <div class="body">
+          <div class="cta" style="margin:0 0 16px">
+            <button class="ghost" type="button" id="show-intro">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8.2v.2"/></svg>
+              Show the intro again</button>
+          </div>
           <label class="f"><span>Theme</span>
             <div class="seg" id="theme-toggle" style="--n:3;--i:0">
               <button type="button" data-v="auto" aria-pressed="true">Auto</button>
@@ -4022,6 +4188,9 @@ $('gkey_user').addEventListener('change',()=>{
   if(window.UI) UI.toast(v ? 'Google key saved — plan again to use it'
                            : 'Key cleared, back to the free sources');
 });
+$('show-intro').addEventListener('click',()=>{
+  if(window.UI_INTRO) UI_INTRO.open();
+});
 $('gsrc-toggle').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
   gSrcMode=b.dataset.v; sset('gsrc',gSrcMode);
@@ -4412,6 +4581,56 @@ function afterRender(){
 
   if(current!=='result') el('tabbar').querySelector('[data-go=result]').classList.add('has-news');
 }
+
+/* ---- the intro ------------------------------------------------
+   Shown once. The rail is a real scroller with snap points, so the
+   swipe is the browser's own and behaves correctly on every phone;
+   all this does is keep the dots and the button label in step. */
+const INTRO_KEY='rs-intro-seen';
+(function(){
+  const box=el('intro'); if(!box) return;
+  const rail=el('intro-rail'), dots=el('intro-dots'),
+        next=el('intro-next'), label=el('intro-next-label');
+  const pages=[...rail.querySelectorAll('.intro-page')];
+  let i=0;
+
+  dots.innerHTML=pages.map((_,k)=>`<i class="${k===0?'on':''}"></i>`).join('');
+  const marks=[...dots.children];
+
+  function at(k){
+    i=Math.max(0,Math.min(pages.length-1,k));
+    marks.forEach((d,n)=>d.classList.toggle('on',n===i));
+    label.textContent = i===pages.length-1 ? 'Start planning' : 'Next';
+  }
+  rail.addEventListener('scroll',()=>{
+    const k=Math.round(rail.scrollLeft/Math.max(1,rail.clientWidth));
+    if(k!==i) at(k);
+  },{passive:true});
+
+  function goPage(k){
+    at(k);
+    rail.scrollTo({left:k*rail.clientWidth, behavior:REDUCED.matches?'auto':'smooth'});
+  }
+  next.addEventListener('click',()=>{
+    if(i>=pages.length-1) close(); else goPage(i+1);
+  });
+  el('intro-skip').addEventListener('click',close);
+  // a phone's back gesture should dismiss it, not leave the app
+  addEventListener('keydown',e=>{ if(!box.hidden && e.key==='Escape') close(); });
+
+  function close(){
+    box.hidden=true;
+    try{ localStorage.setItem(INTRO_KEY,'1'); }catch(_){}
+    const f=document.getElementById('from'); if(f) setTimeout(()=>f.focus(),150);
+  }
+  function open(){ box.hidden=false; at(0); rail.scrollTo({left:0,behavior:'auto'}); }
+
+  let seen=false;
+  try{ seen=localStorage.getItem(INTRO_KEY)==='1'; }catch(_){}
+  if(!seen) open(); else box.hidden=true;
+
+  window.UI_INTRO={open};
+})();
 
 /* ---- reveal on first paint ------------------------------------- */
 el('v-plan').classList.add('on');
