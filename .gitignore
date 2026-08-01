@@ -15,3 +15,17 @@ local.properties
 
 # macOS
 .DS_Store
+
+# Play signing — losing these means you can never update the app; never commit
+keystore.properties
+*.jks
+*.keystore
+
+# iOS build output
+ios/build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Kotlin daemon scratch
+.kotlin/
