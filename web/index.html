@@ -1875,11 +1875,18 @@ function decodePolyline(str){
 
 /* Returns the same shape as the OSRM route, so flatten() and everything
    downstream cannot tell the difference. */
-/* Filled in by routeGoogle when Google could measure traffic for the
-   departure hour: how much longer the drive takes than on an empty road.
-   That ratio is exactly what the simulation means by traffic, so where it
-   exists there is nothing left for the driver to guess. */
-let GOOGLE_TRAFFIC = null;
+/* Google's predicted travel time for the chosen departure, in seconds.
+   Turning it into a traffic factor needs something to divide by, and
+   staticDuration is not it — measured on Andheri to Colaba, Google returns
+   52 min static against 41-51 min with traffic, so the "no traffic" baseline
+   is consistently the slower number. Dividing by it produced a ratio below 1
+   every time, which the old guard then rejected, so the whole path was dead.
+
+   The comparison that does work is Google against itself: the same route at
+   the chosen hour versus at three in the morning. Same model, same roads,
+   and the difference is traffic and nothing else — 46 min at 9am against
+   41 min at 3am reads as 1.12, which is what a Mumbai morning costs. */
+let GOOGLE_DUR = null;
 
 async function routeGoogle(a, b, key, departAt){
   const r = await chgFetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
@@ -1917,9 +1924,7 @@ async function routeGoogle(a, b, key, departAt){
   const rt=j.routes[0];
 
   const secs = t => parseFloat(String(t||'0s').replace('s','')) || 0;
-  const withTraffic=secs(rt.duration), freeFlow=secs(rt.staticDuration);
-  GOOGLE_TRAFFIC = (freeFlow>60 && withTraffic>=freeFlow)
-    ? Math.min(2.2, withTraffic/freeFlow) : null;
+  GOOGLE_DUR = secs(rt.duration) || null;
 
   const steps=[];
   (rt.legs||[]).forEach(leg=>(leg.steps||[]).forEach(st=>{
@@ -1933,6 +1938,34 @@ async function routeGoogle(a, b, key, departAt){
   }));
   if(!steps.length) throw new Error('the route came back without a shape');
   return {distance: rt.distanceMeters||0, legs:[{steps}]};
+}
+
+/* The second half of the traffic measurement: the same route at the next
+   3am, which is as close to an empty road as a real prediction gets. Asks
+   for the duration alone, and is only ever called when the driver left
+   traffic on Auto and a key exists — it is a second billable request, so it
+   does not fire for anyone who has already decided. */
+async function googleQuietDuration(a, b, key){
+  const q=new Date();
+  q.setDate(q.getDate() + (q.getHours()>=3 ? 1 : 0));
+  q.setHours(3,0,0,0);
+  const r = await chgFetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,
+             'X-Goog-FieldMask':'routes.duration'},
+    body:JSON.stringify({
+      origin:{location:{latLng:{latitude:a.lat, longitude:a.lng}}},
+      destination:{location:{latLng:{latitude:b.lat, longitude:b.lng}}},
+      travelMode:'DRIVE', routingPreference:'TRAFFIC_AWARE',
+      departureTime:q.toISOString(), computeAlternativeRoutes:false
+    })
+  }, 20000);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const j=await r.json();
+  const rt=(j.routes||[])[0];
+  const d=rt && parseFloat(String(rt.duration||'0s').replace('s',''));
+  if(!d) throw new Error('no reference duration');
+  return d;
 }
 
 /* ---- places ---------------------------------------------------
@@ -4207,7 +4240,7 @@ async function plan(e){
     if(aheadDays>FORECAST_DAYS-0.25 && window.UI)
       UI.toast(`Weather is only forecast ${FORECAST_DAYS} days out — beyond that the conditions are a guess.`, true, 7000);
 
-    GOOGLE_TRAFFIC=null;
+    GOOGLE_DUR=null;
     getRoute.departAt=departAt;                 // Routes API wants the hour to price
     say('Finding the route…');
     const route=await getRoute(S.from,S.to); done();
@@ -4227,13 +4260,25 @@ async function plan(e){
     if(pick!=='auto'){
       cfg.trafficRatio=parseFloat(pick);
       cfg.trafficWhy=`you chose ${$('traffic').selectedOptions[0].text.toLowerCase()}`;
-    } else if(GOOGLE_TRAFFIC){
-      cfg.trafficRatio=GOOGLE_TRAFFIC;
-      cfg.trafficWhy=`measured by Google for that hour — ${fmt((GOOGLE_TRAFFIC-1)*100)}% slower than an empty road`;
     } else {
-      const g=trafficFromClock(departAt, samples);
-      cfg.trafficRatio=g.ratio;
-      cfg.trafficWhy=`estimated — ${g.why}`;
+      let measured=null;
+      if(GOOGLE_DUR && useGoogle()){
+        try{
+          const quiet=await googleQuietDuration(S.from, S.to, gmapKey());
+          if(quiet>60) measured=Math.max(1, Math.min(2.2, GOOGLE_DUR/quiet));
+        }catch(e){ /* one call short of a measurement; the estimate still stands */ }
+      }
+      if(measured!=null && measured>1.01){
+        cfg.trafficRatio=measured;
+        cfg.trafficWhy=`measured by Google — ${fmt((measured-1)*100)}% slower than the same road at 3am`;
+      }else if(measured!=null){
+        cfg.trafficRatio=1;
+        cfg.trafficWhy='measured by Google — no slower than the same road at 3am';
+      }else{
+        const g=trafficFromClock(departAt, samples);
+        cfg.trafficRatio=g.ratio;
+        cfg.trafficWhy=`estimated — ${g.why}`;
+      }
     }
 
     const legCount=Math.ceil((samples.length-1)/LEG_MAX);
