@@ -429,6 +429,9 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
 .osm-attr{position:absolute;right:6px;bottom:4px;z-index:2;font-size:10px;
   background:color-mix(in srgb,var(--sheet) 80%,transparent);padding:2px 6px;border-radius:4px;color:var(--ink3)}
 .osm-attr a{color:var(--ink2)}
+.depart{display:flex;gap:8px;align-items:stretch}
+.depart input{flex:1;min-width:0}
+.depart button{flex:none;padding:0 14px;font-size:13px}
 .navrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:12px 18px 4px}
 
 /* ============================================================
@@ -937,7 +940,12 @@ details[open] summary::before{transform:rotate(90deg)}
             <div class="acmenu" id="ac-to" hidden></div>
           </label>
           <div class="grid" style="margin-top:16px">
-            <label class="f"><span>Departure</span><input type="text" id="depart" placeholder="now" value="now"></label>
+            <label class="f"><span>Departure</span>
+              <div class="depart">
+                <input type="datetime-local" id="depart">
+                <button type="button" class="ghost" id="depart-now">Now</button>
+              </div>
+            </label>
             <label class="f"><span>Traffic you expect</span>
               <select id="traffic">
                 <option value="1">Clear roads</option>
@@ -994,6 +1002,7 @@ details[open] summary::before{transform:rotate(90deg)}
               </div>
             </label>
           </div>
+          <p class="hint" id="depart-note">Leave departure empty for now. Setting it matters more than it looks: the app fetches the temperature and wind for the hour you will actually be at each point, and a hot afternoon can cost several points of charge more than the same drive at dawn.</p>
           <p class="hint">Chargers are off by default — the plan still tells you where you drop to your floor, what to charge to and where to look. Switch it on to have the app find and rank actual chargers, which adds a few seconds.</p>
           <p class="hint">Speed comes from your driving style — gentle means both softer acceleration and a lower cruise. The router's own speed for each road still wins where it is lower, so nobody cruises at 82 km/h through a village.</p>
         </div>
@@ -2591,6 +2600,8 @@ async function aliasProbe(raw, samples, elev){
 /* ============================================================
    5. WEATHER — Open-Meteo
    ============================================================ */
+const FORECAST_DAYS = 7;          // Open-Meteo serves this free; the picker is capped to match
+
 async function getWeather(samples, departAt, secAlong){
   const N=clamp(Math.round(samples.length/300),1,6), marks=[];
   for(let k=0;k<N;k++){
@@ -2600,7 +2611,7 @@ async function getWeather(samples, departAt, secAlong){
   await Promise.all(marks.map(async mk=>{
     try{
       const u=`https://api.open-meteo.com/v1/forecast?latitude=${mk.ll.lat.toFixed(3)}&longitude=${mk.ll.lng.toFixed(3)}`
-             +`&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation&forecast_days=3&timezone=auto`;
+             +`&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation&forecast_days=${FORECAST_DAYS}&timezone=auto`;
       const j=await (await fetch(u)).json();
       const times=j.hourly.time.map(t=>new Date(t).getTime());
       let best=0,bd=Infinity;
@@ -4078,7 +4089,17 @@ async function plan(e){
 
     let departAt=new Date();
     const dtxt=$('depart').value.trim();
-    if(dtxt&&dtxt.toLowerCase()!=='now'){ const d=new Date(dtxt); if(!isNaN(d)) departAt=d; }
+    if(dtxt){
+      const d=new Date(dtxt);
+      if(!isNaN(d)) departAt=d;
+      else if(window.UI) UI.toast('Could not read that departure time — planning for now instead.', true);
+    }
+    /* Open-Meteo only forecasts so far ahead. Past that it would silently
+       hand back the nearest hour it has, which is a made-up answer dressed
+       as a real one. */
+    const aheadDays=(departAt-Date.now())/864e5;
+    if(aheadDays>FORECAST_DAYS-0.25 && window.UI)
+      UI.toast(`Weather is only forecast ${FORECAST_DAYS} days out — beyond that the conditions are a guess.`, true, 7000);
 
     say('Finding the route…');
     const route=await getRoute(S.from,S.to); done();
@@ -4197,6 +4218,33 @@ $('btn-swap').addEventListener('click',()=>{
 });
 ['cap','kerb','cA_d','cA_h','cA_p','cA_t','cB_d','cB_h','cB_p','cB_t','cT','cP','cdA','crr','carname']
   .forEach(id=>$(id).addEventListener('change',()=>{ try{calibrate();}catch(e){} }));
+/* datetime-local cannot express its own bounds, so set them from the clock
+   and keep them honest about how far the forecast actually reaches. */
+function departBounds(){
+  const pad=n=>String(n).padStart(2,'0');
+  const local=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const now=new Date();
+  const max=new Date(now.getTime()+FORECAST_DAYS*864e5);
+  $('depart').min=local(now);
+  $('depart').max=local(max);
+}
+function departNote(){
+  const v=$('depart').value.trim();
+  const n=$('depart-note'); if(!n) return;
+  if(!v){
+    n.textContent='Leaving now. Set a time and the app uses the temperature and wind forecast for the hour you will actually be at each point — a hot afternoon can cost several points of charge more than the same drive at dawn.';
+    return;
+  }
+  const d=new Date(v);
+  if(isNaN(d)) return;
+  const days=(d-Date.now())/864e5;
+  n.textContent = days>FORECAST_DAYS
+    ? `That is beyond the ${FORECAST_DAYS}-day forecast, so the conditions would be a guess. Pick something sooner.`
+    : `Planning for ${d.toLocaleString([], {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}, using the forecast for that hour along the way.`;
+}
+$('depart').addEventListener('change', departNote);
+$('depart-now').addEventListener('click', ()=>{ $('depart').value=''; departNote(); });
+
 function sampNote(){
   const step=parseInt($('sampling').value,10);
   const label = step>=1000 ? (step/1000)+' km' : step+' m';
@@ -4375,6 +4423,7 @@ $('t_add').addEventListener('click',async()=>{
   seg.style.setProperty('--i', String(Math.max(0, bs.findIndex(b=>b.dataset.v===gSrcMode))));
   applyCar();
   relearn(); renderTrips(); sampNote(); fitAnchor(); markReference();
+  departBounds(); departNote();
   attachPlaces('from','ac-from','from');
   attachPlaces('to','ac-to','to');
   calibrate();
