@@ -426,6 +426,22 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
   background:color-mix(in srgb,var(--sheet) 80%,transparent);padding:2px 6px;border-radius:4px;color:var(--ink3)}
 .osm-attr a{color:var(--ink2)}
 .navrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:12px 18px 4px}
+
+/* ---- the "we cannot see your key" panel ---------------------- */
+.trust{
+  display:flex;gap:12px;margin-top:14px;padding:14px 15px;
+  border:1px solid var(--ok);border-radius:var(--r-m);
+  background:rgba(46,107,79,.07);
+  background:color-mix(in srgb,var(--ok) 8%,transparent);
+}
+.trust > svg{width:22px;height:22px;flex:none;margin-top:1px;fill:none;stroke:var(--ok);
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.trust strong{display:block;font-size:14px;color:var(--ink);margin-bottom:8px}
+.trust ul{margin:0;padding-left:17px;display:flex;flex-direction:column;gap:7px}
+.trust li{font-size:12.8px;color:var(--ink2);line-height:1.5}
+.trust li b{color:var(--ink);font-weight:600}
+.trust p{margin:10px 0 0;font-size:12.8px;color:var(--ink2)}
+.trust .mono{font-size:12px;color:var(--ink)}
 .navbtn{text-decoration:none;font-size:14.5px;padding:13px 18px;flex:1 1 240px}
 .navrow .ghost{text-decoration:none;flex:0 1 auto}
 
@@ -1015,7 +1031,22 @@ details[open] summary::before{transform:rotate(90deg)}
             <input type="text" id="gkey_user" placeholder="paste a key to upgrade routing, search and the map"
                    autocomplete="off" spellcheck="false"></label>
           <p class="hint">Everything works without this. A key makes three things better: routing uses Google instead of OpenStreetMap data, place search finds Indian towns far more reliably, and the map becomes a real Google map. It also adds star ratings and live bay counts to chargers.</p>
-          <p class="hint">Get one at <span class="mono">console.cloud.google.com</span> and enable <strong>Routes API</strong>, <strong>Places API (New)</strong> and <strong>Maps JavaScript API</strong>. Google bills these to you, so set a daily quota cap on each. The key is stored on this device only and is sent to nobody but Google.</p>
+          <div class="trust">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 4.5 5.9v5.4c0 4.6 3.2 8.4 7.5 9.6 4.3-1.2 7.5-5 7.5-9.6V5.9z"/><path d="M8.7 12.1l2.4 2.4 4.3-4.6"/></svg>
+            <div>
+              <strong>Your key never reaches us. It cannot.</strong>
+              <ul>
+                <li><b>There is no server.</b> This app has no backend of any kind — nothing to send a key to, and no account behind it. Every calculation happens on this device.</li>
+                <li>The key is written to this device's local storage and nowhere else. Clearing the box above, or uninstalling, erases it.</li>
+                <li>It is attached to requests going to <span class="mono">googleapis.com</span> only — Google's own servers. Nothing else, ever.</li>
+                <li>Billing stays between you and Google. We cannot see your usage, and you can revoke the key in the Cloud console at any moment.</li>
+              </ul>
+              <p>Do not take our word for it — the whole app is one readable file:
+                 <a href="https://github.com/saurabhrathi00/ev_route_planner" target="_blank" rel="noopener">read the source</a>.
+                 Search it for <span class="mono">gkey</span> and you will find every place the key is used.</p>
+            </div>
+          </div>
+          <p class="hint">Get one at <span class="mono">console.cloud.google.com</span> and enable <strong>Routes API</strong>, <strong>Places API (New)</strong> and <strong>Maps JavaScript API</strong>. Google bills these to you, so set a daily quota cap on each.</p>
           <div class="cta">
             <button class="ghost" type="button" id="dev-test">
               <svg viewBox="0 0 24 24"><path d="M12 3v6M12 21a6 6 0 0 0 6-6c0-3-6-9-6-9s-6 6-6 9a6 6 0 0 0 6 6z"/></svg>Test data sources</button>
