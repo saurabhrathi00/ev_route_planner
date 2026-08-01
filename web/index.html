@@ -1978,17 +1978,43 @@ function milestone(sim, samples, pct){
 /* ============================================================
    3. ROUTE — OSRM
    ============================================================ */
+/* Two OSRM instances, same API. routing.openstreetmap.de is the one the
+   OpenStreetMap website itself routes with — a real service on donated
+   infrastructure — while router.project-osrm.org is the project's test box
+   with no capacity promise at all. Try the maintained one first and keep the
+   demo purely as a last resort. Both are keyless.
+
+   Neither is unlimited: they run on donated hardware with a fair-use policy.
+   Fine at this app's size, but if it ever gets real numbers, self-host or pay
+   someone — do not simply turn up the volume here. */
+const OSRM_HOSTS = [
+  ['https://routing.openstreetmap.de/routed-car', 'OpenStreetMap routing (FOSSGIS)'],
+  ['https://router.project-osrm.org',             'OSRM demo server']
+];
+
+async function routeOSRM(a, b, host){
+  const u=`${host}/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}`
+        + `?overview=false&steps=true&geometries=geojson&annotations=false`;
+  const r=await chgFetch(u, {}, 25000);
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  const j=await r.json();
+  if(j.code!=='Ok'||!j.routes||!j.routes.length) throw new Error(j.message||'no drivable route');
+  return j.routes[0];
+}
+
+/* Routing falls down a ladder: whatever the user paid for, then the free key,
+   then two keyless services. A quota running out or a host going down costs a
+   moment, not the plan. */
 async function getRoute(a,b){
+  const tried=[];
   if(useGoogle()){
     try{
       const r=await routeGoogle(a,b,gmapKey());
       SRC_USED.route='Google Routes API';
       return r;
     }catch(e){
-      /* A bad key or a disabled API must not end the plan — OSRM still
-         routes perfectly well, so say what happened and carry on. */
-      SRC_USED.route='OSRM demo server (Google failed: '+e.message+')';
-      if(window.UI) UI.toast('Google routing failed, used the free router — '+e.message, true);
+      tried.push('Google: '+e.message);
+      if(window.UI) UI.toast('Google routing failed, falling back — '+e.message, true);
     }
   }
   if(orsKey()){
@@ -1997,19 +2023,20 @@ async function getRoute(a,b){
       SRC_USED.route='OpenRouteService';
       return r;
     }catch(e){
-      SRC_USED.route='OSRM demo server (OpenRouteService failed: '+e.message+')';
-      if(window.UI) UI.toast('OpenRouteService failed, used the free router — '+e.message, true);
+      tried.push('OpenRouteService: '+e.message);
+      if(window.UI) UI.toast('OpenRouteService unavailable, using the open router — '+e.message, true);
     }
   }
-  if(SRC_USED.route.indexOf('failed')<0) SRC_USED.route='OSRM demo server';
-  const u=`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}`
-        + `?overview=false&steps=true&geometries=geojson&annotations=false`;
-  const r=await fetch(u);
-  if(!r.ok) throw new Error('The free routing server did not answer. Wait a moment and try again.');
-  const j=await r.json();
-  if(j.code!=='Ok'||!j.routes.length) throw new Error('No drivable route between those two points.');
-  return j.routes[0];
+  for(const [host,label] of OSRM_HOSTS){
+    try{
+      const r=await routeOSRM(a,b,host);
+      SRC_USED.route = tried.length ? `${label} (after ${tried.length} failed)` : label;
+      return r;
+    }catch(e){ tried.push(`${label}: ${e.message}`); }
+  }
+  throw new Error('No routing service answered. Tried '+tried.length+': '+tried.join(' · '));
 }
+
 function flatten(route){
   const pts=[];
   route.legs.forEach(leg=> leg.steps.forEach(st=>{
