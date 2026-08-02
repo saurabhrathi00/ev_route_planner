@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r29</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r30</span>
         </div>
       </div>
 
@@ -2656,7 +2656,7 @@ function label(p){
 async function placesNominatim(text, limit){
   const u=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}`
         + `&format=jsonv2&limit=${limit||6}&addressdetails=1`;
-  const r=await chgFetch(u, {}, 12000);
+  const r=await chgFetch(u, {}, 8000);
   if(!r.ok) throw new Error('Nominatim HTTP '+r.status);
   const j=await r.json();
   return (j||[]).map(f=>{
@@ -2812,9 +2812,16 @@ async function reverseName(ll){
   try{
     // the nearest feature of any kind, plus the nearest town, which is the
     // more useful of the two when the first one turns out to be a bridge
+    //
+    // chgFetch, not fetch: these two were the last bare fetches in the app,
+    // and a bare fetch has no timeout. A wedged Photon mirror never answers
+    // and never rejects, so the Promise.all below waited for it forever and
+    // the plan stopped dead on "Working out where that happens". Six seconds
+    // is generous for a reverse lookup and the answer is only a label.
+    const ask=u=>chgFetch(u,{},6000).then(r=>r.ok?r.json():null).catch(()=>null);
     const [near, town] = await Promise.all([
-      fetch(`https://photon.komoot.io/reverse?${at}&limit=1&lang=en`).then(r=>r.json()).catch(()=>null),
-      fetch(`https://photon.komoot.io/reverse?${at}&limit=1&lang=en&layer=city`).then(r=>r.json()).catch(()=>null)
+      ask(`https://photon.komoot.io/reverse?${at}&limit=1&lang=en`),
+      ask(`https://photon.komoot.io/reverse?${at}&limit=1&lang=en&layer=city`)
     ]);
     const a=pick(near&&near.features&&near.features[0]);
     const b=pick(town&&town.features&&town.features[0]);
@@ -2824,6 +2831,19 @@ async function reverseName(ll){
   // a stop with no name at all is a worse answer than a slightly rougher one
   try{ return await reverseNominatim(ll); }catch(e){ return null; }
 }
+
+/* A bounded reverse lookup, for the places on the plan's critical path.
+
+   Every name in a plan is decoration: the route, the energy and the stops are
+   all correct without one, and an unnamed point falls back to "412 km mark".
+   So naming is given a deadline and the plan carries on without it rather
+   than waiting. reverseName has its own per-request timeouts now, but it also
+   queues behind chgFetch's six concurrent slots, and during a charger sweep
+   that queue can be long. */
+const nameSoon = (ll, ms=9000) => Promise.race([
+  reverseName(ll).catch(()=>null),
+  new Promise(r=>setTimeout(()=>r(null), ms))
+]);
 
 /* First point on the route where charge falls to a given level. */
 function milestone(sim, samples, pct){
@@ -3243,7 +3263,11 @@ async function getWeather(samples, departAt, secAlong){
     try{
       const u=`https://api.open-meteo.com/v1/forecast?latitude=${mk.ll.lat.toFixed(3)}&longitude=${mk.ll.lng.toFixed(3)}`
              +`&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation&forecast_days=${FORECAST_DAYS}&timezone=auto`;
-      const j=await (await fetch(u)).json();
+      /* chgFetch for its timeout. The catch below already falls back to a
+         still 28 °C with no wind, which is a fine answer for a forecast that
+         did not arrive — but a bare fetch never arrives and never fails, so
+         the plan waited on it instead of taking that fallback. */
+      const j=await (await chgFetch(u, {}, 10000)).json();
       const times=j.hourly.time.map(t=>new Date(t).getTime());
       let best=0,bd=Infinity;
       times.forEach((t,ix)=>{const d=Math.abs(t-mk.eta.getTime()); if(d<bd){bd=d;best=ix;}});
@@ -4105,7 +4129,7 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
       offset += plan.target-arrive;
       prev=hit;
     }
-    const names=await Promise.all(stops.map(st=>reverseName(st.ll)));
+    const names=await Promise.all(stops.map(st=>nameSoon(st.ll)));
     stops.forEach((st,k)=> st.name=names[k]||`${fmt(samples[st.i].s/1000)} km mark`);
   }
 
@@ -4917,8 +4941,8 @@ async function plan(e){
     if(reserveHit || emptyHit){
       say('Working out where that happens…');
       const [rn, en] = await Promise.all([
-        reserveHit?reverseName(reserveHit.ll):Promise.resolve(null),
-        emptyHit?reverseName(emptyHit.ll):Promise.resolve(null)
+        reserveHit?nameSoon(reserveHit.ll):Promise.resolve(null),
+        emptyHit?nameSoon(emptyHit.ll):Promise.resolve(null)
       ]);
       if(reserveHit) reserveHit.place=rn;
       if(emptyHit) emptyHit.place=en;
