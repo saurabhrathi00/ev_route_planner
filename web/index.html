@@ -477,7 +477,10 @@ input.has-two{padding-right:86px}          /* pin and crosshair side by side */
 }
 .pick-head h3{font-size:16px;flex:1;min-width:0}
 .pick-map{flex:1;position:relative;min-height:0}
+.pick-map #pick-canvas{position:absolute;inset:0}
 .pick-map .osm{position:absolute;inset:0}
+/* the crosshair sits over whichever map is inside, Google's or OSM's */
+.pick-map .osm-cross{z-index:4}
 .pick-foot{
   padding:14px 16px calc(16px + env(safe-area-inset-bottom));
   border-top:1px solid var(--rule);background:var(--sheet);
@@ -1103,7 +1106,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r25</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r26</span>
         </div>
       </div>
 
@@ -1562,7 +1565,10 @@ details[open] summary::before{transform:rotate(90deg)}
     </button>
     <h3 id="pick-title">Drop a pin</h3>
   </div>
-  <div class="pick-map" id="pick-map"></div>
+  <div class="pick-map">
+    <div id="pick-canvas"></div>
+    <div class="osm-cross" aria-hidden="true"></div>
+  </div>
   <div class="pick-foot">
     <span class="pick-read" id="pick-read">Move the map to put the pin where you want it.</span>
     <button class="run" type="button" id="pick-ok" style="width:100%">Use this point</button>
@@ -1943,7 +1949,6 @@ const y2lat = (y,z) => {
    crosshair sits in the middle, so they share the panning, zooming, tile
    cache and projection rather than growing a second copy of all of it.
 
-   opts.crosshair  fixes a target at the centre and reports what is under it
    opts.onMove     called with the centre {lat,lng} after every pan or zoom
    opts.centre     where to open when there is no path to fit
    opts.candidates chargers to draw as secondary pins, tappable
@@ -1954,7 +1959,6 @@ function osmMap(box, path, stops, opts){
     `<div class="osm">
        <div class="osm-tiles"></div>
        <svg class="osm-ov" xmlns="http://www.w3.org/2000/svg"></svg>
-       ${o.crosshair ? '<div class="osm-cross" aria-hidden="true"></div>' : ''}
        <div class="osm-ctl">
          <button type="button" data-zoom="1" aria-label="Zoom in">+</button>
          <button type="button" data-zoom="-1" aria-label="Zoom out">−</button>
@@ -5076,23 +5080,44 @@ function pickOnMap(title, start){
         + `<span class="pick-coord">${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}</span>`;
     };
 
-    const map=osmMap($('pick-map'), [], [], {
-      crosshair:true,
-      centre:start,
-      onMove(ll){
-        here=ll; name=null; show(null, ll);
-        clearTimeout(timer);
-        const mine=++seq;
-        timer=setTimeout(async()=>{
-          const n=await reverseName(ll).catch(()=>null);
-          if(n && mine===seq){ name=n; show(n, here); }
-        }, 450);
-      }
-    });
+    const onMove=(ll)=>{
+      here=ll; name=null; show(null, ll);
+      clearTimeout(timer);
+      const mine=++seq;
+      timer=setTimeout(async()=>{
+        const n=await reverseName(ll).catch(()=>null);
+        if(n && mine===seq){ name=n; show(n, here); }
+      }, 450);
+    };
+
+    /* The picker follows whatever the rest of the app is set to. On
+       Everything that means a Google map, because picking a point off a map
+       that looks nothing like the one in the plan is its own small confusion
+       — and the Maps JavaScript API is already loaded and paid for by then.
+       OSM tiles catch everything else, including a Google map that fails to
+       load, so the button always does something. */
+    let map=null;
+    const useOsm=()=>{ map=osmMap($('pick-canvas'), [], [], {centre:start, onMove}); };
+    if(useGoogle()){
+      loadMaps(gmapKey()).then(()=>{
+        const gm=new google.maps.Map($('pick-canvas'), {
+          center: start || {lat:20.5937, lng:78.9629},
+          zoom: start?15:5,
+          mapTypeControl:false, streetViewControl:false, fullscreenControl:false,
+          zoomControl:true, clickableIcons:false, gestureHandling:'greedy',
+          backgroundColor: isDarkNow()?'#1b211f':'#E7EAE2',
+          styles: isDarkNow()?MAP_DARK:undefined
+        });
+        const at=()=>{ const c=gm.getCenter(); return {lat:c.lat(), lng:c.lng()}; };
+        gm.addListener('center_changed', ()=>onMove(at()));
+        map={centre:at};
+        onMove(at());
+      }).catch(useOsm);
+    } else useOsm();
 
     const close=(val)=>{
       clearTimeout(timer);
-      wrap.hidden=true; $('pick-map').innerHTML='';
+      wrap.hidden=true; $('pick-canvas').innerHTML='';
       document.removeEventListener('keydown', onKey);
       resolve(val);
     };
@@ -5101,7 +5126,11 @@ function pickOnMap(title, start){
 
     $('pick-cancel').onclick=()=>close(null);
     $('pick-ok').onclick=()=>{
-      const ll=here||map.centre();
+      /* here is set on the first onMove, so map may still be loading only if
+         nothing has moved and nothing has reported — fall back to where we
+         opened rather than to nothing. */
+      const ll=here||(map&&map.centre())||start;
+      if(!ll){ close(null); return; }
       close({lat:ll.lat, lng:ll.lng,
              name:name || `${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`});
     };
