@@ -1,12 +1,14 @@
 # Privacy Policy — EVRoute
 
-**Last updated: 1 August 2026**
+**Last updated: 2 August 2026**
 
 EVRoute ("the app") plans an electric-car journey: how much charge a
 drive will cost, where you drop to your reserve, and where you could charge.
 
-**There is no account, no login, no advertising and no analytics. We operate no
-server and we receive no data about you whatsoever.**
+**There is no account and no login. We operate no server, so nothing you do in
+the app is sent to us and we hold no data about you.** The app does show ads,
+and it can ask for your location if you tap the button that needs it. Both are
+described below.
 
 ## What stays on your device
 
@@ -16,34 +18,54 @@ Everything the app remembers is stored locally on the phone and never leaves it:
 - Cached terrain data, so a route you have planned before replans quickly
 - Your car settings and calibration figures
 - Your theme and data-source preferences
-- Any API key you choose to enter in Settings
 
 Uninstalling the app deletes all of it. None of it is backed up to us, because
 there is no "us" to back it up to — we run no servers.
 
+## Your location
+
+The Start field has a "use my current location" button. **Nothing happens until
+you tap it.** The app does not track you, does not read your location in the
+background, and does not read it at all unless you ask.
+
+When you do tap it:
+
+- Android asks your permission first; you can refuse, and the app carries on
+  working from typed place names
+- The coordinates are used to fill in the Start field and to plan the route
+- They are sent to the same mapping services listed below — the same way a
+  place you typed would be — so that the point can be given a name and a road
+  can be found from it
+- They are not stored anywhere except in the app's own local storage on your
+  phone, and they are not sent to us
+
+You can withdraw the permission at any time in Android's app settings.
+
 ## What is sent to other services
 
-To plan a drive, the app has to ask public mapping services about the road. It
-sends the following, directly from your phone to those services:
+To plan a drive, the app has to ask mapping services about the road. It sends
+the following, directly from your phone to those services:
 
 | Sent | To | Why |
 |---|---|---|
-| The place text you type | Photon (Komoot) | Turning "Manali" into a point |
-| Start and destination coordinates | OpenRouteService, or the OSRM demo server | Getting the road between them |
+| The place text you type | Google Places, or Photon (Komoot) | Turning "Manali" into a point |
+| Start and destination coordinates | Google Routes, or OpenRouteService / OSRM | Getting the road between them |
 | Coordinates along the route | Open-Meteo, AWS Open Data (terrain tiles) | Ground height and weather |
-| Coordinates along the route | Open Charge Map, OpenStreetMap (Overpass) | Finding chargers |
-| Map viewport coordinates | OpenStreetMap tile servers | Drawing the map |
+| Coordinates along the route | Google Places, Open Charge Map, OpenStreetMap (Overpass) | Finding chargers |
+| Map viewport coordinates | Google Maps, or OpenStreetMap tile servers | Drawing the map |
 
-**The app never reads your device's location.** It has no location permission and
-cannot ask for one. The only coordinates involved are the ones derived from
-places you typed yourself.
+Nothing is sent to these services that identifies you: no account, no name, no
+contact details. Your IP address is necessarily visible to them, as it is to any
+website you open.
 
-Nothing is sent that identifies you: no device ID, no advertising ID, no account,
-no name, no contact details.
+Which service answers depends on the **Where data comes from** setting. The
+default sends map, search, routing and charger requests to Google, with the free
+services used as fallbacks when Google fails. Setting it to **Free** stops the
+app contacting Google for any of them.
 
-Each of those services has its own privacy policy and its own logs, which are
-outside our control:
+Each service has its own privacy policy and its own logs, outside our control:
 
+- Google Maps Platform — <https://policies.google.com/privacy>
 - Photon / Komoot — <https://photon.komoot.io>
 - OpenRouteService — <https://openrouteservice.org/privacy-policy/>
 - OSRM demo server — <https://project-osrm.org>
@@ -51,18 +73,30 @@ outside our control:
 - Open Charge Map — <https://openchargemap.org/site/about/privacy>
 - OpenStreetMap / Overpass — <https://osmfoundation.org/wiki/Privacy_Policy>
 
-## Optional: your own Google key
+The Google API key used for those requests is built into the app. It is ours,
+not yours — you are never asked for a key and billing for it never reaches you.
 
-Settings lets you paste your own Google Maps Platform API key. If you do:
+## Advertising
 
-- The key is stored **only on your device** and is sent **only to Google**
-- It is used for charger lookups, and for routing, place search and map tiles if
-  you switch the source setting to "Everything"
-- Google's handling of those requests is covered by
-  <https://policies.google.com/privacy>
-- Billing for that key is between you and Google; we have no visibility into it
+The app shows a banner ad from **Google AdMob**. To serve it, AdMob collects
+information from your device independently of anything the app does:
 
-Clear the field and the app returns to the free services immediately.
+- Your device's **advertising ID**
+- Your IP address, and device and network information
+- Whether ads were shown, viewed or tapped
+
+This is handled by Google, not by us. We never see it, and we cannot connect it
+to your routes, your trips or anything else in the app — the ad and the planner
+do not share data.
+
+- How Google uses this data: <https://policies.google.com/technologies/partner-sites>
+- You can reset or delete your advertising ID, and turn off ad personalisation,
+  in **Android Settings → Privacy → Ads**
+
+## Analytics
+
+There are none. The app collects no usage statistics and reports no crashes to
+us. We do not know how many people use it or what they do in it.
 
 ## Links out of the app
 
@@ -78,8 +112,7 @@ app first opens. No key or identifier is attached.
 
 ## Children
 
-The app is a driving tool and is not directed at children. It collects nothing
-from anyone, of any age.
+The app is a driving tool and is not directed at children.
 
 ## Changes
 

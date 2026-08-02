@@ -30,8 +30,8 @@ android {
         targetSdk = 35
         // Play rejects an upload whose versionCode it has seen before, so this
         // has to go up by at least one for every release you push.
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.1"
     }
 
     signingConfigs {
@@ -47,11 +47,12 @@ android {
 
     buildTypes {
         release {
-            /* 91% of the bundle is androidx and the Kotlin stdlib, most of it
-             * never called — R8 has plenty to remove. It is also low risk here:
-             * the only Kotlin is one Activity named in the manifest, which R8
-             * always keeps, and the WebView reaches nothing by name (no
-             * @JavascriptInterface bridge exists). */
+            /* Most of the bundle is androidx, the ads SDK and the Kotlin
+             * stdlib, much of it never called — R8 has plenty to remove. It is
+             * also low risk here: the only Kotlin is one Activity named in the
+             * manifest, which R8 always keeps; the WebView reaches nothing by
+             * name (no @JavascriptInterface bridge exists); and play-services
+             * ships the keep rules its own reflection needs. */
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -76,6 +77,14 @@ android {
 
 dependencies {
     implementation("androidx.activity:activity-ktx:1.9.3")
+    // banner ad under the planner; ids live in res/values/strings.xml
+    implementation("com.google.android.gms:play-services-ads:23.6.0")
+    /* Not used directly — pinned because the ads SDK drags in a fragment
+     * version older than 1.3.0, and registerForActivityResult (the location
+     * permission prompt) is unsafe on those: FragmentActivity used to skip
+     * super.onRequestPermissionsResult() and hand back invalid request codes.
+     * Lint fails the release build on it, correctly. */
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
 }
 
 /* A loud reminder rather than a silent unsigned artifact. */

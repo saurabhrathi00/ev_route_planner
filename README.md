@@ -26,41 +26,64 @@ window, persistent storage and link handling.
 
 ## Data sources
 
-| Purpose  | Service                                  | Key needed |
-|----------|------------------------------------------|------------|
-| Places   | Photon (OpenStreetMap)                   | no         |
-| Routing  | OSRM public server                       | no         |
-| Terrain  | Terrarium tiles, AWS Open Data           | no         |
-| Weather  | Open-Meteo                               | no         |
-| Chargers | Open Charge Map                          | bundled    |
-| Chargers | Google Places (ratings, live bay counts) | optional   |
-| Chargers | OpenStreetMap via Overpass               | no         |
+Google answers first for the things it is better at; the free service behind it
+takes over whenever Google fails, is switched off, or has run out of quota.
+Settings → **Where data comes from** picks between *Everything* (the default),
+*Chargers* and *Free*.
+
+| Purpose  | Primary                    | Fallback                          |
+|----------|----------------------------|-----------------------------------|
+| Places   | Google Places (New)        | Photon, then Nominatim            |
+| Routing  | Google Routes (traffic)    | OpenRouteService, then OSRM       |
+| Map      | Google Maps JavaScript     | OpenStreetMap tiles, route shape  |
+| Chargers | Google Places (New)        | Open Charge Map, then Overpass    |
+| Terrain  | Open-Meteo, OpenTopoData, Terrarium tiles (AWS) | —            |
+| Weather  | Open-Meteo                 | fixed 28 °C, no wind              |
+
+Terrain and weather never go to Google. Open-Meteo covers both, free and without
+a key, and Google has nothing better to offer for the four figures the model
+needs — temperature, wind speed, wind direction, precipitation.
+
+Reverse geocoding never goes to Google either: its Geocoding API refuses browser
+requests, so place names for coordinates always come from Photon or Nominatim.
 
 ## Developer panel
 
-At the bottom of the app:
+At the bottom of Settings:
 
-- **Open Charge Map key** — overrides the bundled one. Leave blank to use it.
-- **Google Maps / Places key** — adds star ratings, review counts and, where
-  the network reports them, live free-bay counts. Enable **Places API (New)**
-  and restrict the key to that API alone.
-- **Test charger sources** — calls each source and reports status and latency.
-  Use it when a lookup returns nothing, to tell an empty region from a broken
-  service.
+- **Test data sources** — calls each service this build would actually use and
+  reports status and latency. Use it when a lookup returns nothing, to tell an
+  empty region from a broken service. It only probes what the current source
+  setting reaches, so it never bills an API the app is not using.
 - **Clear cached terrain** — drops saved elevation legs and the tile cache.
 
-## On the bundled key
+There is no key field. Both keys are injected at build time by
+`tools/build.sh`; see below.
+
+## On the bundled keys
 
 The Open Charge Map key is base64'd in the asset so it is not visible in the
 UI. That is obfuscation, not secrecy: anyone can unzip the APK and decode it.
 This is acceptable for an Open Charge Map key, which is free, read-only and
 carries no billing.
 
-It is **not** acceptable for a Google Maps key, which bills to your account.
-Do not hard-code one. Enter it in the developer panel, where it stays in the
-app's local storage on that device, and restrict the key in Cloud Console by
-API — Android app restrictions rely on the calling package signature, which a
-WebView request does not carry.
+The Google key is bundled too, and it **does** bill. Nothing in the app can
+protect it — anything shipped to a device can be read off that device — so the
+protection has to live in Cloud Console, and it is not optional:
+
+- **Restrict the key by API** to exactly the three it needs: Places API (New),
+  Routes API, Maps JavaScript API. Application restrictions are no use here:
+  the Android option relies on the calling package signature, which a WebView
+  request does not carry, and the HTTP-referrer option cannot match a page
+  loaded from `file://`.
+- **Disable every other API on the project.** An enabled API is reachable.
+- **Set a daily quota cap on each SKU.** `SearchNearbyRequest per day` is the
+  one that matters: it is billed at the Places Enterprise + Atmosphere rate,
+  and it has the smallest free allowance by a wide margin.
+
+Note that Routes API offers no daily cap, only per-minute — so that one SKU
+cannot be bounded by quota alone. `backlog.md` covers the proxy that fixes this
+properly.
 
 ## Calibration
 

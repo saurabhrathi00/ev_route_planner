@@ -1,4 +1,4 @@
-EVRoute — build 2026-08-01 r22
+EVRoute — build 2026-08-02 r23
 
-planner sha256   9f80518ba78e31b952d945aff6e1b09f4407c6d63f6c0506c5a5fe32bb097b93
-planner bytes    267102
+planner sha256   78df7fc5756d3bf110e73484fbe88bb66718b77dfc61474c5c7aa3df0bd4370a
+planner bytes    277479

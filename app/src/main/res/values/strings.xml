@@ -1,4 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">EVRoute</string>
+
+    <!--
+      AdMob. These are Google's own public TEST ids. They always fill, and they
+      are the only ids that may be used while developing: tapping a real ad on
+      your own build is click fraud as far as AdMob is concerned, and it gets
+      the account suspended rather than warned.
+
+      Replace both before the release upload, from apps.admob.com:
+        admob_app_id     Apps > your app > App settings > App ID       (has a ~)
+        admob_banner_id  Apps > your app > Ad units > the banner unit  (has a /)
+
+      The app id is read by the manifest as well; the ads SDK checks for it on
+      startup and throws if it is missing.
+    -->
+    <string name="admob_app_id" translatable="false">ca-app-pub-3940256099942544~3347511713</string>
+    <string name="admob_banner_id" translatable="false">ca-app-pub-3940256099942544/6300978111</string>
 </resources>

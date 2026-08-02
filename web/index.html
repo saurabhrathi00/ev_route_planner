@@ -320,6 +320,30 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
 .acmenu b{display:block;font-weight:600}
 .acmenu small{color:var(--ink3)}
 
+/* ---- "use my location" ----------------------------------------
+   Sits inside the Start field rather than beside it, so the row keeps one
+   visual weight and the button reads as part of the input it fills. */
+input.has-loc{padding-right:48px}
+.locbtn{
+  position:absolute;right:6px;bottom:6px;width:34px;height:34px;
+  border:0;border-radius:var(--r-s);background:none;color:var(--ink3);
+  display:grid;place-items:center;cursor:pointer;
+  transition:color var(--t1) var(--e-out),background var(--t1) var(--e-out);
+}
+.locbtn:hover{color:var(--brand-green);background:var(--charge-soft)}
+.locbtn svg{
+  width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;transition:transform var(--t2) var(--e-spring);
+}
+.locbtn:active svg{transform:scale(.86)}
+.locbtn[data-busy="1"]{color:var(--brand-green);pointer-events:none}
+@media (prefers-reduced-motion:no-preference){
+  /* the crosshair sweeps while the fix is coming in — the wait is a real one,
+     usually a second or two, and an unmoving icon reads as a dead tap */
+  .locbtn[data-busy="1"] svg{animation:locspin 1.1s linear infinite}
+  @keyframes locspin{to{transform:rotate(360deg)}}
+}
+
 /* ---- swap button ---------------------------------------------- */
 .swapline{display:flex;justify-content:center;margin:-4px 0}
 .swapline button{
@@ -530,7 +554,7 @@ input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:va
   .intro-top{max-width:560px;margin:0 auto;width:100%}
 }
 
-/* ---- the "we cannot see your key" panel ---------------------- */
+/* ---- the "nothing leaves this device" panel ------------------ */
 .trust{
   display:flex;gap:12px;margin-top:14px;padding:14px 15px;
   border:1px solid var(--ok);border-radius:var(--r-m);
@@ -707,6 +731,17 @@ tbody tr.desc td{background:color-mix(in srgb,var(--ok) 12%,transparent)}
   border-radius:var(--r-l);box-shadow:var(--shadow-1)}
 .stop-card h3{font-size:16px}
 .stop-card .why{color:var(--ink2);font-size:13.5px;margin:7px 0 12px}
+@media (prefers-reduced-motion:no-preference){
+  /* The panel around these already reveals as one block, which lands the
+     whole stop list at once however long it is. Stagger the cards inside it
+     instead: the order they arrive in is the order you will drive them, and
+     a four-stop plan reads as a sequence rather than a wall. Capped at four
+     steps so a long plan does not end on a visible wait. */
+  .stop-card{animation:reveal var(--t3) var(--e-out) both;
+             animation-delay:calc(90ms + var(--i,0)*70ms)}
+  .charger{animation:reveal var(--t2) var(--e-out) both;
+           animation-delay:calc(160ms + var(--i,0)*45ms)}
+}
 .charger{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--rule2)}
 .charger .rank{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink3);padding-top:2px;min-width:22px}
 .charger .n{font-weight:600}
@@ -1014,7 +1049,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-01 r22</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r23</span>
         </div>
       </div>
 
@@ -1024,7 +1059,14 @@ details[open] summary::before{transform:rotate(90deg)}
         <div class="head"><span class="num">1</span><h2>Where to</h2><span class="tag">route</span></div>
         <div class="body">
           <label class="f place"><span>Start</span>
-            <input type="text" id="from" placeholder="Where you set off" autocomplete="off">
+            <input type="text" id="from" class="has-loc" placeholder="Where you set off" autocomplete="off">
+            <button class="locbtn" type="button" id="btn-loc" title="Use my current location"
+                    aria-label="Use my current location">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="3.4"/><circle cx="12" cy="12" r="8"/>
+                <path d="M12 1.6v2.6M12 19.8v2.6M22.4 12h-2.6M4.2 12H1.6"/>
+              </svg>
+            </button>
             <div class="acmenu" id="ac-from" hidden></div>
           </label>
           <div class="swapline">
@@ -1149,31 +1191,67 @@ details[open] summary::before{transform:rotate(90deg)}
                 <optgroup label="Tata">
                   <option value="curvv55" selected>Curvv EV 55</option>
                   <option value="curvv45">Curvv EV 45</option>
-                  <option value="nexon45">Nexon EV 45</option>
-                  <option value="punch">Punch EV Long Range</option>
-                  <option value="tiago">Tiago EV Long Range</option>
                   <option value="harrier">Harrier EV</option>
+                  <option value="nexon45">Nexon EV 45</option>
+                  <option value="nexon30">Nexon EV 30</option>
+                  <option value="punch">Punch EV Long Range</option>
+                  <option value="punchmr">Punch EV Medium Range</option>
+                  <option value="tiago">Tiago EV Long Range</option>
+                  <option value="tiagomr">Tiago EV Medium Range</option>
+                  <option value="tigor">Tigor EV</option>
                 </optgroup>
                 <optgroup label="Mahindra">
                   <option value="be6">BE 6 (79 kWh)</option>
+                  <option value="be6s">BE 6 (59 kWh)</option>
                   <option value="xev9e">XEV 9e (79 kWh)</option>
+                  <option value="xev9es">XEV 9e (59 kWh)</option>
+                  <option value="xuv400">XUV400 EL</option>
                 </optgroup>
                 <optgroup label="MG">
                   <option value="zsev">ZS EV</option>
+                  <option value="windpro">Windsor EV Pro</option>
                   <option value="windsor">Windsor EV</option>
                   <option value="comet">Comet EV</option>
                 </optgroup>
-                <optgroup label="Hyundai / Kia">
-                  <option value="creta">Creta Electric LR</option>
+                <optgroup label="Hyundai">
+                  <option value="creta">Creta Electric LR (51 kWh)</option>
+                  <option value="cretaex">Creta Electric (42 kWh)</option>
+                  <option value="ioniq5">Ioniq 5</option>
                   <option value="kona">Kona Electric</option>
-                  <option value="ev6">Kia EV6</option>
                 </optgroup>
-                <optgroup label="BYD / Tesla / Volvo">
-                  <option value="atto3">BYD Atto 3</option>
-                  <option value="seal">BYD Seal</option>
-                  <option value="model3">Tesla Model 3 LR</option>
-                  <option value="modely">Tesla Model Y LR</option>
-                  <option value="xc40">Volvo XC40 Recharge</option>
+                <optgroup label="Kia">
+                  <option value="ev6">EV6</option>
+                  <option value="ev9">EV9</option>
+                  <option value="clavis">Carens Clavis EV (51 kWh)</option>
+                  <option value="clavis4">Carens Clavis EV (42 kWh)</option>
+                </optgroup>
+                <optgroup label="Maruti Suzuki">
+                  <option value="evitara">e Vitara (61 kWh)</option>
+                  <option value="evitars">e Vitara (49 kWh)</option>
+                </optgroup>
+                <optgroup label="BYD">
+                  <option value="atto3">Atto 3</option>
+                  <option value="seal">Seal</option>
+                  <option value="sealion">Sealion 7</option>
+                  <option value="emax7">eMAX 7 Superior (71.8 kWh)</option>
+                  <option value="emax7p">eMAX 7 Premium (55.4 kWh)</option>
+                  <option value="e6">e6</option>
+                </optgroup>
+                <optgroup label="Tesla">
+                  <option value="model3">Model 3 Long Range</option>
+                  <option value="modely">Model Y Long Range</option>
+                </optgroup>
+                <optgroup label="Citroen / VinFast">
+                  <option value="ec3">Citroen eC3</option>
+                  <option value="vf6">VinFast VF6</option>
+                  <option value="vf7">VinFast VF7</option>
+                </optgroup>
+                <optgroup label="Volvo / BMW / Mercedes">
+                  <option value="xc40">Volvo XC40 / EC40</option>
+                  <option value="ex30">Volvo EX30</option>
+                  <option value="ix1">BMW iX1</option>
+                  <option value="i4">BMW i4 eDrive40</option>
+                  <option value="eqa">Mercedes EQA 250+</option>
                 </optgroup>
                 <option value="custom">Something else / edited</option>
               </select>
@@ -1279,15 +1357,15 @@ details[open] summary::before{transform:rotate(90deg)}
         <div class="head"><h2>Where data comes from</h2><span class="tag">google or free</span></div>
         <div class="body">
           <label class="f"><span>Routing, place search &amp; map</span>
-            <div class="seg" id="gsrc-toggle" style="--n:3;--i:0">
-              <button type="button" data-v="free" aria-pressed="true">Free</button>
+            <div class="seg" id="gsrc-toggle" style="--n:3;--i:2">
+              <button type="button" data-v="free" aria-pressed="false">Free</button>
               <button type="button" data-v="chargers" aria-pressed="false">Chargers</button>
-              <button type="button" data-v="all" aria-pressed="false">Everything</button>
+              <button type="button" data-v="all" aria-pressed="true">Everything</button>
             </div>
           </label>
-          <p class="hint"><strong>Free</strong> is the default and costs nothing: OpenStreetMap tiles, OpenRouteService or OSRM routing, Photon place search, Open Charge Map and OpenStreetMap chargers. No key, no account, no bill.</p>
-          <p class="hint"><strong>Chargers</strong> uses your Google key for charger lookups only — and only when charger search is switched on. This is the setting worth having: outside the big cities the free charger databases are often empty where Google has a dozen, with star ratings and live free-bay counts. Needs <em>Places API (New)</em> on the key.</p>
-          <p class="hint"><strong>Everything</strong> adds Google routing, place search and a Google map on top. Place search is noticeably better for Indian town names; routing and the map are close to the free ones, so this mainly costs more. Needs <em>Routes API</em> and <em>Maps JavaScript API</em> as well. Set a daily quota cap on each.</p>
+          <p class="hint"><strong>Everything</strong> is the default and what this build is tuned for: Google handles place search, routing, the map and chargers. Place search is markedly better on Indian town names, chargers outside the metros are often in Google alone — with star ratings and live free-bay counts — and the traffic-aware duration gives the energy model a measured correction instead of a guess. Every one of these still falls back to a free service on its own if Google fails or the daily quota runs out.</p>
+          <p class="hint"><strong>Chargers</strong> narrows Google down to charger lookups, which is where it counts for most. Routing, place search and the map go back to the free sources.</p>
+          <p class="hint"><strong>Free</strong> skips Google altogether: OpenStreetMap tiles, OpenRouteService or OSRM routing, Photon place search, Open Charge Map and OpenStreetMap chargers. Everything still works — you lose ratings and live bay counts, and thinly mapped regions stay empty.</p>
           <p class="hint">Reverse place-naming always uses the free service: Google's Geocoding API refuses browser requests, so it cannot be called from here at all.</p>
         </div>
       </section>
@@ -1300,29 +1378,21 @@ details[open] summary::before{transform:rotate(90deg)}
                here; hiding the fields is a product decision, not a security
                one — anything shipped to a browser can be read out of it. -->
           <input type="hidden" id="ocm" value="">
-          <!-- whatever tools/build.sh baked in; a key typed below wins over it -->
           <input type="hidden" id="gkey" value="__GOOGLE_MAPS_KEY__">
           <p id="keystate" class="hint" style="margin-top:0"></p>
-          <label class="f" style="margin-top:16px"><span>Your own Google Maps key — optional</span>
-            <input type="text" id="gkey_user" placeholder="paste a key to upgrade routing, search and the map"
-                   autocomplete="off" spellcheck="false"></label>
-          <p class="hint">Everything works without this. A key makes three things better: routing uses Google instead of OpenStreetMap data, place search finds Indian towns far more reliably, and the map becomes a real Google map. It also adds star ratings and live bay counts to chargers.</p>
           <div class="trust">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 4.5 5.9v5.4c0 4.6 3.2 8.4 7.5 9.6 4.3-1.2 7.5-5 7.5-9.6V5.9z"/><path d="M8.7 12.1l2.4 2.4 4.3-4.6"/></svg>
             <div>
-              <strong>Your key never reaches us. It cannot.</strong>
+              <strong>Nothing you enter here leaves this device.</strong>
               <ul>
-                <li><b>There is no server.</b> This app has no backend of any kind — nothing to send a key to, and no account behind it. Every calculation happens on this device.</li>
-                <li>The key is written to this device's local storage and nowhere else. Clearing the box above, or uninstalling, erases it.</li>
-                <li>It is attached to requests going to <span class="mono">googleapis.com</span> only — Google's own servers. Nothing else, ever.</li>
-                <li>Billing stays between you and Google. We cannot see your usage, and you can revoke the key in the Cloud console at any moment.</li>
+                <li><b>There is no server.</b> This app has no backend of any kind and no account behind it. Every calculation happens on this device.</li>
+                <li>Your trip log, calibration and cached terrain are written to this device's local storage and nowhere else. Uninstalling erases them.</li>
+                <li>Requests go to the mapping and charger services listed above and nowhere else. Your route is never sent to us, because there is no us to send it to.</li>
               </ul>
               <p>Do not take our word for it — the whole app is one readable file:
-                 <a href="https://github.com/saurabhrathi00/ev_route_planner" target="_blank" rel="noopener">read the source</a>.
-                 Search it for <span class="mono">gkey</span> and you will find every place the key is used.</p>
+                 <a href="https://github.com/saurabhrathi00/ev_route_planner" target="_blank" rel="noopener">read the source</a>.</p>
             </div>
           </div>
-          <p class="hint">Get one at <span class="mono">console.cloud.google.com</span> and enable <strong>Routes API</strong>, <strong>Places API (New)</strong> and <strong>Maps JavaScript API</strong>. Google bills these to you, so set a daily quota cap on each.</p>
           <div class="cta">
             <button class="ghost" type="button" id="dev-test">
               <svg viewBox="0 0 24 24"><path d="M12 3v6M12 21a6 6 0 0 0 6-6c0-3-6-9-6-9s-6 6-6 9a6 6 0 0 0 6 6z"/></svg>Test data sources</button>
@@ -1438,18 +1508,19 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const BUNDLED_OCM = atob('NDE5NTY3MzEtNDBiNS00OTM5LTg0ZjktNWIwZWZiYTVlOWIw');
 const S = { from:null, to:null, chargers:false, strategy:'time', learn:1, trips:[] };
 const ocmKey = ()=> ($('ocm').value.trim() || BUNDLED_OCM);
-/* Two possible sources, in order: a key the user typed into Settings, then
-   whatever tools/build.sh baked in. The build replaces the placeholder, so if
-   it never ran, treat that as absent rather than sending Google the literal
-   token. */
+/* One source: whatever tools/build.sh baked in. The build replaces the
+   placeholder, so if it never ran, treat that as absent rather than sending
+   Google the literal token.
+
+   Users used to be able to paste their own key in Settings. That is gone —
+   almost nobody has a Cloud console project, the field made the app look like
+   it needed setting up before it would work, and it complicated every call
+   site with a question that now has one answer. */
 const bundledGKey = ()=>{
   const v=$('gkey').value.trim();
   return (!v || v.slice(0,2)==='__') ? '' : v;
 };
-const gmapKey = ()=>{
-  const own=$('gkey_user') ? $('gkey_user').value.trim() : '';
-  return own || bundledGKey();
-};
+const gmapKey = bundledGKey;
 
 /* ---------- geodesy (no map library needed) ---------- */
 const rad = d => d*Math.PI/180;
@@ -1467,26 +1538,81 @@ const lerp = (a,b,f) => ({lat:a.lat+(b.lat-a.lat)*f, lng:a.lng+(b.lng-a.lng)*f})
 
 /* Starting points only — every field stays editable, and the calibration's
    road-load scale absorbs error in the drag figure. */
+/* `cap` is USABLE capacity, not the pack's gross rating — a Curvv EV 55 holds
+   55 kWh and gives you 52. Getting this wrong is not a rounding error: the
+   whole simulation is a percentage of this number.
+
+   `cdA` is drag coefficient times frontal area. Published Cd figures are rare
+   outside the premium marques and frontal area is almost never published at
+   all, so most of these are estimated from the body class and the numbers
+   that are known. That is fine here — calibration solves for a road-load
+   scale that absorbs the error, which is exactly why two reference trips are
+   worth more than a better guess. */
 const CARS = {
-  curvv55:{name:'Tata Curvv EV 55', cap:52,   kerb:1650, cdA:0.72, dckw:70},
-  curvv45:{name:'Tata Curvv EV 45', cap:42,   kerb:1600, cdA:0.72, dckw:70},
-  nexon45:{name:'Tata Nexon EV 45', cap:40.5, kerb:1550, cdA:0.78, dckw:60},
-  punch:  {name:'Tata Punch EV LR', cap:33,   kerb:1390, cdA:0.80, dckw:50},
-  tiago:  {name:'Tata Tiago EV LR', cap:22,   kerb:1235, cdA:0.78, dckw:25},
-  harrier:{name:'Tata Harrier EV',  cap:71,   kerb:2200, cdA:0.85, dckw:120},
-  be6:    {name:'Mahindra BE 6',    cap:75,   kerb:1900, cdA:0.70, dckw:175},
-  xev9e:  {name:'Mahindra XEV 9e',  cap:75,   kerb:2000, cdA:0.72, dckw:175},
-  zsev:   {name:'MG ZS EV',         cap:48,   kerb:1620, cdA:0.80, dckw:76},
-  windsor:{name:'MG Windsor EV',    cap:37.9, kerb:1550, cdA:0.80, dckw:45},
-  comet:  {name:'MG Comet EV',      cap:17.3, kerb:815,  cdA:0.75, dckw:12},
-  creta:  {name:'Hyundai Creta Electric LR', cap:51.4, kerb:1720, cdA:0.78, dckw:100},
-  kona:   {name:'Hyundai Kona Electric',     cap:39.2, kerb:1535, cdA:0.75, dckw:50},
-  ev6:    {name:'Kia EV6',          cap:77.4, kerb:2090, cdA:0.73, dckw:240},
-  atto3:  {name:'BYD Atto 3',       cap:60.5, kerb:1750, cdA:0.77, dckw:88},
-  seal:   {name:'BYD Seal',         cap:82.5, kerb:2055, cdA:0.52, dckw:150},
-  model3: {name:'Tesla Model 3 LR', cap:75,   kerb:1830, cdA:0.51, dckw:250},
-  modely: {name:'Tesla Model Y LR', cap:75,   kerb:1980, cdA:0.58, dckw:250},
-  xc40:   {name:'Volvo XC40 Recharge', cap:75, kerb:2150, cdA:0.85, dckw:150}
+  /* Tata */
+  curvv55:{name:'Tata Curvv EV 55',   cap:52,   kerb:1650, cdA:0.72, dckw:70},
+  curvv45:{name:'Tata Curvv EV 45',   cap:42,   kerb:1600, cdA:0.72, dckw:70},
+  harrier:{name:'Tata Harrier EV',    cap:71,   kerb:2200, cdA:0.85, dckw:120},
+  nexon45:{name:'Tata Nexon EV 45',   cap:40.5, kerb:1550, cdA:0.78, dckw:60},
+  nexon30:{name:'Tata Nexon EV 30',   cap:28.5, kerb:1435, cdA:0.78, dckw:45},
+  punch:  {name:'Tata Punch EV LR',   cap:33,   kerb:1390, cdA:0.80, dckw:50},
+  punchmr:{name:'Tata Punch EV MR',   cap:23.5, kerb:1310, cdA:0.80, dckw:50},
+  tiago:  {name:'Tata Tiago EV LR',   cap:22,   kerb:1235, cdA:0.78, dckw:25},
+  tiagomr:{name:'Tata Tiago EV MR',   cap:18,   kerb:1180, cdA:0.78, dckw:25},
+  tigor:  {name:'Tata Tigor EV',      cap:24,   kerb:1250, cdA:0.75, dckw:25},
+
+  /* Mahindra */
+  be6:    {name:'Mahindra BE 6 79',   cap:75,   kerb:1900, cdA:0.70, dckw:175},
+  be6s:   {name:'Mahindra BE 6 59',   cap:56,   kerb:1825, cdA:0.70, dckw:140},
+  xev9e:  {name:'Mahindra XEV 9e 79', cap:75,   kerb:2000, cdA:0.72, dckw:175},
+  xev9es: {name:'Mahindra XEV 9e 59', cap:56,   kerb:1930, cdA:0.72, dckw:140},
+  xuv400: {name:'Mahindra XUV400 EL', cap:37.5, kerb:1578, cdA:0.82, dckw:50},
+
+  /* MG */
+  zsev:   {name:'MG ZS EV',           cap:48,   kerb:1620, cdA:0.80, dckw:76},
+  windsor:{name:'MG Windsor EV',      cap:37.9, kerb:1550, cdA:0.80, dckw:45},
+  windpro:{name:'MG Windsor EV Pro',  cap:50.6, kerb:1610, cdA:0.80, dckw:60},
+  comet:  {name:'MG Comet EV',        cap:17.3, kerb:815,  cdA:0.75, dckw:12},
+
+  /* Hyundai */
+  creta:  {name:'Hyundai Creta Electric LR',  cap:51.4, kerb:1720, cdA:0.78, dckw:100},
+  cretaex:{name:'Hyundai Creta Electric 42',  cap:40,   kerb:1650, cdA:0.78, dckw:100},
+  ioniq5: {name:'Hyundai Ioniq 5',    cap:70,   kerb:1910, cdA:0.72, dckw:233},
+  kona:   {name:'Hyundai Kona Electric',      cap:39.2, kerb:1535, cdA:0.75, dckw:50},
+
+  /* Kia */
+  ev6:    {name:'Kia EV6',            cap:77.4, kerb:2090, cdA:0.73, dckw:240},
+  ev9:    {name:'Kia EV9',            cap:96,   kerb:2600, cdA:0.85, dckw:210},
+  clavis: {name:'Kia Carens Clavis EV 51', cap:49, kerb:1720, cdA:0.80, dckw:100},
+  clavis4:{name:'Kia Carens Clavis EV 42', cap:40, kerb:1660, cdA:0.80, dckw:100},
+
+  /* Maruti Suzuki / Toyota */
+  evitara:{name:'Maruti e Vitara 61', cap:58.5, kerb:1799, cdA:0.78, dckw:70},
+  evitars:{name:'Maruti e Vitara 49', cap:47,   kerb:1702, cdA:0.78, dckw:70},
+
+  /* BYD */
+  atto3:  {name:'BYD Atto 3',         cap:60.5, kerb:1750, cdA:0.77, dckw:88},
+  seal:   {name:'BYD Seal',           cap:82.5, kerb:2055, cdA:0.52, dckw:150},
+  sealion:{name:'BYD Sealion 7',      cap:79,   kerb:2225, cdA:0.68, dckw:150},
+  emax7:  {name:'BYD eMAX 7 Superior',cap:69,   kerb:2060, cdA:0.82, dckw:115},
+  emax7p: {name:'BYD eMAX 7 Premium', cap:53,   kerb:1970, cdA:0.82, dckw:89},
+  e6:     {name:'BYD e6',             cap:70,   kerb:2000, cdA:0.86, dckw:60},
+
+  /* Tesla */
+  model3: {name:'Tesla Model 3 LR',   cap:75,   kerb:1830, cdA:0.51, dckw:250},
+  modely: {name:'Tesla Model Y LR',   cap:75,   kerb:1980, cdA:0.58, dckw:250},
+
+  /* Citroen / VinFast */
+  ec3:    {name:'Citroen eC3',        cap:27.5, kerb:1320, cdA:0.80, dckw:30},
+  vf6:    {name:'VinFast VF6',        cap:57,   kerb:1600, cdA:0.78, dckw:60},
+  vf7:    {name:'VinFast VF7',        cap:68,   kerb:1900, cdA:0.76, dckw:90},
+
+  /* Premium */
+  xc40:   {name:'Volvo XC40 / EC40 Recharge', cap:75, kerb:2150, cdA:0.85, dckw:150},
+  ex30:   {name:'Volvo EX30',         cap:64,   kerb:1850, cdA:0.72, dckw:153},
+  ix1:    {name:'BMW iX1',            cap:64.7, kerb:2010, cdA:0.78, dckw:130},
+  i4:     {name:'BMW i4 eDrive40',    cap:81.5, kerb:2050, cdA:0.58, dckw:205},
+  eqa:    {name:'Mercedes EQA 250+',  cap:70.5, kerb:2040, cdA:0.72, dckw:112}
 };
 
 /* ---------------------------------------------------------------
@@ -2076,15 +2202,20 @@ async function placesAutocompleteGoogle(text, key){
   }).filter(Boolean);
 }
 
+/* Coordinates only, deliberately. The caller already has the name — it came
+   back with the autocomplete prediction the user tapped, and it is what goes
+   into the box — so asking for it again is not free: `displayName` is a Pro
+   field, and one Pro field prices the whole call at Place Details Pro rather
+   than Essentials. In India that is $5.10 per thousand against $1.50, with
+   half the free allowance, for a string that was thrown away on arrival. */
 async function placeDetailsGoogle(placeId, key){
   const r = await chgFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
-    headers:{'X-Goog-Api-Key':key, 'X-Goog-FieldMask':'location,displayName,formattedAddress'}
+    headers:{'X-Goog-Api-Key':key, 'X-Goog-FieldMask':'location'}
   }, 10000);
   if(!r.ok) throw new Error('place details HTTP '+r.status);
   const j=await r.json();
   if(!j.location) throw new Error('that place has no coordinates');
-  return {lat:j.location.latitude, lng:j.location.longitude,
-          name:(j.displayName&&j.displayName.text)||j.formattedAddress||''};
+  return {lat:j.location.latitude, lng:j.location.longitude};
 }
 
 /* For text typed and submitted without picking from the menu. */
@@ -2199,7 +2330,7 @@ function mapFallback(why){
   SRC_USED.map='route outline (no map service)';
   const tg=$('map-tag'); if(tg) tg.textContent='route shape';
   const n=$('map-note');
-  if(n) n.textContent = why || 'Route shape only — add a Google Maps key in Settings for a real map.';
+  if(n) n.textContent = why || 'Route shape only — no map service answered.';
   const r=$('src-map'); if(r) r.textContent=SRC_USED.map;
 }
 /* The Maps JavaScript API signals a rejected key, a blocked referrer or
@@ -3322,6 +3453,10 @@ function chargeMinutes(kWh, chargerKW, carKW){
    four calls at 25 km — and they are independent, so they go at once.
    Every candidate is then projected onto the route and scored, which
    also picks a better stop than "first one going backwards" did.
+
+   The cache below is keyed on the circle's centre rounded to two decimals
+   — about 1.1 km — so replanning the same road costs nothing, however many
+   times the inputs are nudged. Only genuinely new corridors bill.
    --------------------------------------------------------------- */
 const CHG_CACHE = new Map();
 
@@ -3390,7 +3525,13 @@ async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat)
      radii go out together and each pass simply picks up the answer it needs.
      Two distinct radii, so at most one extra set of circles is fetched, and
      they warm the cache for the stops planned after this one. The third pass
-     shares the second's key and costs nothing either way. */
+     shares the second's key and costs nothing either way.
+
+     25 km for the first pass is deliberate and worth keeping: it is a
+     detour a driver will actually make. Widening it would fetch fewer
+     circles and bill less, but it would also let a charger 40 km off the
+     road win a stop, which is not the same product. Cost comes off the
+     cache and the quota cap instead. */
   const PASSES=[[25,true,'DC chargers'],[45,true,'DC, wider'],[45,false,'any charger']];
   const inFlight=new Map();
   for(const [radius] of PASSES){
@@ -4199,10 +4340,10 @@ function render(o){
           <h3>${s.errors.length&&!s.answered?'Charger lookup failed':'No charger found'}</h3>
           ${s.errors.length&&!s.answered
             ? `<p class="why">The charger services did not answer, so this is not a verdict about the road — it is a broken lookup. Reported: <span class="mono">${s.errors.join('; ')}</span></p>
-               <p class="why">An Open Charge Map key under “Charger data” is the reliable fix; the OpenStreetMap fallback runs on volunteer mirrors that are often busy.</p>`
-            : `<p class="why">You come down to ${fmt(reserve)}% near ${fmt(s.km)} km. I searched the ${fmt(s.searchedKm)} km of route before that — DC within 10, then 25, then 50 km, then any charger at all — and nothing is mapped there.
+               <p class="why">Worth retrying in a moment. If it keeps failing, check <em>Where data comes from</em> in Settings, and use <em>Test data sources</em> there to see which service is down — the OpenStreetMap fallback in particular runs on volunteer mirrors that are often busy.</p>`
+            : `<p class="why">You come down to ${fmt(reserve)}% near ${fmt(s.km)} km. I searched the ${fmt(s.searchedKm)} km of route before that — DC chargers within 25 km of the road, then within 45, then any charger at all — and nothing is mapped there.
                ${s.errors.length?`<br><span class="mono" style="font-size:12px">Some lookups also errored: ${s.errors.join('; ')}</span>`:''}</p>
-               <p class="why">Either the area genuinely has no charging, or it is missing from the maps. Set off with more charge, break the drive where you know there is a charger, or add an Open Charge Map key for better coverage than OpenStreetMap alone.</p>`}
+               <p class="why">Either the area genuinely has no charging, or it is missing from the maps. Set off with more charge, or break the drive where you know there is a charger. If Settings is on <em>Free</em>, switching it to <em>Chargers</em> adds Google, which covers a good deal of India that the open databases miss.</p>`}
           </div>`;
         const moved = s.movedBack>0;
         return `<div class="stop-card">
@@ -4211,7 +4352,6 @@ function render(o){
           ${moved ? `Best option in the ${fmt(s.best.searchedKm||120)} km before you hit ${fmt(reserve)}% at ${fmt(s.hitKm)} km — <strong>${fmt(s.hitKm-s.km)} km earlier</strong>, where you arrive with charge in hand.`
                   : `Right about where you come down to your ${fmt(reserve)}% floor.`}
           ${s.mode==='ac' ? ' <strong style="color:var(--warn)">No DC charger anywhere along this stretch — this one is AC, so expect hours rather than minutes.</strong>' : ''}
-          ${s.radius===25 ? ' Found by widening the search to 25 km.' : ''}
         </p>
         <div class="kpis" style="margin:0 0 14px">
           <div class="kpi"><div class="v">${fmt(s.arrive)}%</div><div class="l">charge on arrival</div></div>
@@ -4628,28 +4768,62 @@ $('chg-toggle').addEventListener('click',e=>{
   S.chargers=b.dataset.v==='1';
 });
 
-$('gkey_user').addEventListener('change',()=>{
-  const v=$('gkey_user').value.trim();
-  sset('gkey', v);
-  /* Typing a key is the opt-in; clearing it is the opt-out. The toggle
-     follows, so nobody has to find a second control to make it take. */
-  gSrcMode = v ? 'chargers' : 'free';   // the setting that earns its keep
-  sset('gsrc', gSrcMode);
-  [...$('gsrc-toggle').querySelectorAll('button')]
-    .forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===gSrcMode)));
-  const seg=$('gsrc-toggle');
-  const bs=[...seg.querySelectorAll('button')];
-  seg.style.setProperty('--i', String(Math.max(0, bs.findIndex(b=>b.getAttribute('aria-pressed')==='true'))));
-  paintKeyState();
-  if(window.UI) UI.toast(v ? 'Google key saved — plan again to use it'
-                           : 'Key cleared, back to the free sources');
+/* Current location for the Start field.
+
+   Two things are worth knowing here. The fix and the name are separate
+   problems: the browser gives coordinates, and those already plan a route
+   perfectly well, so the reverse lookup that turns them into "Sector 14,
+   Gurugram" is allowed to fail without taking the location with it — a
+   coordinate pair in the box is a worse label but an identical route.
+
+   And the accuracy figure is checked. A cell-tower fix can be tens of
+   kilometres out, which on a range calculation is the difference between
+   arriving and not, so anything looser than 5 km is refused rather than
+   quietly planned from the wrong town. */
+$('btn-loc').addEventListener('click',async()=>{
+  const btn=$('btn-loc'), input=$('from');
+  if(!navigator.geolocation){
+    if(window.UI) UI.toast('This device has no location service', true);
+    return;
+  }
+  btn.dataset.busy='1';
+  try{
+    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(
+      res, rej, {enableHighAccuracy:true, timeout:15000, maximumAge:60000}));
+    const ll={lat:pos.coords.latitude, lng:pos.coords.longitude};
+    const acc=pos.coords.accuracy;
+    if(acc>5000) throw {code:-1, message:`Only accurate to ${fmt(acc/1000,1)} km`};
+
+    const fallback=`${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`;
+    input.value=fallback;
+    S.from={...ll, name:fallback};
+    $('ac-from').hidden=true;
+    if(window.UI) UI.toast(`Located to within ${acc<1000?fmt(acc)+' m':fmt(acc/1000,1)+' km'}`);
+
+    const name=await reverseName(ll).catch(()=>null);
+    /* only if nothing else has been typed in the meantime */
+    if(name && input.value===fallback){
+      input.value=name;
+      S.from={...ll, name};
+    }
+  }catch(e){
+    const why = e && e.code===1 ? 'Location permission was refused — you can allow it in Settings'
+              : e && e.code===2 ? 'No location fix available right now'
+              : e && e.code===3 ? 'Locating timed out — try again with a clearer view of the sky'
+              : (e && e.message) || 'Could not get a location';
+    if(window.UI) UI.toast(why, true, 6000);
+  }finally{
+    btn.dataset.busy='0';
+  }
 });
+
 $('show-intro').addEventListener('click',()=>{
   if(window.UI_INTRO) UI_INTRO.open();
 });
 $('gsrc-toggle').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
-  gSrcMode=b.dataset.v; sset('gsrc',gSrcMode);
+  gSrcMode=b.dataset.v; sset('gsrc',gSrcMode); sset('gsrc_chosen',true);
+  paintKeyState();
 });
 
 $('dev-clear').addEventListener('click',async()=>{
@@ -4666,7 +4840,13 @@ $('dev-test').addEventListener('click',async()=>{
   const where = S.from || {lat:30.4599, lng:78.0664};       // Mussoorie if nothing chosen
   $('dev-msg').textContent='Testing…'; $('dev-out').innerHTML='';
   const rows=[];
-  const g=useGoogleChargers() ? gmapKey() : '';
+  /* Probe only what this build would actually call. It used to test all four
+     Google services whenever a key was present, which meant a single tap on
+     "Test data sources" while set to Chargers billed an Autocomplete, a
+     Routes Pro request and a dynamic map load — three SKUs the app was never
+     going to touch in that mode. A diagnostic that costs more than the thing
+     it is diagnosing is not one worth having. */
+  const g=gmapKey(), viaAll=useGoogle(), viaChg=useGoogleChargers();
   const probe=async (label,fn)=>{
     const t0=Date.now();
     try{
@@ -4677,16 +4857,20 @@ $('dev-test').addEventListener('click',async()=>{
     catch(e){ rows.push([label,'fail',e.message,Date.now()-t0]); }
   };
   const near={lat:where.lat+0.45, lng:where.lng+0.45};
-  if(g){
-    await probe('Google · Routes API', async()=>{
-      const r=await routeGoogle(where, near, g);
-      return {length:Math.round(r.distance/1000)+' km'};
-    });
-    await probe('Google · Places autocomplete', ()=> placesAutocompleteGoogle('Manali', g));
-    await probe('Google · Maps JavaScript', async()=>{ await loadMaps(g); return {length:'loaded'}; });
-    await probe('Google · Places (chargers)', ()=> chargersGoogle(where,10,g));
+  if(!g){
+    rows.push(['Google','skipped','no key in this build — using the free sources','—']);
+  } else if(!viaAll && !viaChg){
+    rows.push(['Google','skipped','switched off under “Where data comes from”','—']);
   } else {
-    rows.push(['Google','skipped','no key set — using the free sources','—']);
+    if(viaAll){
+      await probe('Google · Routes API', async()=>{
+        const r=await routeGoogle(where, near, g);
+        return {length:Math.round(r.distance/1000)+' km'};
+      });
+      await probe('Google · Places autocomplete', ()=> placesAutocompleteGoogle('Manali', g));
+      await probe('Google · Maps JavaScript', async()=>{ await loadMaps(g); return {length:'loaded'}; });
+    }
+    if(viaChg) await probe('Google · Places (chargers)', ()=> chargersGoogle(where,10,g));
   }
   if(orsKey()) await probe('OpenRouteService', async()=>{
     const r=await routeORS(where, near, orsKey());
@@ -4730,17 +4914,13 @@ $('form').addEventListener('submit',plan);
 /* Says which services this build can actually reach, so a missing key shows
    up here rather than as a puzzling failure in the middle of a plan. */
 function paintKeyState(){
-  const own=$('gkey_user') ? $('gkey_user').value.trim() : '';
   const routing = orsKey() ? 'OpenRouteService' : 'OSRM';
+  const free = `<strong style="color:var(--ok)">Running free</strong> — OpenStreetMap map tiles, ${routing} routing, Photon place search, and Open Charge Map plus OpenStreetMap for chargers.`;
   $('keystate').innerHTML =
-    (own && gSrcMode==='free')
-             ? `<strong style="color:var(--ok)">Running free</strong> — a key is saved but the switch above is set to <em>Free</em>, so nothing goes to Google.`
-    : (own && gSrcMode==='chargers')
-             ? `<strong style="color:var(--ok)">Google for chargers only</strong> — ratings and live bay counts when you search for chargers. Routing, place search and the map stay on the free sources, so nothing else is billed.`
-    : own     ? `<strong style="color:var(--ok)">Google for everything</strong> — routing, place search, the map and chargers all go through Google.`
-    : bundledGKey()
-             ? `<strong style="color:var(--ok)">Google key built in</strong> — routing, place search, the map and charger ratings all use Google, with the free sources still there as fallbacks.`
-             : `<strong style="color:var(--ok)">Running free</strong> — OpenStreetMap map tiles, ${routing} routing, Photon place search, and Open Charge Map plus OpenStreetMap for chargers. No key, no bill, nothing to sign up for.`;
+    !bundledGKey()      ? free + ` This build shipped without a Google key, so the switch above has nothing to turn on.`
+    : gSrcMode==='free' ? free + ` Google is built in but switched off above.`
+    : gSrcMode==='all'  ? `<strong style="color:var(--ok)">Google for everything</strong> — routing, place search, the map and chargers all go to Google, with the free sources behind them as fallbacks.`
+    :                     `<strong style="color:var(--ok)">Google for chargers</strong> — ratings and live free-bay counts when you search for chargers, with Open Charge Map and OpenStreetMap behind it as fallbacks. Routing, place search and the map stay on the free sources.`;
 }
 $('t_add').addEventListener('click',async()=>{
   const d=parseFloat($('t_d').value), pred=parseFloat($('t_p').value), actual=parseFloat($('t_a').value);
@@ -4753,14 +4933,26 @@ $('t_add').addEventListener('click',async()=>{
 
 (async function init(){
   S.trips=(await sget('trips'))||[];
-  const uk=await sget('gkey'); if(uk) $('gkey_user').value=uk;
+  /* Left over from when Settings had a key field. Nothing reads it now, and
+     an abandoned API key sitting in local storage is not something to keep. */
+  try{ if(await sget('gkey')) await STORE.delete('gkey'); }catch(e){}
+  /* Google for everything, with the free services behind it. This build ships
+     a key, and each Google source is either better than its free counterpart
+     or holds data the free one does not — place search on Indian town names,
+     chargers outside the metros, a traffic-aware duration the energy model
+     reads as a measurement rather than a guess. Every one of them still falls
+     back on its own if Google fails or the quota caps, so this adds capability
+     without adding a way to break.
+
+     A stored choice still wins, with one exception. Older builds wrote 'free'
+     by themselves for anyone who had not pasted a key, so a stored 'free' may
+     be a leftover rather than a decision. `gsrc_chosen` is written only when
+     somebody actually touches the switch, which tells the two apart. */
+  const gs=await sget('gsrc'), chosen=await sget('gsrc_chosen');
+  gSrcMode = !bundledGKey()                  ? 'free'
+           : (gs && (gs!=='free' || chosen)) ? gs
+           :                                   'all';
   paintKeyState();
-  const gs=await sget('gsrc');
-  /* A stored choice always wins. Failing that, a key baked in by the build
-     means whoever built it wants Google for chargers — the one place it
-     measurably beats the free databases — so start there rather than
-     shipping a key that never gets used. */
-  gSrcMode = gs || (bundledGKey() ? 'chargers' : 'free');
   const seg=$('gsrc-toggle'), bs=[...seg.querySelectorAll('button')];
   bs.forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===gSrcMode)));
   seg.style.setProperty('--i', String(Math.max(0, bs.findIndex(b=>b.dataset.v===gSrcMode))));
@@ -5033,6 +5225,15 @@ function afterRender(){
       named.forEach(b=>io.observe(b));
     }
   } else { jump.hidden=true; jump.innerHTML=''; }
+
+  /* Stagger indices for the stop list. Capped, so a long plan does not finish
+     on a delay long enough to read as lag. Charger rows restart per card —
+     they belong to their stop, not to the page. */
+  out.querySelectorAll('.stop-card').forEach((card,i)=>{
+    card.style.setProperty('--i', String(Math.min(i,3)));
+    [...card.querySelectorAll('.charger')].forEach((row,j)=>
+      row.style.setProperty('--i', String(Math.min(j,4))));
+  });
 
   out.querySelectorAll('.kpi .v').forEach(countUp);
 
