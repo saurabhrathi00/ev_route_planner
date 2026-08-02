@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.webkit.GeolocationPermissions
@@ -19,9 +20,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
 
 /**
@@ -152,25 +155,47 @@ class MainActivity : ComponentActivity() {
 
     /**
      * An anchored adaptive banner rather than a fixed 320x50: it is sized from
-     * the real width of the slot, so it fills the screen edge to edge on a
-     * tablet instead of floating in the middle of a grey band, and it fills and
-     * pays better. The width is only known once the slot has been laid out,
-     * which is why this runs from a post().
+     * the real width it has to fill, so it goes edge to edge on a tablet
+     * instead of floating in the middle of a grey band, and it fills and pays
+     * better for it.
+     *
+     * The slot's own width is preferred, but it is not relied on. post() only
+     * promises to run after the view is attached, not after it has been
+     * measured, so slot.width can still be zero here — and an early return on
+     * that would mean no AdView is ever created and the banner silently never
+     * appears. The window width is the same number in every layout this app
+     * has, so fall back to it rather than give up.
      */
     private fun attachBanner(slot: LinearLayout) {
-        val widthDp = (slot.width / resources.displayMetrics.density).toInt()
+        val px = if (slot.width > 0) slot.width else resources.displayMetrics.widthPixels
+        val widthDp = (px / resources.displayMetrics.density).toInt()
         if (widthDp <= 0) return
+
         val view = AdView(this).apply {
             adUnitId = getString(R.string.admob_banner_id)
             setAdSize(
                 AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this@MainActivity, widthDp)
             )
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+            /* A banner that does not appear looks identical whether the request
+             * failed, went unfilled, or was never made. Say which, so the next
+             * person does not go looking through the layout for a bug that is
+             * really an empty ad network. */
+            adListener = object : AdListener() {
+                override fun onAdLoaded() {
+                    Log.i(ADS, "banner loaded")
+                }
+                override fun onAdFailedToLoad(e: LoadAdError) {
+                    Log.w(ADS, "banner failed: code=${e.code} ${e.message}")
+                }
+            }
         }
         ad = view
         slot.addView(view)
         view.loadAd(AdRequest.Builder().build())
     }
+
+    private companion object { const val ADS = "EVRouteAds" }
 
     override fun onPause() {
         ad?.pause()

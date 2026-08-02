@@ -3,20 +3,10 @@
     <string name="app_name">EVRoute</string>
 
     <!--
-      AdMob. These are the live ids for this app — not secrets, they ship in
-      every APK and are meant to. The app id is read by the manifest as well;
-      the ads SDK checks for it on startup and throws if it is missing.
-
-      DO NOT TAP AN AD ON YOUR OWN BUILD. AdMob counts that as click fraud and
-      suspends the account rather than warning it. To try the banner out, swap
-      in Google's public test ids first — they always fill and cost nothing:
-
-        app     ca-app-pub-3940256099942544~3347511713
-        banner  ca-app-pub-3940256099942544/6300978111
-
-      A newly created ad unit serves blank for a few hours, sometimes a day on
-      a new account. That is normal and is not a bug in the app.
+      admob_app_id and admob_banner_id are NOT here. They are generated per
+      build type in app/build.gradle.kts — test ids for debug, live ids for
+      release — so that the build you run on your own phone can never carry
+      the live ones. See the comment there.
     -->
-    <string name="admob_app_id" translatable="false">ca-app-pub-7536334678303309~4946224393</string>
-    <string name="admob_banner_id" translatable="false">ca-app-pub-7536334678303309/7584830177</string>
+
 </resources>
