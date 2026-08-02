@@ -30,8 +30,8 @@ android {
         targetSdk = 35
         // Play rejects an upload whose versionCode it has seen before, so this
         // has to go up by at least one for every release you push.
-        versionCode = 4
-        versionName = "1.1"
+        versionCode = 5
+        versionName = "1.2"
     }
 
     signingConfigs {
@@ -95,7 +95,7 @@ android {
 
 dependencies {
     implementation("androidx.activity:activity-ktx:1.9.3")
-    // banner ad under the planner; ids live in res/values/strings.xml
+    // banner ad under the planner; ids are set per build type above
     implementation("com.google.android.gms:play-services-ads:23.6.0")
     /* Not used directly — pinned because the ads SDK drags in a fragment
      * version older than 1.3.0, and registerForActivityResult (the location

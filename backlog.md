@@ -174,6 +174,50 @@ and keep monetisation on Android. The web build earns its keep as a demo.
 
 ---
 
+---
+
+## Checking chargers against the operator's own server
+
+From tester feedback: *"Double check charger with service provider's server too
+as plugshare is not that reliable everywhere."*
+
+Two things worth separating.
+
+**The app does not use PlugShare.** It only links out to it, because PlugShare
+has the best community data there is and no API anyone outside it can reach.
+Charger data comes from Google Places, Open Charge Map and OpenStreetMap, and
+they are already merged and cross-checked against each other. Where a network
+reports live free-bay counts, Google carries them and the app shows them.
+
+**The real gap is Indian operators none of those three cover** — Tata Power EZ
+Charge, Statiq, ChargeZone, Jio-bp Pulse, Ather Grid, Zeon, Kazam. Their own
+apps know which bays are free right now; the aggregators often do not.
+
+This cannot be done from the app as it stands:
+
+- None of them publish a documented public API. Endpoints exist behind their
+  own apps, but they are undocumented, unversioned and free to change.
+- The ones that answer at all send no CORS headers, so a browser cannot read
+  the response. Open Charge Map works precisely because it echoes the origin
+  back; these do not.
+- The Android and iOS builds load from `file://`, whose origin is `null`. A
+  server that sends `Access-Control-Allow-Origin: *` is fine with that, but
+  one that whitelists specific origins can never be satisfied — the same wall
+  Mappls is behind in `secrets.env`.
+
+So this is Phase 1 work, not app work. Once the Worker exists, an operator
+lookup is a second endpoint beside `/chargers`: server-side fetch, no CORS,
+credentials held off the device, and the same shared cache in front of it so
+one lookup serves every user in that area.
+
+Two cautions for when it happens. Scraping an undocumented endpoint is a
+standing maintenance cost and can breach the operator's terms — worth asking
+for a partner or developer agreement first, which several of them have.
+And treat the operator as one more source to merge, not as the truth: it is
+authoritative about its own chargers and knows nothing about anyone else's.
+
+---
+
 ## Order
 
 | Step | Effort | Result |

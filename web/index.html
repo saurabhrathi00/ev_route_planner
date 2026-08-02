@@ -324,6 +324,7 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
    Sits inside the Start field rather than beside it, so the row keeps one
    visual weight and the button reads as part of the input it fills. */
 input.has-loc{padding-right:48px}
+input.has-two{padding-right:86px}          /* pin and crosshair side by side */
 .locbtn{
   position:absolute;right:6px;bottom:6px;width:34px;height:34px;
   border:0;border-radius:var(--r-s);background:none;color:var(--ink3);
@@ -445,6 +446,48 @@ input.has-loc{padding-right:48px}
 :root[data-theme=dark] .osm-t,:root:not([data-theme=light]) .osm-t{
   filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.92)}
 .osm-ov{position:absolute;inset:0;pointer-events:none}
+/* the overlay stays transparent so a drag anywhere pans; pins opt back in */
+.osm-cand{pointer-events:auto;cursor:pointer;transition:r var(--t1) var(--e-out)}
+.osm-cand:hover{r:8}
+
+/* ---- pin-drop picker ------------------------------------------
+   A crosshair fixed at the centre, not a tap-to-drop marker. On a phone
+   your finger covers the exact point you are aiming at; panning the map
+   under a fixed target is both more precise and the gesture every other
+   map app has already taught people. */
+.osm-cross{
+  position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-34px 0 0 -17px;
+  pointer-events:none;z-index:3;
+}
+.osm-cross::before{
+  content:"";position:absolute;left:50%;top:0;width:15px;height:15px;margin-left:-7.5px;
+  border:3px solid var(--brand-green);border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);background:var(--sheet);
+  box-shadow:0 2px 6px rgba(0,0,0,.3);
+}
+.osm-cross::after{
+  content:"";position:absolute;left:50%;bottom:0;width:5px;height:5px;margin-left:-2.5px;
+  border-radius:50%;background:rgba(0,0,0,.35);
+}
+.pickwrap{position:fixed;inset:0;z-index:210;background:var(--paper);display:flex;flex-direction:column}
+.pickwrap[hidden]{display:none}
+.pick-head{
+  display:flex;align-items:center;gap:12px;padding:14px 16px calc(14px);
+  padding-top:calc(14px + env(safe-area-inset-top));border-bottom:1px solid var(--rule);
+}
+.pick-head h3{font-size:16px;flex:1;min-width:0}
+.pick-map{flex:1;position:relative;min-height:0}
+.pick-map .osm{position:absolute;inset:0}
+.pick-foot{
+  padding:14px 16px calc(16px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--rule);background:var(--sheet);
+}
+.pick-read{
+  display:block;font:500 13px/1.4 "Public Sans",sans-serif;color:var(--ink2);
+  min-height:19px;margin-bottom:12px;
+}
+.pick-read b{color:var(--ink);font-weight:600}
+.pick-coord{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink3)}
 .osm-ctl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:2}
 .osm-ctl button{width:34px;height:34px;border-radius:var(--r-s);border:1px solid var(--rule);
   background:var(--sheet);color:var(--ink);font:600 16px/1 "Public Sans",sans-serif;cursor:pointer;
@@ -747,6 +790,17 @@ tbody tr.desc td{background:color-mix(in srgb,var(--ok) 12%,transparent)}
 .charger .n{font-weight:600}
 .charger .d{font-size:12.5px;color:var(--ink2);font-family:"IBM Plex Mono",monospace}
 .charger a{color:var(--charge);font-size:12.5px}
+.charger.is-picked{background:var(--charge-soft);border-radius:var(--r-s);
+  margin:0 -8px;padding-left:8px;padding-right:8px}
+.chgpick{
+  display:inline-block;margin-left:12px;border:1px solid var(--rule);background:var(--sheet);
+  color:var(--ink2);padding:4px 11px;border-radius:100px;cursor:pointer;
+  font:500 11.5px "Public Sans",sans-serif;
+  transition:transform var(--t1) var(--e-spring),color var(--t1),border-color var(--t1),background var(--t1);
+}
+.chgpick:hover{color:var(--ink);border-color:var(--ink3)}
+.chgpick:active{transform:scale(.95)}
+.chgpick.on{background:var(--brand-green);border-color:var(--brand-green);color:#fff}
 .pill{display:inline-block;font:500 10px "IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;
   padding:3px 7px;border:1px solid;border-radius:100px;margin-right:5px}
 .pill.live{color:var(--ok);border-color:var(--ok)}
@@ -1049,7 +1103,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r23</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r24</span>
         </div>
       </div>
 
@@ -1059,7 +1113,14 @@ details[open] summary::before{transform:rotate(90deg)}
         <div class="head"><span class="num">1</span><h2>Where to</h2><span class="tag">route</span></div>
         <div class="body">
           <label class="f place"><span>Start</span>
-            <input type="text" id="from" class="has-loc" placeholder="Where you set off" autocomplete="off">
+            <input type="text" id="from" class="has-loc has-two" placeholder="Where you set off" autocomplete="off">
+            <button class="locbtn" type="button" id="btn-pin-from" title="Pick on the map"
+                    aria-label="Pick the start on the map" style="right:44px">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21.5s7-6.3 7-11.4a7 7 0 1 0-14 0c0 5.1 7 11.4 7 11.4z"/>
+                <circle cx="12" cy="10" r="2.6"/>
+              </svg>
+            </button>
             <button class="locbtn" type="button" id="btn-loc" title="Use my current location"
                     aria-label="Use my current location">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1075,7 +1136,14 @@ details[open] summary::before{transform:rotate(90deg)}
             </button>
           </div>
           <label class="f place"><span>Destination</span>
-            <input type="text" id="to" placeholder="Where you're headed" autocomplete="off">
+            <input type="text" id="to" class="has-loc" placeholder="Where you're headed" autocomplete="off">
+            <button class="locbtn" type="button" id="btn-pin-to" title="Pick on the map"
+                    aria-label="Pick the destination on the map">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21.5s7-6.3 7-11.4a7 7 0 1 0-14 0c0 5.1 7 11.4 7 11.4z"/>
+                <circle cx="12" cy="10" r="2.6"/>
+              </svg>
+            </button>
             <div class="acmenu" id="ac-to" hidden></div>
           </label>
           <div class="grid" style="margin-top:16px">
@@ -1486,6 +1554,21 @@ details[open] summary::before{transform:rotate(90deg)}
   <ul class="steps" id="steps"></ul>
   <span class="log" id="status" hidden></span>
 </div>
+<div class="pickwrap" id="pickwrap" hidden role="dialog" aria-modal="true" aria-labelledby="pick-title">
+  <div class="pick-head">
+    <button class="ghost" type="button" id="pick-cancel" aria-label="Cancel" style="padding:9px 12px">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <h3 id="pick-title">Drop a pin</h3>
+  </div>
+  <div class="pick-map" id="pick-map"></div>
+  <div class="pick-foot">
+    <span class="pick-read" id="pick-read">Move the map to put the pin where you want it.</span>
+    <button class="run" type="button" id="pick-ok" style="width:100%">Use this point</button>
+  </div>
+</div>
+
 <div class="toasts" id="toasts"></div>
 
 <script>
@@ -1854,15 +1937,28 @@ const y2lat = (y,z) => {
   return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n)));
 };
 
-function osmMap(box, path, stops){
+/* One tile map, three jobs: the route at the foot of a plan, the candidate
+   chargers drawn over it, and the pin-drop picker for choosing a start or
+   destination. They differ only in what goes on the overlay and whether a
+   crosshair sits in the middle, so they share the panning, zooming, tile
+   cache and projection rather than growing a second copy of all of it.
+
+   opts.crosshair  fixes a target at the centre and reports what is under it
+   opts.onMove     called with the centre {lat,lng} after every pan or zoom
+   opts.centre     where to open when there is no path to fit
+   opts.candidates chargers to draw as secondary pins, tappable
+   opts.onPick     called with a candidate when one is tapped */
+function osmMap(box, path, stops, opts){
+  const o = opts || {};
   box.innerHTML =
     `<div class="osm">
        <div class="osm-tiles"></div>
        <svg class="osm-ov" xmlns="http://www.w3.org/2000/svg"></svg>
+       ${o.crosshair ? '<div class="osm-cross" aria-hidden="true"></div>' : ''}
        <div class="osm-ctl">
          <button type="button" data-zoom="1" aria-label="Zoom in">+</button>
          <button type="button" data-zoom="-1" aria-label="Zoom out">−</button>
-         <button type="button" data-fit="1" aria-label="Fit the whole route">⤢</button>
+         ${path.length ? '<button type="button" data-fit="1" aria-label="Fit the whole route">⤢</button>' : ''}
        </div>
        <div class="osm-attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>
      </div>`;
@@ -1876,7 +1972,14 @@ function osmMap(box, path, stops){
 
   function fit(){
     W=root.clientWidth||W; H=root.clientHeight||H;
-    if(!path.length) return;
+    if(!path.length){
+      /* Nothing to frame — this is the picker. Open on whatever was passed,
+         close enough in that a street is recognisable. */
+      const c=o.centre||{lat:20.5937, lng:78.9629};        // India, if all else fails
+      z=o.zoom||(o.centre?14:5);
+      cx=lon2x(c.lng,z); cy=lat2y(c.lat,z);
+      return;
+    }
     const lats=path.map(p=>p.lat), lngs=path.map(p=>p.lng);
     const n=Math.max(...lats), s=Math.min(...lats), e=Math.max(...lngs), w=Math.min(...lngs);
     for(z=17; z>1; z--){
@@ -1939,13 +2042,45 @@ function osmMap(box, path, stops){
     };
     const marks=(stops||[]).map(s=>pin(s.loc,'#B87613',
       `Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`)).join('');
-    ov.innerHTML =
-      `<path d="${d}" fill="none" stroke="#1C5C86" stroke-opacity=".95" stroke-width="5"
-             stroke-linecap="round" stroke-linejoin="round"/>
-       ${pin(path[0],'#2E6B4F','Start')}${marks}${pin(path[path.length-1],'#9E2F28','Destination')}`;
+
+    /* Candidates go on underneath the chosen stops and smaller, so the plan
+       still reads at a glance while the alternatives are there to tap. The
+       colour is the status: green free bays reported, amber unknown, grey
+       reported full or out of order. */
+    const cand=(o.candidates||[]).map((c,i)=>{
+      const [x,y]=pt(c.loc);
+      const fill = c.working===false ? '#8C948E'
+                 : c.free>0          ? '#2E6B4F'
+                 : c.free===0        ? '#8C948E'
+                 : '#B87613';
+      return `<circle class="osm-cand" data-cand="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}"
+                r="5.5" fill="${fill}" fill-opacity=".9" stroke="#fff" stroke-width="2"
+                ><title>${candTitle(c)}</title></circle>`;
+    }).join('');
+
+    const route = path.length
+      ? `<path d="${d}" fill="none" stroke="#1C5C86" stroke-opacity=".95" stroke-width="5"
+               stroke-linecap="round" stroke-linejoin="round"/>
+         ${pin(path[0],'#2E6B4F','Start')}${marks}${pin(path[path.length-1],'#9E2F28','Destination')}`
+      : '';
+    ov.innerHTML = cand + route;
   }
 
-  const draw=()=>{ drawTiles(); drawRoute(); };
+  const centreLL = () => ({lat:y2lat(cy,z), lng:x2lon(cx,z)});
+  const draw=()=>{
+    drawTiles(); drawRoute();
+    if(o.onMove) o.onMove(centreLL());
+  };
+
+  /* The overlay is pointer-transparent so panning works anywhere, so the
+     candidate pins have to opt back in — see .osm-cand in the stylesheet. */
+  if(o.onPick){
+    ov.addEventListener('click',e=>{
+      const c=e.target.closest('[data-cand]'); if(!c) return;
+      e.preventDefault(); e.stopPropagation();
+      o.onPick(o.candidates[+c.dataset.cand], +c.dataset.cand);
+    });
+  }
 
   /* ---- pan ---- */
   let drag=null;
@@ -1997,7 +2132,23 @@ function osmMap(box, path, stops){
   }
 
   fit(); draw();
-  return {redraw:draw};
+  return {redraw:draw, centre:centreLL};
+}
+
+/* What a candidate pin says when you hold it, and what the list rows repeat.
+   Free-bay counts only exist where the network reports them, so "unknown" is
+   said out loud rather than shown as a hopeful blank. */
+function candTitle(c){
+  const bits=[c.name];
+  if(c.kw) bits.push(fmt(c.kw)+' kW');
+  if(c.dc) bits.push('DC');
+  if(c.rating) bits.push('★ '+c.rating.toFixed(1)+(c.votes?` (${c.votes})`:''));
+  bits.push(c.working===false ? 'reported out of order'
+          : c.free>0          ? `${fmt(c.free)} free now`
+          : c.free===0        ? 'all bays busy'
+          :                     'live availability unknown');
+  if(c.detour!=null) bits.push(fmt(c.detour,1)+' km off route');
+  return bits.join(' · ');
 }
 
 /* ---- OpenRouteService ------------------------------------------
@@ -2324,6 +2475,13 @@ function mapsDirUrl(samples, it){
 }
 
 let MAP_LAST=null;
+
+/* Tapping a candidate pin is the same decision as pressing "Stop here
+   instead" in the list below, so it runs through the same door. */
+function onCandPick(c){
+  if(!c || !c.loc) return;
+  chooseCharger(chgKey(c), c.name);
+}
 function mapFallback(why){
   const box=$('mapbox'); if(!box||!MAP_LAST) return;
   box.innerHTML=routeSVG(MAP_LAST.path, MAP_LAST.stops);
@@ -2340,22 +2498,25 @@ window.gm_authFailure=function(){
   mapFallback('Google rejected the key for Maps (check the key, that Maps JavaScript API is enabled, and that billing is on) — showing the route shape instead.');
 };
 
-async function mountMap(samples, it){
+async function mountMap(samples, it, cands){
   const box=$('mapbox'); if(!box) return;
   const path=samples.map(s=>s.ll);
   const stops=stopsFromItinerary(it);
-  MAP_LAST={path, stops};
+  const candidates=cands||[];
+  MAP_LAST={path, stops, candidates};
   const key=gmapKey();
   const fallback=(why)=>mapFallback(why);
   box.classList.remove('is-google');
   if(!useGoogle()){
     try{
-      osmMap(box, path, stops);
+      osmMap(box, path, stops, {candidates, onPick:onCandPick});
       SRC_USED.map='OpenStreetMap tiles';
       const r=$('src-map'); if(r) r.textContent=SRC_USED.map;
       const tg=$('map-tag'); if(tg) tg.textContent='openstreetmap';
       const n=$('map-note');
-      if(n) n.textContent='Drag to pan, scroll or use + / − to zoom. Start, charging stops and destination are marked.';
+      if(n) n.textContent=candidates.length
+        ? 'Small dots are other chargers along the way — green where bays are free, amber where nobody reports. Tap one to stop there instead.'
+        : 'Drag to pan, scroll or use + / − to zoom. Start, charging stops and destination are marked.';
     }catch(e){ fallback('Map failed ('+e.message+') — showing the route shape instead.'); }
     return;
   }
@@ -2378,15 +2539,26 @@ async function mountMap(samples, it){
             strokeColor:'#fff', strokeWeight:2}});
     dot(path[0], '#2E6B4F', 'Start');
     dot(path[path.length-1], '#9E2F28', 'Destination');
+    /* Candidates underneath the chosen stops, smaller, coloured by whether
+       the network says a bay is free. Clicking one replans around it. */
+    candidates.forEach(c=>{
+      const m=new google.maps.Marker({position:c.loc, map, title:candTitle(c), zIndex:1,
+        icon:{path:google.maps.SymbolPath.CIRCLE, scale:5.5,
+              fillColor:c.working===false?'#8C948E':c.free>0?'#2E6B4F':c.free===0?'#8C948E':'#B87613',
+              fillOpacity:.9, strokeColor:'#fff', strokeWeight:2}});
+      m.addListener('click', ()=>onCandPick(c));
+    });
     stops.forEach(s=> dot(s.loc, '#B87613',
       `Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`));
     SRC_USED.map='Google Maps JavaScript API';
     const row=$('src-map'); if(row) row.textContent=SRC_USED.map;
     const n=$('map-note');
-    if(n) n.textContent='Start, charging stops and destination along the planned route.';
+    if(n) n.textContent=candidates.length
+      ? 'Small dots are other chargers along the way — green where bays are free, amber where nobody reports. Tap one to stop there instead.'
+      : 'Start, charging stops and destination along the planned route.';
   }catch(e){
     try{
-      osmMap(box, path, stops);
+      osmMap(box, path, stops, {candidates, onPick:onCandPick});
       SRC_USED.map='OpenStreetMap tiles';
       const r=$('src-map'); if(r) r.textContent=SRC_USED.map;
       const n=$('map-note');
@@ -3500,6 +3672,18 @@ function projectToRoute(samples, from, to, loc){
   return {i:best, detour:bd/1000};
 }
 
+/* Stops the driver chose instead of the ones scoring picked.
+
+   Held as a set of locations rather than "stop 2 is this charger", because
+   stop numbering is not stable: forcing an earlier stop changes where the
+   battery runs down and therefore how many stops there are after it. A
+   location survives that. Anything in here wins its pass outright — the
+   driver knows something the score does not, which is the whole point of
+   letting them choose. It still has to be reachable; an unreachable pick is
+   dropped by the same check as any other candidate, and the toast says so. */
+const PREFERRED = new Set();
+const chgKey = c => c.loc.lat.toFixed(4)+','+c.loc.lng.toFixed(4);
+
 function decorate(c){
   const ageDays = c.verified ? (Date.now()-c.verified.getTime())/864e5 : null;
   const x={...c, ageDays};
@@ -3558,7 +3742,9 @@ async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat)
       if(socThere-detourPct < reserve-1) continue;          // you could not actually reach it
       const earlyKm=hitKm-samples[pr.i].s/1000;
       cands.push({...c, idx:pr.i, detour:pr.detour, socThere, detourPct, earlyKm,
-        score: c.conf + (c.dc?2.5:-3.5) - pr.detour*0.6 - earlyKm*0.02});
+        picked: PREFERRED.has(chgKey(c)),
+        score: c.conf + (c.dc?2.5:-3.5) - pr.detour*0.6 - earlyKm*0.02
+             + (PREFERRED.has(chgKey(c)) ? 1000 : 0)});
     }
     if(cands.length){
       cands.sort((a,b)=>b.score-a.score);
@@ -3762,11 +3948,21 @@ function chargerLine(c,j,lead){
               c.points>1?`${c.points} bays`:'1 bay',
               c.plugs&&c.plugs.length?c.plugs.slice(0,3).join(' / '):null,
               c.access].filter(Boolean);
-  return `<div class="charger"${lead?' style="border-top:0"':''}>
-    <span class="rank">${lead?'▶':j+1}</span><span style="flex:1">
+  /* The chosen one gets an "unpin" rather than nothing, so a driver who
+     forced a stop can see that they did and put it back. */
+  const key=chgKey(c);
+  const choose = c.picked
+    ? `<button type="button" class="chgpick on" data-chg="${key}">Chosen by you — undo</button>`
+    : lead
+      ? `<button type="button" class="chgpick" data-chg="${key}">Keep this stop</button>`
+      : `<button type="button" class="chgpick" data-chg="${key}">Stop here instead</button>`;
+
+  return `<div class="charger${c.picked?' is-picked':''}"${lead?' style="border-top:0"':''}>
+    <span class="rank">${c.picked?'★':lead?'▶':j+1}</span><span style="flex:1">
     <span class="n">${c.name}</span>${c.addr?`<br><span class="d">${c.addr}</span>`:''}<br>${badge}
     <span class="d">${bits.join(' · ')} · ${fmt(c.detour,1)} km off route</span><br>
-    <a href="${c.url}" target="_blank" rel="noopener">Open map entry</a></span></div>`;
+    <a href="${c.url}" target="_blank" rel="noopener">Open map entry</a>
+    ${choose}</span></div>`;
 }
 
 /* The whole drive as a chain of legs. With real chargers found, it uses
@@ -4481,7 +4677,19 @@ function render(o){
   if(cw) cw.addEventListener('scroll',()=>{
     cw.classList.toggle('at-end', cw.scrollLeft+cw.clientWidth >= cw.scrollWidth-4);
   },{passive:true});
-  mountMap(samples, itinerary);
+  /* Every charger that was in the running, not just the ones that won. The
+     chosen stops already have their own larger pins, so drop them here to
+     avoid drawing two markers on one point. Deduplicated across stops
+     because consecutive searches overlap and would otherwise stack. */
+  const chosen=new Set((stops||[]).filter(s=>!s.none && s.best).map(s=>chgKey(s.best)));
+  const seen=new Set();
+  const candidates=(stops||[]).flatMap(s=>s.list||[]).filter(c=>{
+    if(!c || !c.loc) return false;
+    const k=chgKey(c);
+    if(chosen.has(k) || seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+  mountMap(samples, itinerary, candidates);
   if(SCRUB) mountScrub(reserve, cfg);
 }
 
@@ -4817,6 +5025,75 @@ $('btn-loc').addEventListener('click',async()=>{
   }
 });
 
+/* Drop a pin to choose a start or destination.
+
+   Naming the point is done as you pan, but lazily and last: the reverse
+   lookup is debounced, and whatever it returns is only shown if the map has
+   not moved again since. Coordinates alone already plan a perfect route, so
+   a name that never arrives costs nothing — it is a label, not the answer.
+
+   Returns the chosen {lat,lng,name} or null if cancelled. */
+function pickOnMap(title, start){
+  return new Promise(resolve=>{
+    const wrap=$('pickwrap'), read=$('pick-read');
+    $('pick-title').textContent=title;
+    wrap.hidden=false;
+
+    let here=start||null, timer=null, seq=0;
+    let name=null;
+
+    const show=(n, ll)=>{
+      read.innerHTML = (n ? `<b>${n}</b><br>` : '')
+        + `<span class="pick-coord">${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}</span>`;
+    };
+
+    const map=osmMap($('pick-map'), [], [], {
+      crosshair:true,
+      centre:start,
+      onMove(ll){
+        here=ll; name=null; show(null, ll);
+        clearTimeout(timer);
+        const mine=++seq;
+        timer=setTimeout(async()=>{
+          const n=await reverseName(ll).catch(()=>null);
+          if(n && mine===seq){ name=n; show(n, here); }
+        }, 450);
+      }
+    });
+
+    const close=(val)=>{
+      clearTimeout(timer);
+      wrap.hidden=true; $('pick-map').innerHTML='';
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const onKey=e=>{ if(e.key==='Escape') close(null); };
+    document.addEventListener('keydown', onKey);
+
+    $('pick-cancel').onclick=()=>close(null);
+    $('pick-ok').onclick=()=>{
+      const ll=here||map.centre();
+      close({lat:ll.lat, lng:ll.lng,
+             name:name || `${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`});
+    };
+  });
+}
+
+/* Both fields get one. The start also has the crosshair that reads the
+   device's own position; the destination has nowhere to read from, so a pin
+   is the only way to say "that lay-by, not the town centre". */
+[['btn-pin-from','from','from','Where you set off'],
+ ['btn-pin-to','to','to','Where you’re headed']].forEach(([btn,input,slot,label])=>{
+  const b=$(btn); if(!b) return;
+  b.addEventListener('click',async()=>{
+    const got=await pickOnMap(label, S[slot] || S.from || S.to || null);
+    if(!got) return;
+    $(input).value=got.name;
+    S[slot]={lat:got.lat, lng:got.lng, name:got.name};
+    const menu=$('ac-'+slot); if(menu) menu.hidden=true;
+  });
+});
+
 $('show-intro').addEventListener('click',()=>{
   if(window.UI_INTRO) UI_INTRO.open();
 });
@@ -4910,6 +5187,32 @@ $('go').addEventListener('click',e=>{
 });
 
 $('form').addEventListener('submit',plan);
+
+/* Choosing a stop, from the list under a stop card or from a pin on the map.
+
+   Replanning is the whole job, not a refinement of it: forcing an earlier or
+   later stop changes where the battery next runs down, so every stop after it
+   moves too. Cheaper than it sounds — the route, terrain and weather are all
+   cached from the first run, and the charger lookups hit CHG_CACHE, so this
+   is arithmetic and a repaint rather than a fresh set of round trips. */
+async function chooseCharger(key, label){
+  if(PREFERRED.has(key)){
+    PREFERRED.delete(key);
+    if(window.UI) UI.toast('Back to the best-scoring stop');
+  }else{
+    PREFERRED.add(key);
+    if(window.UI) UI.toast(label ? `Planning around ${label}` : 'Planning around your choice');
+  }
+  await plan({preventDefault(){}});
+}
+
+document.addEventListener('click', e=>{
+  const b=e.target.closest('.chgpick'); if(!b) return;
+  e.preventDefault();
+  const row=b.closest('.charger');
+  const name=row ? (row.querySelector('.n')||{}).textContent : null;
+  chooseCharger(b.dataset.chg, name);
+});
 
 /* Says which services this build can actually reach, so a missing key shows
    up here rather than as a puzzling failure in the middle of a plan. */
