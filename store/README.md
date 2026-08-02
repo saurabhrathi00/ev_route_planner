@@ -4,9 +4,17 @@ Everything here is generated from the app itself — the icon and feature
 graphic from the same SVG the app draws its mark with, the screenshots from
 real plans run on a 475x844 viewport at 2x. Nothing is a mockup.
 
-    icon-512.png                  512x512    app icon
-    feature-graphic-1024x500.png  1024x500   header on the listing
-    screenshots/                  950x1688   exactly 9:16, inside Play's range
+    icon-512.png                  512x512     app icon
+    feature-graphic-1024x500.png  1024x500    header on the listing
+    screenshots-phone/            950x1688    phone
+    screenshots-tablet7/          1080x1920   7-inch tablet
+    screenshots-tablet10/         1440x2560   10-inch tablet
+
+Both screenshot sets are exactly 9:16. Play states a 9:16 to 16:9 range and
+a first attempt shot at the 390-wide phone viewport came out at 0.462 —
+taller than the floor, and rejected on upload for no reason worth debugging
+in a console. Render at a viewport whose ratio is already right rather than
+cropping afterwards.
 
 Regenerate the screenshots after a UI change; a listing that shows an older
 build is worse than one with fewer pictures.
