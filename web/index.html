@@ -1122,10 +1122,10 @@ details[open] summary::before{transform:rotate(90deg)}
         <div class="body">
           <label class="f"><span>Terrain sampling</span>
             <select id="sampling">
-              <option value="100">Every 100 m — finest</option>
+              <option value="100" selected>Every 100 m — finest</option>
               <option value="250">Every 250 m</option>
               <option value="500">Every 500 m</option>
-              <option value="1000" selected>Every 1 km — fastest</option>
+              <option value="1000">Every 1 km — fastest</option>
             </select>
           </label>
           <p class="hint" id="samp-note"></p>
@@ -1204,36 +1204,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
       </section>
 
-      <div class="reveal" style="--i:3">
-        <div class="acc" data-open="false" id="acc-cal">
-          <button type="button">Calibration &amp; vehicle physics
-            <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-          <div class="panelbody"><div><div class="inner">
-            <p class="hint" style="margin-top:0">Two real trips in the same car fix the model. Trip A should climb; trip B should be flat. Driving time matters more than anything else here — the model needs the average speed each trip actually ran at, not the speed you held on the good bits.</p>
-            <div class="grid">
-              <label class="f"><span>A · distance (km)</span><input type="number" id="cA_d" value="35" step="any"></label>
-              <label class="f"><span>A · elevation gain (m)</span><input type="number" id="cA_h" value="1360" step="any"></label>
-              <label class="f"><span>A · charge used (%)</span><input type="number" id="cA_p" value="23" step="any"></label>
-              <label class="f"><span>A · driving time (min)</span><input type="number" id="cA_t" value="55" step="any" placeholder="how long it took"></label>
-            </div>
-            <div class="grid" style="margin-top:12px">
-              <label class="f"><span>B · distance (km)</span><input type="number" id="cB_d" value="35" step="any"></label>
-              <label class="f"><span>B · elevation gain (m)</span><input type="number" id="cB_h" value="0" step="any"></label>
-              <label class="f"><span>B · charge used (%)</span><input type="number" id="cB_p" value="8" step="any"></label>
-              <label class="f"><span>B · driving time (min)</span><input type="number" id="cB_t" value="32" step="any" placeholder="how long it took"></label>
-            </div>
-            <div class="grid" style="margin-top:12px">
-              <label class="f"><span>Reference temperature (°C)</span><input type="number" id="cT" value="30"></label>
-              <label class="f"><span>People on those trips</span><input type="number" id="cP" value="2" min="1"></label>
-              <label class="f"><span>Frontal area × drag (m²)</span><input type="number" id="cdA" value="0.72" step="any"></label>
-              <label class="f"><span>Rolling resistance</span><input type="number" id="crr" value="0.0095" step="any"></label>
-            </div>
-            <div id="ref-note" class="note" style="border-left-color:var(--charge)"></div>
-            <div id="calout" class="note"></div>
-          </div></div></div>
-        </div>
-      </div>
-    </section>
+</section>
 
     <!-- ============ 3. RESULT ============ -->
     <section class="view" id="v-result">
@@ -1363,7 +1334,37 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
       </section>
 
-      <section class="card reveal" style="--i:3">
+      <div class="reveal" style="--i:3">
+        <div class="acc" data-open="false" id="acc-cal">
+          <button type="button">Calibration &amp; vehicle physics
+            <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="panelbody"><div><div class="inner">
+            <p class="hint" style="margin-top:0">Two real trips in the same car fix the model. Trip A should climb; trip B should be flat. Driving time matters more than anything else here — the model needs the average speed each trip actually ran at, not the speed you held on the good bits.</p>
+            <div class="grid">
+              <label class="f"><span>A · distance (km)</span><input type="number" id="cA_d" value="35" step="any"></label>
+              <label class="f"><span>A · elevation gain (m)</span><input type="number" id="cA_h" value="1360" step="any"></label>
+              <label class="f"><span>A · charge used (%)</span><input type="number" id="cA_p" value="23" step="any"></label>
+              <label class="f"><span>A · driving time (min)</span><input type="number" id="cA_t" value="55" step="any" placeholder="how long it took"></label>
+            </div>
+            <div class="grid" style="margin-top:12px">
+              <label class="f"><span>B · distance (km)</span><input type="number" id="cB_d" value="35" step="any"></label>
+              <label class="f"><span>B · elevation gain (m)</span><input type="number" id="cB_h" value="0" step="any"></label>
+              <label class="f"><span>B · charge used (%)</span><input type="number" id="cB_p" value="8" step="any"></label>
+              <label class="f"><span>B · driving time (min)</span><input type="number" id="cB_t" value="32" step="any" placeholder="how long it took"></label>
+            </div>
+            <div class="grid" style="margin-top:12px">
+              <label class="f"><span>Reference temperature (°C)</span><input type="number" id="cT" value="30"></label>
+              <label class="f"><span>People on those trips</span><input type="number" id="cP" value="2" min="1"></label>
+              <label class="f"><span>Frontal area × drag (m²)</span><input type="number" id="cdA" value="0.72" step="any"></label>
+              <label class="f"><span>Rolling resistance</span><input type="number" id="crr" value="0.0095" step="any"></label>
+            </div>
+            <div id="ref-note" class="note" style="border-left-color:var(--charge)"></div>
+            <div id="calout" class="note"></div>
+          </div></div></div>
+        </div>
+      </div>
+    
+      <section class="card reveal" style="--i:4">
         <div class="head"><h2>Where the data comes from</h2><span class="tag">no accounts, no card</span></div>
         <div class="body">
           <div class="sources">
@@ -4581,12 +4582,9 @@ function sampNote(){
   const step=parseInt($('sampling').value,10);
   const label = step>=1000 ? (step/1000)+' km' : step+' m';
   $('m-samp').textContent = label+' sampling';
-  const reqs = Math.ceil(Math.ceil(300000/Math.max(step,250))/100);
-  $('samp-note').innerHTML =
-    `A 300 km route needs about ${reqs} call${reqs>1?'s':''} to the free terrain service at this setting. `
-    + (step>=500
-       ? 'Trade-off: a climb and drop inside one span cancel out on paper, but not in the car — you spend energy going up and get roughly 60% back coming down. On ghat roads that under-reads. Drop to 250 m if a mountain route looks too cheap.'
-       : 'Fine enough to catch individual ghat hairpins.');
+  $('samp-note').innerHTML = step>=500
+    ? `<strong style="color:var(--warn)">Coarse.</strong> A climb and drop inside one span cancel out on paper but not in the car — you spend energy going up and get roughly 60% back coming down, so a ghat road reads cheaper than it is. Only worth it if a plan is taking too long.`
+    : `Fine enough to catch individual ghat hairpins. Terrain comes from map tiles, which are priced by the ground the route covers rather than by how closely it is read — so this costs no more network than a coarse setting, only a little more work on the phone.`;
 }
 $('sampling').addEventListener('change',sampNote);
 $('carpick').addEventListener('change',()=>{ applyCar(); refreshReference(); calibrate(); });
