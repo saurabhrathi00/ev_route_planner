@@ -21,7 +21,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.routesection.evplanner"
+        /* This is the app's permanent identity on Play — it was fixed when the
+         * listing was created and can never be changed afterwards. It does not
+         * have to match `namespace` above, which only names the generated R and
+         * BuildConfig classes and stays with the Kotlin source's own package. */
+        applicationId = "com.evroute.app"
         minSdk = 26
         targetSdk = 35
         // Play rejects an upload whose versionCode it has seen before, so this
@@ -43,10 +47,13 @@ android {
 
     buildTypes {
         release {
-            // The planner is one HTML asset and two small Kotlin files; there is
-            // nothing for R8 to shrink that would pay for the risk of it
-            // rewriting something the WebView reaches by name.
-            isMinifyEnabled = false
+            /* 91% of the bundle is androidx and the Kotlin stdlib, most of it
+             * never called — R8 has plenty to remove. It is also low risk here:
+             * the only Kotlin is one Activity named in the manifest, which R8
+             * always keeps, and the WebView reaches nothing by name (no
+             * @JavascriptInterface bridge exists). */
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (hasSigning) signingConfig = signingConfigs.getByName("release")
         }
