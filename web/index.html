@@ -4127,6 +4127,13 @@ function render(o){
      The margin the driver set is exactly how wrong it might be, so show the
      bad end of it too — a range nobody can misread as a promise. */
   const arriveLow = Math.max(0, arriveWith - marginPct());
+  /* Charging is not the whole of it — pulling off the road, finding the bay,
+     plugging in and paying is roughly ten minutes a stop whatever the charger
+     does. Counting them together is the only way the three figures add up to
+     the one that matters. */
+  const stoppedMins = planWorks
+    ? (itinerary.chargeMins||0) + nStops*STOP_OVERHEAD_MIN : 0;
+  const doorToDoor  = sim.secs/60 + stoppedMins;
   const cls = (stops.length && stops[0].none) ? 'stop'
             : planWorks ? (arriveWith<reserve+8 ? 'warn' : 'ok')
             : short ? 'stop' : end<reserve+8 ? 'warn' : 'ok';
@@ -4147,7 +4154,8 @@ function render(o){
   const sub=`${S.from.name.split(',')[0]} to ${S.to.name.split(',')[0]}, ${fmt(sim.dist)} km with ${fmt(sim.gain)} m of climbing and ${fmt(sim.loss)} m of descent. `
     +(cfg.soh<99?`Pack treated as ${fmt(cfg.soh)}% healthy, so ${fmt(cfg.cap,1)} kWh usable. `:'')
     +`Air around ${fmt(avgT)} °C, `
-    +(Math.abs(headMean)<3?'wind barely a factor.':headMean>0?`a headwind averaging ${fmt(headMean)} km/h.`:`a tailwind averaging ${fmt(-headMean)} km/h.`);
+    +(Math.abs(headMean)<3?'wind barely a factor.':headMean>0?`a headwind averaging ${fmt(headMean)} km/h.`:`a tailwind averaging ${fmt(-headMean)} km/h.`)
+    +(planWorks?` Allow <strong>${hhmm(doorToDoor*60)}</strong> door to door — ${hhmm(sim.secs)} of it driving, the rest plugged in or pulling off.`:'');
 
   /* Shown whenever we are not already naming a specific charger: with the
      search off, or when it found nothing, the distance and place are what
@@ -4241,7 +4249,12 @@ function render(o){
       <div class="kpi"><div class="v">${fmt(sim.used,1)}%</div><div class="l">charge used</div></div>
       <div class="kpi"><div class="v">${fmt(sim.kWh,1)}</div><div class="l">kWh</div></div>
       <div class="kpi"><div class="v">${fmt(sim.perKm)}</div><div class="l">Wh per km</div></div>
-      <div class="kpi"><div class="v">${hhmm(sim.secs)}</div><div class="l">driving time</div></div>
+      <div class="kpi"><div class="v">${hhmm(sim.secs)}</div><div class="l">driving</div></div>
+      ${planWorks ? `
+      <div class="kpi"><div class="v">${hhmm(stoppedMins*60)}</div><div class="l">charging &amp; stops</div>
+        <span class="state warn">${nStops} stop${nStops===1?'':'s'}</span></div>
+      <div class="kpi"><div class="v">${hhmm(doorToDoor*60)}</div><div class="l">door to door</div>
+        <span class="state ok">what it really takes</span></div>` : ''}
       <div class="kpi"><div class="v">${fmt(sim.dist)}</div><div class="l">km</div></div>
     </div>
   </div>
