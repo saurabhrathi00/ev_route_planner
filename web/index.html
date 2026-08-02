@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r27</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r28</span>
         </div>
       </div>
 
@@ -1569,7 +1569,8 @@ details[open] summary::before{transform:rotate(90deg)}
            stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
     <label class="f place" style="flex:1;min-width:0;margin:0">
-      <input type="text" id="pick-search" placeholder="Search for a place" autocomplete="off">
+      <input type="search" id="pick-search" placeholder="Search for a place"
+             autocomplete="off" enterkeyhint="search" spellcheck="false">
       <div class="acmenu" id="pick-ac" hidden></div>
     </label>
   </div>
@@ -2741,10 +2742,24 @@ function attachPlaces(inputId, menuId, slot, onPick){
     timer=setTimeout(async()=>{ try{ items=await query(t); render(); }catch(e){ items=[]; render(); } },300);
   });
   input.addEventListener('keydown',e=>{
+    /* Enter with nothing highlighted still has to do something — on a phone
+       keyboard there are no arrow keys, so the top suggestion is what the
+       user means. Only when the menu is empty does it fall through to
+       resolving the raw text. */
+    if(e.key==='Enter' && !menu.hidden && items.length){
+      e.preventDefault(); pick(cursor>=0?cursor:0); return;
+    }
+    if(e.key==='Enter' && onPick){
+      e.preventDefault();
+      const t=input.value.trim();
+      if(t.length<3) return;
+      resolveTyped(t).then(p=>{ if(p) onPick(p); })
+        .catch(()=>{ if(window.UI) UI.toast('Could not find that place', true); });
+      return;
+    }
     if(menu.hidden) return;
     if(e.key==='ArrowDown'){e.preventDefault();cursor=Math.min(cursor+1,items.length-1);render();}
     else if(e.key==='ArrowUp'){e.preventDefault();cursor=Math.max(cursor-1,0);render();}
-    else if(e.key==='Enter'&&cursor>=0){e.preventDefault();pick(cursor);}
     else if(e.key==='Escape'){menu.hidden=true;}
   });
   menu.addEventListener('click',e=>{const b=e.target.closest('button'); if(b) pick(+b.dataset.i);});
@@ -5136,8 +5151,21 @@ function pickOnMap(title, start){
         + `<span class="pick-coord">${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}</span>`;
     };
 
+    /* Where a search put the crosshair, so the move it causes can be told
+       apart from the user dragging. Without this the map's own move event
+       arrives a moment later and wipes the name the search just supplied. */
+    let fromSearch=null;
+
     const onMove=(ll)=>{
-      here=ll; name=null; show(null, ll);
+      here=ll;
+      if(fromSearch
+         && Math.abs(ll.lat-fromSearch.lat)<1e-5
+         && Math.abs(ll.lng-fromSearch.lng)<1e-5){
+        show(name, ll);                       // still the searched place
+        return;
+      }
+      fromSearch=null;
+      name=null; show(null, ll);
       clearTimeout(timer);
       const mine=++seq;
       timer=setTimeout(async()=>{
@@ -5176,9 +5204,21 @@ function pickOnMap(title, start){
        so a search that lands you near the right place can be nudged the last
        hundred metres rather than being the final answer. */
     pickSearch = place=>{
-      if(!map || !map.goTo) return;
-      map.goTo({lat:place.lat, lng:place.lng});
-      if(!useGoogle()) onMove({lat:place.lat, lng:place.lng});
+      const ll={lat:place.lat, lng:place.lng};
+
+      /* Set the answer here rather than waiting for the map to report having
+         moved. Google fires center_changed on its own schedule, and pressing
+         "Use this point" the instant a result is tapped would otherwise take
+         whatever the crosshair was over a moment ago. */
+      clearTimeout(timer); seq++;
+      here=ll; name=place.name; fromSearch=ll;
+      show(place.name, ll);
+
+      if(map && map.goTo) map.goTo(ll);
+
+      /* On a phone the keyboard covers the map, so a search that worked
+         perfectly looks like nothing happened. Put it away. */
+      search.blur();
     };
 
     const close=(val)=>{
