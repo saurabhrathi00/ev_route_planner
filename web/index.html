@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r28</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r29</span>
         </div>
       </div>
 
@@ -2726,8 +2726,21 @@ function attachPlaces(inputId, menuId, slot, onPick){
         if(onPick) onPick(place); else S[slot]=place;
         return;
       }catch(e){
+        /* A prediction carries no coordinates, so this second call is the
+           only thing that turns the tapped suggestion into a point — and
+           when it fails the tap does nothing at all, which reads as the
+           search being broken rather than one API being unavailable.
+           The name is good enough to look up somewhere else. */
+        try{
+          const p=await resolveTyped(it.name);
+          if(p){
+            const place={lat:p.lat, lng:p.lng, name:it.name};
+            if(onPick) onPick(place); else S[slot]=place;
+            return;
+          }
+        }catch(_){}
         if(!onPick) S[slot]=null;
-        if(window.UI) UI.toast('Could not read that place — '+e.message, true);
+        if(window.UI) UI.toast('Could not place “'+it.name+'” — '+e.message, true, 6000);
         return;
       }
     }
@@ -5309,7 +5322,27 @@ $('dev-test').addEventListener('click',async()=>{
         const r=await routeGoogle(where, near, g);
         return {length:Math.round(r.distance/1000)+' km'};
       });
-      await probe('Google · Places autocomplete', ()=> placesAutocompleteGoogle('Manali', g));
+      /* Autocomplete and Place Details are one feature in two calls, billed
+         and quota-capped separately. Autocomplete alone looks like it works
+         — suggestions appear — and then tapping one does nothing, because
+         the prediction has no coordinates and the second call is the one
+         that is turned off. Probe them as a pair, using a real prediction,
+         so that failure has somewhere to show up. */
+      let firstId=null;
+      await probe('Google · Places autocomplete', async()=>{
+        const r=await placesAutocompleteGoogle('Manali', g);
+        firstId=(r[0]||{}).placeId||null;
+        return r;
+      });
+      await probe('Google · Place details', async()=>{
+        if(!firstId) throw new Error('no prediction to look up — autocomplete failed first');
+        const d=await placeDetailsGoogle(firstId, g);
+        return {length:`${d.lat.toFixed(3)}, ${d.lng.toFixed(3)}`};
+      });
+      await probe('Google · Places text search', async()=>{
+        const t=await searchTextGoogle('Manali', g);
+        return {length:t.name||'found'};
+      });
       await probe('Google · Maps JavaScript', async()=>{ await loadMaps(g); return {length:'loaded'}; });
     }
     if(viaChg) await probe('Google · Places (chargers)', ()=> chargersGoogle(where,10,g));
