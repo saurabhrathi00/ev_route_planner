@@ -1029,11 +1029,21 @@ details[open] summary::before{transform:rotate(90deg)}
             </label>
           </div>
           <div class="grid" style="margin-top:16px">
-            <label class="f"><span>Climate control</span>
-              <div class="seg" id="ac-toggle" style="--n:2;--i:0">
-                <button type="button" data-v="1" aria-pressed="true">On</button>
-                <button type="button" data-v="0" aria-pressed="false">Off</button>
+            <label class="f"><span>Safety margin (%)</span>
+              <div class="slider">
+                <input type="range" id="margin_r" min="0" max="25" step="1" value="8"
+                       aria-label="Safety margin percent">
+                <input type="number" id="margin" value="8" min="0" max="25" step="any">
               </div>
+              <p class="hint" id="margin-note"></p>
+            </label>
+            <label class="f"><span>Climate control running</span>
+              <div class="slider">
+                <input type="range" id="acpct_r" min="0" max="100" step="5" value="100"
+                       aria-label="Percent of the drive the climate control runs">
+                <input type="number" id="acpct" value="100" min="0" max="100" step="any">
+              </div>
+              <p class="hint" id="ac-note"></p>
             </label>
             <label class="f"><span>Driving style</span>
               <select id="style">
@@ -1127,6 +1137,9 @@ details[open] summary::before{transform:rotate(90deg)}
           </div>
           <div class="grid" style="margin-top:16px">
             <label class="f"><span>Usable battery (kWh)</span><input type="number" id="cap" value="52" step="any" min="5"></label>
+            <label class="f"><span>Battery health (%)</span>
+              <input type="number" id="soh" value="100" min="50" max="100" step="any">
+              <p class="hint" id="soh-note"></p></label>
             <label class="f"><span>Kerb weight (kg)</span><input type="number" id="kerb" value="1650" step="any"></label>
             <label class="f"><span>Max DC charge rate (kW)</span><input type="number" id="dckw" value="70" min="10" step="any"></label>
           </div>
@@ -1377,7 +1390,7 @@ const fmt = (n,d=0) => (isFinite(n)?n:0).toLocaleString(undefined,{minimumFracti
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const BUNDLED_OCM = atob('NDE5NTY3MzEtNDBiNS00OTM5LTg0ZjktNWIwZWZiYTVlOWIw');
-const S = { from:null, to:null, ac:true, chargers:false, strategy:'time', learn:1, trips:[] };
+const S = { from:null, to:null, chargers:false, strategy:'time', learn:1, trips:[] };
 const ocmKey = ()=> ($('ocm').value.trim() || BUNDLED_OCM);
 /* Two possible sources, in order: a key the user typed into Settings, then
    whatever tools/build.sh baked in. The build replaces the placeholder, so if
@@ -1566,11 +1579,25 @@ function clearFail(){ $('errbox').hidden=true; steps=[]; paint(); }
 /* ============================================================
    1. CALIBRATION
    ============================================================ */
+/* Draw with the climate system working flat out at this outside temperature.
+   90 W is the floor: the blower and the electronics behind the vents still
+   run with the compressor off. */
 function hvacWatts(t,on){
   if(!on) return 90;
   if(t>24) return clamp(400+120*(t-24),400,2600);
   if(t<17) return clamp(500+210*(17-t),500,4200);
   return 300;
+}
+
+/* An air conditioner is not a switch. It cycles: pulls the cabin down, backs
+   off, comes on again, and on a mild day it may only work a third of the
+   drive. A share of the time between the off floor and the full draw models
+   that far better than on-or-off, and it keeps both ends exactly where they
+   were — 0 is the old Off, 100 the old On, so no existing plan changes. */
+function climateWatts(t, pct){
+  const share=clamp((pct==null?100:pct)/100, 0, 1);
+  const off=hvacWatts(t,false), full=hvacWatts(t,true);
+  return off + (full-off)*share;
 }
 function calibrate(){
   const cap=num('cap'), kerb=num('kerb'), temp=num('cT');
@@ -1616,7 +1643,9 @@ function calibrate(){
   const aeroShare=v=>{const vs=v/3.6;const a=0.5*rho*cdA*vs*vs;return a/(crr*m*G+a)*100;};
 
   $('m-model').textContent=`Model: ${$('carname').value||'car'}`;
-  $('m-eff').textContent=`Drivetrain ${fmt(eta*100,1)}% · scale ${fmt(C,3)}`;
+  $('m-eff').textContent = S.trips.length
+    ? `Drivetrain ${fmt(eta*100,1)}% · corrected ×${fmt(S.learn,3)}`
+    : `Drivetrain ${fmt(eta*100,1)}% · uncalibrated`;
   $('calout').innerHTML =
     (assumed ? `<strong style="color:var(--warn)">Driving times missing — assuming 80 km/h, which is the single most likely thing to be wrong.</strong> Put in how long each trip actually took and re-read the numbers below.<br><br>` : '')
     + `Average speeds <strong class="mono">${fmt(A.v)} km/h</strong> climbing and <strong class="mono">${fmt(B.v)} km/h</strong> flat.
@@ -2843,7 +2872,7 @@ function simulate(o){
     if(fGrade>0) acc.climb+=fGrade*d/cal.eta; else if(e<0) acc.regen+=e;
 
     const dt=d/v; secs+=dt;
-    const hv=hvacWatts(w.temp,cfg.ac)*dt, ax=250*dt;
+    const hv=climateWatts(w.temp,cfg.acPct)*dt, ax=250*dt;
     acc.hvac+=hv; acc.aux+=ax;
 
     const jam=clamp(cfg.trafficRatio-1,0,1.2);
@@ -3180,7 +3209,12 @@ const STYLES = {
 };
 
 const STOP_OVERHEAD_MIN = 10;    // detour, plug in, pay, unplug
-const MODEL_MARGIN_PCT  = 2;     // allowance for prediction error
+/* The old value was 2, which is thinner than this model deserves. A physics
+   estimate of a drive it has never seen, on a car it has been told about
+   rather than measured, is not accurate to two points of charge — and being
+   wrong in the optimistic direction is what strands people. The driver sets
+   it now, and the default is deliberately cautious. */
+const marginPct = () => clamp(num('margin')||0, 0, 25);
 
 function taperKW(soc, kw){
   return soc<=55 ? kw : kw*Math.max(0.12, 1-0.88*(soc-55)/45);
@@ -3368,7 +3402,7 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
     const best=found.best, i=best.idx;
     const arrive=best.socThere-best.detourPct;
     const need=(sim.socTrace[i]+offset)-(endBase+offset);
-    const plan=chargePlan(arrive, need+MODEL_MARGIN_PCT, reserve, cfg);
+    const plan=chargePlan(arrive, need+marginPct(), reserve, cfg);
     const target=plan.target;
     const kWh=(target-arrive)/100*cfg.cap;
     stops.push({
@@ -3466,7 +3500,7 @@ function routeFactors(sim, cfg, marks, samples, headMean){
       note:`${fmt(jam,1)}% of the energy · ${cfg.trafficWhy}` },
     { label:'Climate', v:hvac,
       ...(()=>{ const [t,c]=band(hvac,8,16); return {tag:t,cls:c}; })(),
-      note:`${fmt(avgT,0)} °C outside, cabin ${cfg.ac?'on':'off'}` }
+      note:`${fmt(avgT,0)} °C outside, climate ${cfg.acPct>0?fmt(cfg.acPct)+'% of the drive':'off'}` }
   ];
 
   return `<section class="panel">
@@ -3570,7 +3604,7 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
       if(hit<=prev) break;                                   // no progress: unreachable
       const arrive=sim.socTrace[hit]+offset;
       const need=(sim.socTrace[hit]+offset)-(sim.socTrace[end]+offset);
-      const plan=chargePlan(arrive, need+MODEL_MARGIN_PCT, reserve, cfg);
+      const plan=chargePlan(arrive, need+marginPct(), reserve, cfg);
       if(!plan.feasible) break;
       stops.push({i:hit, arrive, target:plan.target, ll:samples[hit].ll,
                   stopsLeft:plan.stops, alt:plan.alt});
@@ -3958,7 +3992,7 @@ function itineraryTable(it, reserve){
       <p style="margin-top:0;color:var(--ink2)">${it.real
         ? 'Built around the chargers found along the route.'
         : 'Charge levels assume you find a charger near each point below. Verify each one before setting off — the app can do that for you with the charger search on.'}
-        Every stop is sized to arrive at the next one with your ${fmt(reserve)}% floor intact, plus ${MODEL_MARGIN_PCT} points for prediction error.</p>
+        Every stop is sized to arrive at the next one with your ${fmt(reserve)}% floor intact, plus ${fmt(marginPct())} points of safety margin.</p>
       ${journeyView(it, reserve)}
       <details style="margin-top:16px"><summary>The same thing as a table</summary>
         <div style="overflow-x:auto;padding-top:8px"><table style="min-width:640px"><thead><tr>
@@ -4043,6 +4077,10 @@ function render(o){
   const nStops = (itinerary && itinerary.stopCount) || 0;
   const planWorks = nStops>0 && !(stops.length && stops[0].none);
   const arriveWith = planWorks ? itinerary.rows[itinerary.rows.length-1].arrive : end;
+  /* One number to the point implies a precision this model does not have.
+     The margin the driver set is exactly how wrong it might be, so show the
+     bad end of it too — a range nobody can misread as a promise. */
+  const arriveLow = Math.max(0, arriveWith - marginPct());
   const cls = (stops.length && stops[0].none) ? 'stop'
             : planWorks ? (arriveWith<reserve+8 ? 'warn' : 'ok')
             : short ? 'stop' : end<reserve+8 ? 'warn' : 'ok';
@@ -4061,6 +4099,7 @@ function render(o){
     : `You'll get there with <strong>${fmt(end)}%</strong> left. No charging stop needed.`;
 
   const sub=`${S.from.name.split(',')[0]} to ${S.to.name.split(',')[0]}, ${fmt(sim.dist)} km with ${fmt(sim.gain)} m of climbing and ${fmt(sim.loss)} m of descent. `
+    +(cfg.soh<99?`Pack treated as ${fmt(cfg.soh)}% healthy, so ${fmt(cfg.cap,1)} kWh usable. `:'')
     +`Air around ${fmt(avgT)} °C, `
     +(Math.abs(headMean)<3?'wind barely a factor.':headMean>0?`a headwind averaging ${fmt(headMean)} km/h.`:`a tailwind averaging ${fmt(-headMean)} km/h.`);
 
@@ -4147,9 +4186,11 @@ function render(o){
   <div class="verdict ${cls}">
     <div class="lede">${lede}</div><div class="sub">${sub}</div>
     <div class="kpis">
-      <div class="kpi"><div class="v">${fmt(arriveWith)}%</div><div class="l">${planWorks?`on arrival, after ${nStops} stop${nStops===1?'':'s'}`:'charge on arrival'}</div>
-        <span class="state ${arriveWith<reserve?'stop':arriveWith<reserve+10?'warn':'ok'}">${
-          arriveWith<reserve ? 'below your floor' : arriveWith<reserve+10 ? 'cutting it fine' : 'comfortable'}</span></div>
+      <div class="kpi"><div class="v">${fmt(arriveLow)}–${fmt(arriveWith)}%</div><div class="l">${planWorks?`on arrival, after ${nStops} stop${nStops===1?'':'s'}`:'charge on arrival'}</div>
+        <span class="state ${arriveLow<reserve-0.5?'stop':arriveLow<reserve+4?'warn':'ok'}">${
+          arriveLow<reserve-0.5 ? 'could dip below your floor'
+          : arriveLow<reserve+4 ? 'holds your floor, with nothing spare'
+          : 'holds your floor even if the estimate is off'}</span></div>
       ${planWorks?`<div class="kpi"><div class="v">${fmt(end)}%</div><div class="l">if you never charged</div></div>`:''}
       <div class="kpi"><div class="v">${fmt(sim.used,1)}%</div><div class="l">charge used</div></div>
       <div class="kpi"><div class="v">${fmt(sim.kWh,1)}</div><div class="l">kWh</div></div>
@@ -4177,6 +4218,19 @@ function render(o){
     </div>
     <div class="legend"><span id="map-note">Loading…</span></div>
   </section>
+  ${S.trips.length ? '' : `
+  <div class="verdict warn" style="border-left-color:var(--warn)">
+    <div class="lede" style="font-size:clamp(17px,3.4vw,21px)">This is physics, not experience</div>
+    <div class="sub">The model has never seen you drive. It works the road out from first
+      principles and the figures you typed in, and it can be out by several points in
+      either direction — measured on one real Delhi to Mussoorie run it read 83% against
+      90% actually used, which is the direction that leaves people stranded.
+      <br><br>Drive once, then put the real charge used into the
+      <strong>Trip log</strong>. That single entry corrected the same route to within
+      a tenth of a point. Until then, treat the ${fmt(marginPct())}% safety margin as
+      the thing keeping you honest.</div>
+    <div class="cta"><button class="ghost" type="button" data-go="log">Open the trip log</button></div>
+  </div>` }
   ${SCRUB ? scrubPanel(reserve, (itinerary&&itinerary.stopCount)||0) : ''}
   <section class="panel">
     <div class="head"><h2>The road, in section</h2><span class="tag">terrain vs charge</span></div>
@@ -4246,8 +4300,13 @@ async function plan(e){
 
     const cal=calibrate();
     const ST=STYLES[$('style').value]||STYLES.normal;
-    const cfg={cap:num('cap'),kerb:num('kerb'),people:num('people'),bags:num('bags'),
-      ac:S.ac,cdA:num('cdA'),crr:num('crr'),
+    /* Health multiplies the pack before anything else sees it, so range,
+       charge targets and the reserve check all shrink together rather than
+       one of them quietly using the nameplate figure. */
+    const cfg={cap:num('cap')*clamp(num('soh')||100,50,100)/100,
+      kerb:num('kerb'),people:num('people'),bags:num('bags'),
+      acPct:clamp(num('acpct')||0,0,100), cdA:num('cdA'),crr:num('crr'),
+      soh:clamp(num('soh')||100,50,100),
       style:refMeasured?ST.accel:1, styleKey:$('style').value, vhwy:ST.hwy, vroad:ST.road,
       regen:clamp((num('regeneff')||0.25)*ST.regen,0.05,0.9), regenKW:num('regenkw'),dckw:num('dckw'),
       trafficRatio:1.15, trafficWhy:''};        // settled once the route is in
@@ -4406,11 +4465,40 @@ function relearn(){
 /* ============================================================
    11. WIRING
    ============================================================ */
-$('ac-toggle').addEventListener('click',e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  [...e.currentTarget.children].forEach(c=>c.setAttribute('aria-pressed',c===b));
-  S.ac=b.dataset.v==='1';
-});
+/* Says what the number means in watts, because "60%" on its own tells nobody
+   anything — the same setting costs four times as much at 40 °C as at 22. */
+function acNote(){
+  const pct=clamp(num('acpct')||0,0,100);
+  const t=26;                       // a stand-in until the route's weather is in
+  const w=Math.round(climateWatts(t,pct));
+  $('acpct').value=pct;
+  $('ac-note').innerHTML = pct===0
+    ? 'Off — only the blower, about 90 W. Realistic on a cool day with the windows down.'
+    : pct===100
+    ? `Running the whole drive. Around ${w} W at 26 °C, and far more in real heat — this is the honest setting for an Indian summer.`
+    : `On for ${fmt(pct)}% of the drive — about ${w} W averaged at 26 °C. An air conditioner cycles rather than running flat out, so this is usually closer to the truth than either end.`;
+}
+$('acpct').addEventListener('input', acNote);
+
+/* Both of these exist because the model was quietly assuming the best case:
+   a pack at nameplate capacity and a prediction good to two points. Neither
+   is true, and neither error shows up until you are on the road. */
+function sohNote(){
+  const v=clamp(num('soh')||100,50,100);
+  const usable=(num('cap')||0)*v/100;
+  $('soh-note').innerHTML = v>=99
+    ? `Treated as a new pack — the full ${fmt(num('cap'),1)} kWh. Only true for a car in its first year or so.`
+    : `${fmt(v)}% of the pack left, so ${fmt(usable,1)} kWh instead of ${fmt(num('cap'),1)}. Most EVs lose a few percent in the first couple of years and then settle; if you do not know yours, 90–95% at three years is a fair guess.`;
+}
+function marginNote(){
+  const v=marginPct();
+  $('margin-note').innerHTML = v===0
+    ? `<strong style="color:var(--warn)">No margin.</strong> Every stop is sized to arrive exactly on your floor, with nothing left for the model being wrong. Not advisable.`
+    : `Every charging stop is sized to land ${fmt(v)} points above your floor. This is the cushion for the model being wrong — an estimate of a road it has never driven, on figures you typed in rather than measured, is not accurate to a point or two.`;
+}
+$('soh').addEventListener('input', ()=>{ sohNote(); });
+['cap'].forEach(id=>$(id).addEventListener('input', sohNote));
+$('margin').addEventListener('input', marginNote);
 $('btn-swap').addEventListener('click',()=>{
   const a=$('from').value; $('from').value=$('to').value; $('to').value=a;
   const t=S.from; S.from=S.to; S.to=t;
@@ -4622,7 +4710,7 @@ $('t_add').addEventListener('click',async()=>{
   seg.style.setProperty('--i', String(Math.max(0, bs.findIndex(b=>b.dataset.v===gSrcMode))));
   applyCar();
   relearn(); renderTrips(); sampNote(); fitAnchor(); markReference();
-  departBounds(); departNote();
+  departBounds(); departNote(); acNote(); sohNote(); marginNote();
   attachPlaces('from','ac-from','from');
   attachPlaces('to','ac-to','to');
   calibrate();
@@ -4772,7 +4860,7 @@ function pair(numId){
   });
   r.value=n.value; fill();
 }
-pair('soc0'); pair('reserve');
+pair('soc0'); pair('reserve'); pair('acpct'); pair('margin');
 
 /* ---- accordions ------------------------------------------------ */
 document.querySelectorAll('.acc > button').forEach(b=>{
