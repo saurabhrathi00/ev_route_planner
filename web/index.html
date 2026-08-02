@@ -491,10 +491,14 @@ input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:va
 .intro-rail::-webkit-scrollbar{display:none}
 .intro-page{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;padding:8px 30px;min-width:0}
+  text-align:center;padding:8px 30px;min-width:0;
+  /* fits every phone size checked, but a short window or landscape should
+     scroll rather than quietly cut the last line off */
+  overflow-y:auto;overscroll-behavior:contain}
 .intro-art{height:190px;display:grid;place-items:center;margin-bottom:26px;width:100%}
 .brandmark{width:132px;height:132px;filter:drop-shadow(0 10px 26px rgba(0,0,0,.28))}
 .art-profile{width:min(300px,80vw)}
+.art-chg,.art-learn{width:min(280px,76vw)}
 .art-shield{width:110px}
 .intro-page h2{font-size:clamp(25px,7vw,33px);font-weight:800;letter-spacing:-.03em;line-height:1.1}
 .wm-ev{color:var(--brand-green)}
@@ -897,7 +901,48 @@ details[open] summary::before{transform:rotate(90deg)}
       </div>
     </section>
 
-    <!-- 3 — how to use it -->
+    <!-- 3 — chargers -->
+    <section class="intro-page">
+      <div class="intro-art">
+        <svg viewBox="0 0 220 120" class="art-chg" aria-hidden="true">
+          <path d="M12 96 C48 96 52 40 92 40 S140 86 178 74 200 46 210 42"
+                fill="none" stroke="var(--brand-blue)" stroke-width="4"
+                stroke-linecap="round" opacity=".38"/>
+          <g>
+            <circle cx="92" cy="40" r="15" fill="var(--brand-green)"/>
+            <path d="M94 30 86 43h5l-1 8 7-11h-5z" fill="#fff"/>
+          </g>
+          <g>
+            <circle cx="178" cy="74" r="12" fill="var(--brand-blue)"/>
+            <path d="M180 66 173 76h4l-.8 6 6-9h-4z" fill="#fff"/>
+          </g>
+          <circle cx="12" cy="96" r="7" fill="var(--ok)" stroke="var(--sheet)" stroke-width="2.5"/>
+          <circle cx="210" cy="42" r="7" fill="var(--stop)" stroke="var(--sheet)" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <h2>Where to stop</h2>
+      <p>It searches the whole corridor and ranks chargers on <strong>whether they'll actually be usable when you get there</strong> — recently confirmed, enough bays, close to the road — not on raw power.</p>
+      <div class="intro-chips"><span>How much to add</span><span>How long it takes</span></div>
+    </section>
+
+    <!-- 4 — it learns -->
+    <section class="intro-page">
+      <div class="intro-art">
+        <svg viewBox="0 0 220 120" class="art-learn" aria-hidden="true">
+          <path d="M14 34 C70 40 130 62 206 96" fill="none" stroke="var(--ink3)"
+                stroke-width="3" stroke-dasharray="6 7" stroke-linecap="round" opacity=".7"/>
+          <path d="M14 34 C70 52 130 82 206 106" fill="none" stroke="var(--brand-green)"
+                stroke-width="4.5" stroke-linecap="round"/>
+          <circle cx="206" cy="96" r="6" fill="var(--ink3)" opacity=".7"/>
+          <circle cx="206" cy="106" r="7" fill="var(--brand-green)"/>
+        </svg>
+      </div>
+      <h2>It learns your car</h2>
+      <p>Put in what a drive <strong>actually</strong> used and the model corrects toward how you really drive — your right foot, your tyres, your load.</p>
+      <p style="font-size:14px;color:var(--ink3)">On a real Delhi to Mussoorie run it first estimated 83%. The car used 90%. One logged trip brought it to within a tenth of a point.</p>
+    </section>
+
+    <!-- 5 — how to use it -->
     <section class="intro-page">
       <div class="intro-art">
         <ol class="intro-steps">
@@ -910,7 +955,7 @@ details[open] summary::before{transform:rotate(90deg)}
       <p>Then drag the car along the route to watch the battery drain, and see exactly where to stop and how much to put in.</p>
     </section>
 
-    <!-- 4 — the promise -->
+    <!-- 6 — the promise -->
     <section class="intro-page">
       <div class="intro-art">
         <svg viewBox="0 0 120 110" class="art-shield" aria-hidden="true">
