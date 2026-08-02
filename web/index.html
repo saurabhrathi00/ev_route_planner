@@ -1103,7 +1103,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r24</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r25</span>
         </div>
       </div>
 
@@ -2040,8 +2040,17 @@ function osmMap(box, path, stops, opts){
       return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="${fill}"
                stroke="#fff" stroke-width="2.5"><title>${label}</title></circle>`;
     };
-    const marks=(stops||[]).map(s=>pin(s.loc,'#B87613',
-      `Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`)).join('');
+    /* A charger sitting off the road looks like a misplaced pin unless the
+       detour is drawn. Dashed, so it never reads as part of the route. */
+    const spurs=(stops||[]).filter(s=>s.via).map(s=>{
+      const [x1,y1]=pt(s.via), [x2,y2]=pt(s.loc);
+      return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}"
+               fill="none" stroke="#B87613" stroke-width="2.5" stroke-dasharray="5 4"
+               stroke-opacity=".85" stroke-linecap="round"/>`;
+    }).join('');
+    const marks=spurs+(stops||[]).map(s=>pin(s.loc,'#B87613',
+      `Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`
+      + (s.via?' · off the route':''))).join('');
 
     /* Candidates go on underneath the chosen stops and smaller, so the plan
        still reads at a glance while the alternatives are there to tap. The
@@ -2453,8 +2462,13 @@ function routeSVG(path, stops){
    charger list left the map unmarked and the navigation link without
    waypoints whenever charger search was off — which is the default. */
 function stopsFromItinerary(it){
-  return ((it&&it.rows)||[]).filter(r=>r.stop && r.ll)
-    .map((r,i)=>({loc:r.ll, name:r.toName, km:r.toKm, target:r.target, n:i+1}));
+  /* loc is what to show and drive to; via is where it joins the route, so a
+     stop that is genuinely off the road can be drawn as such rather than
+     looking like a mislocated pin. Stops with no real charger behind them —
+     "you will need to charge about here" — have only the route point. */
+  return ((it&&it.rows)||[]).filter(r=>r.stop && (r.chg||r.ll))
+    .map((r,i)=>({loc:r.chg||r.ll, via:r.chg?r.ll:null,
+                  name:r.toName, km:r.toKm, target:r.target, n:i+1}));
 }
 /* PlugShare has the best community charger data there is and no API we can
    reach — but we can hand the user straight to it. /map is in their iOS
@@ -2548,8 +2562,15 @@ async function mountMap(samples, it, cands){
               fillOpacity:.9, strokeColor:'#fff', strokeWeight:2}});
       m.addListener('click', ()=>onCandPick(c));
     });
-    stops.forEach(s=> dot(s.loc, '#B87613',
-      `Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`));
+    stops.forEach(s=>{
+      /* the dashed spur from the road to a charger that is off it */
+      if(s.via) new google.maps.Polyline({path:[s.via, s.loc], map,
+        strokeColor:'#B87613', strokeOpacity:0, zIndex:2,
+        icons:[{icon:{path:'M 0,-1 0,1', strokeOpacity:.85, strokeWeight:2.5, scale:2},
+                offset:'0', repeat:'9px'}]});
+      dot(s.loc, '#B87613',
+        `Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`+(s.via?' · off the route':''));
+    });
     SRC_USED.map='Google Maps JavaScript API';
     const row=$('src-map'); if(row) row.textContent=SRC_USED.map;
     const n=$('map-note');
@@ -3976,8 +3997,16 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
   const stops=[];
 
   if(real.length){
+    /* Two locations, deliberately. `ll` is where the charger meets the route —
+       the sample the whole simulation is indexed by, and the only place the
+       distance and timing maths can be done. `chg` is where the charger
+       actually is, up to `detour` km off the road.
+       They were the same field once, which put the map pin on the tarmac and
+       sent the Navigate button to a spot on the highway rather than to the
+       charger. Anything a driver looks at or drives to uses `chg`. */
     real.forEach(r=> stops.push({i:r.i, arrive:r.arrive, target:r.target,
-                                 name:r.best.name, ll:samples[r.i].ll, detour:r.detour}));
+                                 name:r.best.name, ll:samples[r.i].ll,
+                                 chg:r.best.loc, detour:r.detour}));
   }else{
     let offset=0, prev=-1;
     for(let guard=0; guard<8; guard++){
@@ -4008,7 +4037,7 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
       toName:st.name, toKm:samples[st.i].s/1000, arrive,
       target:st.target, addKWh:(st.target-arrive)/100*cfg.cap,
       addMins:chargeCurveMinutes(arrive, st.target, cfg.cap, cfg.dckw),
-      ll:st.ll, detour:st.detour, stop:true});
+      ll:st.ll, chg:st.chg, detour:st.detour, stop:true});
     offset += st.target-arrive;
     fromIdx=st.i; fromName=st.name; leave=st.target;
   });
@@ -4364,9 +4393,9 @@ function itineraryTable(it, reserve){
       <span class="rank">${r.leg}</span><span style="flex:1">
       <span class="n">${r.toName}</span><br>
       <span class="d">${fmt(r.toKm)} km in · arrive ${fmt(r.arrive)}% · charge to ${fmt(r.target)}%
-        ${r.detour!=null?` · ${fmt(r.detour,1)} km off route`:''} · ${r.ll.lat.toFixed(4)}, ${r.ll.lng.toFixed(4)}</span><br>
-      <a href="${gm(r.ll)}" target="_blank" rel="noopener">Google Maps</a>
-      · <a href="${plugShareUrl(r.ll)}" target="_blank" rel="noopener">PlugShare</a></span></div>`).join('');
+        ${r.detour!=null?` · ${fmt(r.detour,1)} km off route`:''} · ${(r.chg||r.ll).lat.toFixed(4)}, ${(r.chg||r.ll).lng.toFixed(4)}</span><br>
+      <a href="${gm(r.chg||r.ll)}" target="_blank" rel="noopener">Google Maps</a>
+      · <a href="${plugShareUrl(r.chg||r.ll)}" target="_blank" rel="noopener">PlugShare</a></span></div>`).join('');
 
   return `<section class="panel">
     <div class="head"><h2>The whole drive</h2>
