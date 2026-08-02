@@ -446,9 +446,12 @@ input.has-two{padding-right:86px}          /* pin and crosshair side by side */
 :root[data-theme=dark] .osm-t,:root:not([data-theme=light]) .osm-t{
   filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.92)}
 .osm-ov{position:absolute;inset:0;pointer-events:none}
-/* the overlay stays transparent so a drag anywhere pans; pins opt back in */
-.osm-cand{pointer-events:auto;cursor:pointer;transition:r var(--t1) var(--e-out)}
-.osm-cand:hover{r:8}
+/* the overlay stays transparent so a drag anywhere pans; pins opt back in.
+   The pin is a group now — disc plus bolt — so the hover grows the disc
+   rather than the group, which has no radius of its own. */
+.osm-cand{pointer-events:auto;cursor:pointer}
+.osm-cand circle{transition:r var(--t1) var(--e-out)}
+.osm-cand:hover circle{r:9}
 
 /* ---- pin-drop picker ------------------------------------------
    A crosshair fixed at the centre, not a tap-to-drop marker. On a phone
@@ -476,6 +479,8 @@ input.has-two{padding-right:86px}          /* pin and crosshair side by side */
   padding-top:calc(14px + env(safe-area-inset-top));border-bottom:1px solid var(--rule);
 }
 .pick-head h3{font-size:16px;flex:1;min-width:0}
+.pick-head .acmenu{z-index:220}
+.pick-head input{font-size:14px;padding:10px 12px}
 .pick-map{flex:1;position:relative;min-height:0}
 .pick-map #pick-canvas{position:absolute;inset:0}
 .pick-map .osm{position:absolute;inset:0}
@@ -1106,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r26</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r27</span>
         </div>
       </div>
 
@@ -1557,13 +1562,16 @@ details[open] summary::before{transform:rotate(90deg)}
   <ul class="steps" id="steps"></ul>
   <span class="log" id="status" hidden></span>
 </div>
-<div class="pickwrap" id="pickwrap" hidden role="dialog" aria-modal="true" aria-labelledby="pick-title">
+<div class="pickwrap" id="pickwrap" hidden role="dialog" aria-modal="true" aria-label="Pick a point on the map">
   <div class="pick-head">
     <button class="ghost" type="button" id="pick-cancel" aria-label="Cancel" style="padding:9px 12px">
       <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <h3 id="pick-title">Drop a pin</h3>
+    <label class="f place" style="flex:1;min-width:0;margin:0">
+      <input type="text" id="pick-search" placeholder="Search for a place" autocomplete="off">
+      <div class="acmenu" id="pick-ac" hidden></div>
+    </label>
   </div>
   <div class="pick-map">
     <div id="pick-canvas"></div>
@@ -2052,9 +2060,12 @@ function osmMap(box, path, stops, opts){
                fill="none" stroke="#B87613" stroke-width="2.5" stroke-dasharray="5 4"
                stroke-opacity=".85" stroke-linecap="round"/>`;
     }).join('');
-    const marks=spurs+(stops||[]).map(s=>pin(s.loc,'#B87613',
-      `Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`
-      + (s.via?' · off the route':''))).join('');
+    const marks=spurs+(stops||[]).map(s=>{
+      const [x,y]=pt(s.loc);
+      const title=`Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`
+                + (s.via?' · off the route':'');
+      return boltPin(x, y, 10, '#B87613').replace('</g>', `<title>${title}</title></g>`);
+    }).join('');
 
     /* Candidates go on underneath the chosen stops and smaller, so the plan
        still reads at a glance while the alternatives are there to tap. The
@@ -2062,13 +2073,8 @@ function osmMap(box, path, stops, opts){
        reported full or out of order. */
     const cand=(o.candidates||[]).map((c,i)=>{
       const [x,y]=pt(c.loc);
-      const fill = c.working===false ? '#8C948E'
-                 : c.free>0          ? '#2E6B4F'
-                 : c.free===0        ? '#8C948E'
-                 : '#B87613';
-      return `<circle class="osm-cand" data-cand="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}"
-                r="5.5" fill="${fill}" fill-opacity=".9" stroke="#fff" stroke-width="2"
-                ><title>${candTitle(c)}</title></circle>`;
+      return boltPin(x, y, 7, chgColour(c), `class="osm-cand" data-cand="${i}"`)
+             .replace('</g>', `<title>${candTitle(c)}</title></g>`);
     }).join('');
 
     const route = path.length
@@ -2145,7 +2151,43 @@ function osmMap(box, path, stops, opts){
   }
 
   fit(); draw();
-  return {redraw:draw, centre:centreLL};
+  return {
+    redraw:draw, centre:centreLL,
+    goTo(ll, zoom){ z=zoom||Math.max(z,14); cx=lon2x(ll.lng,z); cy=lat2y(ll.lat,z); draw(); }
+  };
+}
+
+/* A coloured dot says "something is here"; a bolt says what. On a map that
+   already carries a route line, a start, a destination and the chosen stops,
+   the chargers need to be readable as chargers without a legend.
+
+   One path, drawn in a 24-unit box, shared by both maps so the two never
+   drift apart. */
+const BOLT_D='M13.6 2 L5 13.8 h5.3 l-1.1 8.2 8.8-12.1 h-5.4 z';
+const chgColour = c => c.working===false ? '#8C948E'
+                     : c.free>0          ? '#2E6B4F'
+                     : c.free===0        ? '#8C948E'
+                     :                     '#B87613';
+
+/* An SVG marker for the Google map. A Symbol only carries one path, so a
+   white bolt inside a coloured disc has to arrive as a whole image. */
+function boltMarkerUrl(fill, px){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${px}" height="${px}">`
+    + `<circle cx="12" cy="12" r="10" fill="${fill}" stroke="#fff" stroke-width="2.4"/>`
+    + `<path d="${BOLT_D}" fill="#fff" transform="translate(12 12) scale(.62) translate(-12 -12)"/>`
+    + `</svg>`;
+  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+}
+
+/* The same thing as inline SVG for the OpenStreetMap overlay. */
+function boltPin(x, y, r, fill, extra){
+  const s=(r*1.55)/24;
+  return `<g ${extra||''}>`
+    + `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${fill}"`
+    + ` stroke="#fff" stroke-width="${(r*0.34).toFixed(1)}"/>`
+    + `<path d="${BOLT_D}" fill="#fff" pointer-events="none"`
+    + ` transform="translate(${(x-12*s).toFixed(2)} ${(y-12*s).toFixed(2)}) scale(${s.toFixed(4)})"/>`
+    + `</g>`;
 }
 
 /* What a candidate pin says when you hold it, and what the list rows repeat.
@@ -2561,9 +2603,8 @@ async function mountMap(samples, it, cands){
        the network says a bay is free. Clicking one replans around it. */
     candidates.forEach(c=>{
       const m=new google.maps.Marker({position:c.loc, map, title:candTitle(c), zIndex:1,
-        icon:{path:google.maps.SymbolPath.CIRCLE, scale:5.5,
-              fillColor:c.working===false?'#8C948E':c.free>0?'#2E6B4F':c.free===0?'#8C948E':'#B87613',
-              fillOpacity:.9, strokeColor:'#fff', strokeWeight:2}});
+        icon:{url:boltMarkerUrl(chgColour(c), 24),
+              scaledSize:new google.maps.Size(24,24), anchor:new google.maps.Point(12,12)}});
       m.addListener('click', ()=>onCandPick(c));
     });
     stops.forEach(s=>{
@@ -2572,8 +2613,10 @@ async function mountMap(samples, it, cands){
         strokeColor:'#B87613', strokeOpacity:0, zIndex:2,
         icons:[{icon:{path:'M 0,-1 0,1', strokeOpacity:.85, strokeWeight:2.5, scale:2},
                 offset:'0', repeat:'9px'}]});
-      dot(s.loc, '#B87613',
-        `Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`+(s.via?' · off the route':''));
+      new google.maps.Marker({position:s.loc, map, zIndex:3,
+        title:`Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`+(s.via?' · off the route':''),
+        icon:{url:boltMarkerUrl('#B87613', 34),
+              scaledSize:new google.maps.Size(34,34), anchor:new google.maps.Point(17,17)}});
     });
     SRC_USED.map='Google Maps JavaScript API';
     const row=$('src-map'); if(row) row.textContent=SRC_USED.map;
@@ -2635,7 +2678,11 @@ async function reverseNominatim(ll){
   return [j.name||a.road, town, a.state].filter(Boolean).join(', ') || null;
 }
 
-function attachPlaces(inputId, menuId, slot){
+/* onPick, when given, receives the resolved place instead of the plan's
+   start/destination slot being written. The picker's own search box uses it
+   to recentre the map — same suggestions, same three sources, same debounce,
+   just a different thing done with the answer. */
+function attachPlaces(inputId, menuId, slot, onPick){
   const input=$(inputId), menu=$(menuId);
   let timer=null, items=[], cursor=-1;
   async function query(text){
@@ -2674,18 +2721,21 @@ function attachPlaces(inputId, menuId, slot){
          user actually chose costs a details call */
       try{
         const d=await placeDetailsGoogle(it.placeId, gmapKey());
-        S[slot]={lat:d.lat, lng:d.lng, name:it.name};
+        const place={lat:d.lat, lng:d.lng, name:it.name};
+        if(onPick) onPick(place); else S[slot]=place;
         return;
       }catch(e){
-        S[slot]=null;
+        if(!onPick) S[slot]=null;
         if(window.UI) UI.toast('Could not read that place — '+e.message, true);
         return;
       }
     }
-    S[slot]={lat:it.lat, lng:it.lng, name:it.name};
+    const place={lat:it.lat, lng:it.lng, name:it.name};
+    if(onPick) onPick(place); else S[slot]=place;
   }
   input.addEventListener('input',()=>{
-    S[slot]=null; clearTimeout(timer); cursor=-1;
+    if(!onPick) S[slot]=null;
+    clearTimeout(timer); cursor=-1;
     const t=input.value.trim();
     if(t.length<3){ items=[]; render(); return; }
     timer=setTimeout(async()=>{ try{ items=await query(t); render(); }catch(e){ items=[]; render(); } },300);
@@ -5058,6 +5108,10 @@ $('btn-loc').addEventListener('click',async()=>{
   }
 });
 
+/* Set while the picker is open, so the one search box wired below always
+   talks to the map currently on screen. */
+let pickSearch=null;
+
 /* Drop a pin to choose a start or destination.
 
    Naming the point is done as you pan, but lazily and last: the reverse
@@ -5069,7 +5123,9 @@ $('btn-loc').addEventListener('click',async()=>{
 function pickOnMap(title, start){
   return new Promise(resolve=>{
     const wrap=$('pickwrap'), read=$('pick-read');
-    $('pick-title').textContent=title;
+    const search=$('pick-search');
+    search.value=''; search.placeholder=title;
+    $('pick-ac').hidden=true;
     wrap.hidden=false;
 
     let here=start||null, timer=null, seq=0;
@@ -5110,13 +5166,24 @@ function pickOnMap(title, start){
         });
         const at=()=>{ const c=gm.getCenter(); return {lat:c.lat(), lng:c.lng()}; };
         gm.addListener('center_changed', ()=>onMove(at()));
-        map={centre:at};
+        map={centre:at, goTo(ll, zoom){ gm.setCenter(ll); gm.setZoom(zoom||Math.max(gm.getZoom(),15)); }};
         onMove(at());
       }).catch(useOsm);
     } else useOsm();
 
+    /* Searching moves the map; it does not choose the point. The pin is
+       still whatever is under the crosshair when "Use this point" is pressed,
+       so a search that lands you near the right place can be nudged the last
+       hundred metres rather than being the final answer. */
+    pickSearch = place=>{
+      if(!map || !map.goTo) return;
+      map.goTo({lat:place.lat, lng:place.lng});
+      if(!useGoogle()) onMove({lat:place.lat, lng:place.lng});
+    };
+
     const close=(val)=>{
       clearTimeout(timer);
+      pickSearch=null;
       wrap.hidden=true; $('pick-canvas').innerHTML='';
       document.removeEventListener('keydown', onKey);
       resolve(val);
@@ -5322,6 +5389,7 @@ $('t_add').addEventListener('click',async()=>{
   departBounds(); departNote(); acNote(); sohNote(); marginNote();
   attachPlaces('from','ac-from','from');
   attachPlaces('to','ac-to','to');
+  attachPlaces('pick-search','pick-ac',null, p=>{ if(pickSearch) pickSearch(p); });
   calibrate();
 })();
 </script>
