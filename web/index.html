@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-02 r30</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r31</span>
         </div>
       </div>
 
@@ -1619,6 +1619,33 @@ const bundledGKey = ()=>{
   return (!v || v.slice(0,2)==='__') ? '' : v;
 };
 const gmapKey = bundledGKey;
+
+/* What a failed service is allowed to say in front of a driver.
+
+   Google's quota errors read "Quota exceeded for quota metric
+   'SearchNearbyRequest' and limit 'SearchNearbyRequest per day' of service
+   'places.googleapis.com' for consumer 'project_number:NNNNNNNNNNNN'". That
+   is a sentence written for whoever holds the billing account — it names
+   internal metrics, and it ends with the project number — and it was going
+   straight onto the screen. None of it helps someone deciding where to stop.
+
+   So every service error is reduced to one of a few plain words at the point
+   it is caught. The raw text still goes to the console, and Settings' "Test
+   data sources" still reports it verbatim, because that is the surface where
+   detail belongs. */
+function humanErr(msg){
+  const m=String((msg&&msg.message)||msg||'');
+  if(/quota|RESOURCE_EXHAUSTED|rate.?limit|\b429\b|too many requests/i.test(m)) return 'busy right now';
+  if(/API key|PERMISSION_DENIED|UNAUTHENTICATED|\b40[13]\b|not authoriz/i.test(m)) return 'not available in this build';
+  if(/failed to fetch|networkerror|load failed|timed out|timeout|abort/i.test(m)) return 'unreachable';
+  if(/\bHTTP 5\d\d\b|INTERNAL|UNAVAILABLE/i.test(m)) return 'having trouble';
+  return 'unavailable';
+}
+/* Same thing, but keeps the detail where a developer will find it. */
+function noteErr(where, e){
+  try{ console.warn('[EVRoute] '+where+':', (e&&e.message)||e); }catch(_){}
+  return where+' — '+humanErr(e);
+}
 
 /* ---------- geodesy (no map library needed) ---------- */
 const rad = d => d*Math.PI/180;
@@ -2578,7 +2605,7 @@ async function mountMap(samples, it, cands){
       if(n) n.textContent=candidates.length
         ? 'Small dots are other chargers along the way — green where bays are free, amber where nobody reports. Tap one to stop there instead.'
         : 'Drag to pan, scroll or use + / − to zoom. Start, charging stops and destination are marked.';
-    }catch(e){ fallback('Map failed ('+e.message+') — showing the route shape instead.'); }
+    }catch(e){ fallback('No map service answered — showing the route shape instead.'); }
     return;
   }
   try{
@@ -2631,8 +2658,8 @@ async function mountMap(samples, it, cands){
       SRC_USED.map='OpenStreetMap tiles';
       const r=$('src-map'); if(r) r.textContent=SRC_USED.map;
       const n=$('map-note');
-      if(n) n.textContent='Google Maps did not load ('+e.message+') — this is OpenStreetMap instead.';
-    }catch(_){ fallback('Map could not load ('+e.message+') — showing the route shape instead.'); }
+      if(n) n.textContent='OpenStreetMap, because the Google map did not load.';
+    }catch(_){ fallback('No map service answered — showing the route shape instead.'); }
   }
 }
 
@@ -2740,7 +2767,7 @@ function attachPlaces(inputId, menuId, slot, onPick){
           }
         }catch(_){}
         if(!onPick) S[slot]=null;
-        if(window.UI) UI.toast('Could not place “'+it.name+'” — '+e.message, true, 6000);
+        if(window.UI) UI.toast('Could not place “'+it.name+'” — the place lookup is '+humanErr(e), true, 6000);
         return;
       }
     }
@@ -2944,8 +2971,11 @@ async function getRoute(a,b){
       SRC_USED.route='Google Routes API';
       return r;
     }catch(e){
-      tried.push('Google: '+e.message);
-      if(window.UI) UI.toast('Google routing failed, falling back — '+e.message, true);
+      /* The fallback below is about to answer. Saying "Google routing
+         failed" over the top of a route that arrived fine is alarming and
+         useless — the sources panel at the foot of the plan already says
+         which service actually answered. */
+      tried.push(noteErr('Google Routes', e));
     }
   }
   if(orsKey()){
@@ -2954,8 +2984,7 @@ async function getRoute(a,b){
       SRC_USED.route='OpenRouteService';
       return r;
     }catch(e){
-      tried.push('OpenRouteService: '+e.message);
-      if(window.UI) UI.toast('OpenRouteService unavailable, using the open router — '+e.message, true);
+      tried.push(noteErr('OpenRouteService', e));
     }
   }
   for(const [host,label] of OSRM_HOSTS){
@@ -2963,7 +2992,7 @@ async function getRoute(a,b){
       const r=await routeOSRM(a,b,host);
       SRC_USED.route = tried.length ? `${label} (after ${tried.length} failed)` : label;
       return r;
-    }catch(e){ tried.push(`${label}: ${e.message}`); }
+    }catch(e){ tried.push(noteErr(label, e)); }
   }
   throw new Error('No routing service answered. Tried '+tried.length+': '+tried.join(' · '));
 }
@@ -3605,13 +3634,13 @@ async function findChargers(center, km, key){
   const g=useGoogleChargers() ? gmapKey() : '';
   const jobs=[];
   if(g)   jobs.push(chargersGoogle(center,km,g).then(r=>lists.push(r),
-                     e=>errs.push('Google Places '+e.message)));
+                     e=>errs.push(noteErr('Google Places', e))));
   if(key) jobs.push(chargersOCM(center,km,key).then(r=>lists.push(r),
-                     e=>errs.push('Open Charge Map '+e.message)));
+                     e=>errs.push(noteErr('Open Charge Map', e))));
   await Promise.all(jobs);
   if(!lists.flat().length){
     try{ lists.push(await chargersOSM(center,km)); }
-    catch(e){ errs.push('OpenStreetMap '+e.message); }
+    catch(e){ errs.push(noteErr('OpenStreetMap', e)); }
   }
   const merged=mergeChargers(lists);
   /* An empty result and a broken service are different problems and must not
@@ -4668,12 +4697,13 @@ function render(o){
     stopHtml=`<section class="panel"><div class="head"><h2>Where to plug in</h2><span class="tag">${stops.filter(s=>!s.none).length} stop${stops.filter(s=>!s.none).length===1?'':'s'}</span></div><div class="body">`
     + stops.map((s,i)=>{
         if(s.none) return `<div class="stop-card">
-          <h3>${s.errors.length&&!s.answered?'Charger lookup failed':'No charger found'}</h3>
+          <h3>${s.errors.length&&!s.answered?'Charger list unavailable here':'No charger found'}</h3>
           ${s.errors.length&&!s.answered
-            ? `<p class="why">The charger services did not answer, so this is not a verdict about the road — it is a broken lookup. Reported: <span class="mono">${s.errors.join('; ')}</span></p>
-               <p class="why">Worth retrying in a moment. If it keeps failing, check <em>Where data comes from</em> in Settings, and use <em>Test data sources</em> there to see which service is down — the OpenStreetMap fallback in particular runs on volunteer mirrors that are often busy.</p>`
+            ? `<p class="why">Every charger service was busy or unreachable just then, so this says nothing about the road — the list simply did not arrive. <strong>Worth pressing Plan again in a minute</strong>; the rest of the drive is already worked out and cached, so a retry is quick.</p>
+               <p class="why">Meanwhile the numbers above still hold: you come down to ${fmt(reserve)}% near ${fmt(s.km)} km, so plan to be plugged in before that.</p>
+               <details><summary>Which services were tried</summary><div style="padding-top:6px"><span class="d">${s.errors.join(' · ')}</span></div></details>`
             : `<p class="why">You come down to ${fmt(reserve)}% near ${fmt(s.km)} km. I searched the ${fmt(s.searchedKm)} km of route before that — DC chargers within 25 km of the road, then within 45, then any charger at all — and nothing is mapped there.
-               ${s.errors.length?`<br><span class="mono" style="font-size:12px">Some lookups also errored: ${s.errors.join('; ')}</span>`:''}</p>
+               ${s.errors.length?`<br><span class="d">Some sources were also unavailable: ${s.errors.join(' · ')}</span>`:''}</p>
                <p class="why">Either the area genuinely has no charging, or it is missing from the maps. Set off with more charge, or break the drive where you know there is a charger. If Settings is on <em>Free</em>, switching it to <em>Chargers</em> adds Google, which covers a good deal of India that the open databases miss.</p>`}
           </div>`;
         const moved = s.movedBack>0;
