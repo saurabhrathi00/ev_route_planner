@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r33</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r34</span>
         </div>
       </div>
 
@@ -3607,6 +3607,12 @@ async function chargersGoogle(center, km, key){
     body:JSON.stringify({
       includedPrimaryTypes:['electric_vehicle_charging_station'],
       maxResultCount:20,
+      /* Nearest first. Twenty results is the ceiling Nearby will return, and
+         a wide circle over a city will hit it — ranked by prominence the
+         twenty that come back can all be across town, ranked by distance
+         they are the twenty closest to this point on the road, which is the
+         only ordering that makes a corridor sweep safe to widen. */
+      rankPreference:'DISTANCE',
       locationRestriction:{circle:{center:{latitude:center.lat,longitude:center.lng},
                                    radius:Math.min(50000, km*1000)}}
     })
@@ -3812,7 +3818,9 @@ function chargeMinutes(kWh, chargerKW, carKW){
 
    Instead: cover the whole reachable corridor once. Circles of radius r
    spaced 1.6r apart tile a strip with no gaps, so a 120 km window needs
-   four calls at 25 km — and they are independent, so they go at once.
+   three calls at 45 km — and they are independent, so they go at once.
+   That radius is how wide the sweep looks, not how far a driver is asked
+   to detour; the detour caps live with the passes in findStop.
    Every candidate is then projected onto the route and scored, which
    also picks a better stop than "first one going backwards" did.
 
@@ -3951,30 +3959,26 @@ async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat)
      circles and bill less, but it would also let a charger 40 km off the
      road win a stop, which is not the same product. Cost comes off the
      cache and the quota cap instead. */
+  /* The number in each pass is the furthest a driver is asked to detour,
+     not the size of the circle fetched. They used to be the same thing,
+     which meant a 25 km cap forced 25 km circles — 40 km apart to tile the
+     corridor, so four calls, and then three more at 45 for the wider pass.
+
+     Nothing requires that. A charger within 25 km of the road is also within
+     45 km of it, so one sweep at the widest radius contains every candidate
+     all three passes can use, and each pass just applies its own cap. Seven
+     Nearby calls become three, with the same chargers and the same choice
+     of stop — the caps below are untouched. */
+  const FETCH_R=45;
   const PASSES=[[25,true,'DC chargers'],[45,true,'DC, wider'],[45,false,'any charger']];
 
-  /* Only the first radius goes out up front. The wider one used to be
-     fetched alongside it so that an empty stretch of road did not have to
-     wait for two round trips in turn — but the wider circles are three more
-     Nearby calls on every stop of every plan, and most of the time the first
-     pass has already answered and they are thrown away. Nearby is the SKU
-     with the smallest free allowance and the highest price, so the trade is
-     the wrong way round: a second or two on the uncommon path costs less
-     than 40% of the quota on the common one.
-
-     Started lazily, kept in inFlight, so the third pass still shares the
-     second's circles rather than fetching them again. */
-  const inFlight=new Map();
-  const passFor=(radius)=>{
-    if(!inFlight.has(radius)){
-      const centres=corridorCentres(samples, fromIdx, hitIdx, radius);
-      inFlight.set(radius, {centres, p:corridorChargers(samples, centres, radius, ocm)});
-    }
-    return inFlight.get(radius);
-  };
+  /* One sweep, awaited by all three passes. Nothing is lazy any more and
+     nothing needs to be: there is only one set of circles left to fetch. */
+  const centres=corridorCentres(samples, fromIdx, hitIdx, FETCH_R);
+  const sweep=corridorChargers(samples, centres, FETCH_R, ocm);
 
   for(const [radius, dcOnly, label] of PASSES){
-    const {centres, p}=passFor(radius);
+    const p=sweep;
     if(onStat) onStat(label, radius, centres.length);
     const {list, errs, answered, calls}=await p;
     totalCalls+=calls; lastErrs=errs; everAnswered=everAnswered||answered;
