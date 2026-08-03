@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r32</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r33</span>
         </div>
       </div>
 
@@ -2392,6 +2392,24 @@ async function routeGoogle(a, b, key, departAt){
    for the duration alone, and is only ever called when the driver left
    traffic on Auto and a key exists — it is a second billable request, so it
    does not fire for anyone who has already decided. */
+/* The quiet-hour drive time for a pair of points, used only as the divisor
+   that turns today's traffic-aware duration into a ratio. It is a second
+   Compute Routes Pro call on every single plan, for a number that does not
+   change from one hour to the next — the road at 3am is the road at 3am. So
+   it is cached for a day, keyed on the two endpoints.
+
+   Replanning, which now happens every time a driver picks a different
+   charging stop, was paying for this again each time. */
+const QUIET_TTL = 24*3600*1000;
+async function quietDuration(a, b, key){
+  const k='quiet:'+[a.lat,a.lng,b.lat,b.lng].map(n=>n.toFixed(3)).join(',');
+  const hit=await sget(k);
+  if(hit && hit.t && Date.now()-hit.t < QUIET_TTL) return hit.v;
+  const v=await googleQuietDuration(a, b, key);
+  if(v>60) sset(k, {t:Date.now(), v});
+  return v;
+}
+
 async function googleQuietDuration(a, b, key){
   const q=new Date();
   q.setDate(q.getDate() + (q.getHours()>=3 ? 1 : 0));
@@ -2419,11 +2437,24 @@ async function googleQuietDuration(a, b, key){
    Autocomplete gives predictions with no coordinates; the pick is what
    costs a details call. That split is deliberate — typing is cheap and
    only the one place you choose is ever looked up in full. */
-async function placesAutocompleteGoogle(text, key){
+/* One session token spans the keystrokes of a single search and the Place
+   Details call that ends it. Without one, Google bills every keystroke batch
+   as its own Autocomplete request; with one, the whole lot is a single
+   session. Typing "Manali" at a 300 ms debounce is three or four requests,
+   so this is most of that line item.
+
+   The token has to be dropped once the session closes, or it is treated as
+   expired and everything is billed per request again. */
+let acSession=null;
+const newSession = () =>
+  (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+  : 'ev-'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+
+async function placesAutocompleteGoogle(text, key, session){
   const r = await chgFetch('https://places.googleapis.com/v1/places:autocomplete', {
     method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':key},
-    body:JSON.stringify({input:text})
+    body:JSON.stringify(session ? {input:text, sessionToken:session} : {input:text})
   }, 10000);
   if(!r.ok) throw new Error('autocomplete HTTP '+r.status);
   const j=await r.json();
@@ -2442,8 +2473,9 @@ async function placesAutocompleteGoogle(text, key){
    field, and one Pro field prices the whole call at Place Details Pro rather
    than Essentials. In India that is $5.10 per thousand against $1.50, with
    half the free allowance, for a string that was thrown away on arrival. */
-async function placeDetailsGoogle(placeId, key){
-  const r = await chgFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+async function placeDetailsGoogle(placeId, key, session){
+  const q = session ? '?sessionToken='+encodeURIComponent(session) : '';
+  const r = await chgFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}${q}`, {
     headers:{'X-Goog-Api-Key':key, 'X-Goog-FieldMask':'location'}
   }, 10000);
   if(!r.ok) throw new Error('place details HTTP '+r.status);
@@ -2716,7 +2748,8 @@ function attachPlaces(inputId, menuId, slot, onPick){
   async function query(text){
     if(useGoogle()){
       try{
-        const g=await placesAutocompleteGoogle(text, gmapKey());
+        if(!acSession) acSession=newSession();
+        const g=await placesAutocompleteGoogle(text, gmapKey(), acSession);
         SRC_USED.places='Google Places Autocomplete';
         if(g.length) return g;
       }catch(e){ SRC_USED.places='Photon · OpenStreetMap (Google failed)'; }
@@ -2748,7 +2781,8 @@ function attachPlaces(inputId, menuId, slot, onPick){
       /* an autocomplete prediction has no coordinates; only the one the
          user actually chose costs a details call */
       try{
-        const d=await placeDetailsGoogle(it.placeId, gmapKey());
+        const d=await placeDetailsGoogle(it.placeId, gmapKey(), acSession);
+        acSession=null;                       // the session ends here
         const place={lat:d.lat, lng:d.lng, name:it.name};
         if(onPick) onPick(place); else S[slot]=place;
         return;
@@ -4143,6 +4177,27 @@ function splitTable(sim, samples){
     <td style="font-weight:600">${fmt(r.left,0)}%</td><td>${fmt(r.mins)} min</td></tr>`).join('')}</tbody></table>`;
 }
 
+/* Where a charger can be opened. c.url is whichever service happened to
+   return it — Google's own entry when Google had it, Open Charge Map's or
+   OpenStreetMap's otherwise — and that was the only link offered, so a
+   charger Google did not return could not be opened in Google Maps at all.
+   Coordinates always exist, so a Maps link always can. It goes first,
+   because that is the one people press to actually drive there. */
+function chargerLinks(c){
+  const at=`${c.loc.lat.toFixed(6)},${c.loc.lng.toFixed(6)}`;
+  const gmaps = c.src==='google' && c.url
+    ? c.url
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(at)}`;
+  const other = c.url && c.url!==gmaps
+    ? ` · <a href="${c.url}" target="_blank" rel="noopener">${
+        c.url.includes('openchargemap') ? 'Open Charge Map'
+        : c.url.includes('openstreetmap') ? 'OpenStreetMap' : 'Source entry'}</a>`
+    : '';
+  return `<a href="${gmaps}" target="_blank" rel="noopener">Google Maps</a>`
+       + ` · <a href="${plugShareUrl(c.loc)}" target="_blank" rel="noopener">PlugShare</a>`
+       + other;
+}
+
 function chargerLine(c,j,lead){
   let badge='';
   if(c.working===false) badge+=`<span class="pill dead">reported down</span>`;
@@ -4176,7 +4231,7 @@ function chargerLine(c,j,lead){
     <span class="rank">${c.picked?'★':lead?'▶':j+1}</span><span style="flex:1">
     <span class="n">${c.name}</span>${c.addr?`<br><span class="d">${c.addr}</span>`:''}<br>${badge}
     <span class="d">${bits.join(' · ')} · ${fmt(c.detour,1)} km off route</span><br>
-    <a href="${c.url}" target="_blank" rel="noopener">Open map entry</a>
+    ${chargerLinks(c)}
     ${choose}</span></div>`;
 }
 
@@ -4981,7 +5036,7 @@ async function plan(e){
       let measured=null;
       if(GOOGLE_DUR && useGoogle()){
         try{
-          const quiet=await googleQuietDuration(S.from, S.to, gmapKey());
+          const quiet=await quietDuration(S.from, S.to, gmapKey());
           if(quiet>60) measured=Math.max(1, Math.min(2.2, GOOGLE_DUR/quiet));
         }catch(e){ /* one call short of a measurement; the estimate still stands */ }
       }
@@ -5041,7 +5096,7 @@ async function plan(e){
     const ocm=ocmKey();
     let srcNote = gmapKey()
       ? 'Chargers from Google Places, Open Charge Map and OpenStreetMap, merged — ratings and live bay counts from Google, last-confirmed dates from Open Charge Map.'
-      : 'Chargers from Open Charge Map and OpenStreetMap, merged. Add a Google Places key in the Developer panel for star ratings and live bay availability.';
+      : 'Chargers from Open Charge Map, with OpenStreetMap behind it. Switch Settings to Chargers or Everything for Google as well — star ratings, and live bay counts where the network reports them.';
     let stops=[];
     if(!S.chargers && sim.socTrace.some(p=>p<reserve)) srcNote='Charger search skipped.';
     if(S.chargers && sim.socTrace.some(p=>p<reserve)){
@@ -5442,14 +5497,15 @@ $('dev-test').addEventListener('click',async()=>{
          that is turned off. Probe them as a pair, using a real prediction,
          so that failure has somewhere to show up. */
       let firstId=null;
+      const probeSession=newSession();
       await probe('Google · Places autocomplete', async()=>{
-        const r=await placesAutocompleteGoogle('Manali', g);
+        const r=await placesAutocompleteGoogle('Manali', g, probeSession);
         firstId=(r[0]||{}).placeId||null;
         return r;
       });
       await probe('Google · Place details', async()=>{
         if(!firstId) throw new Error('no prediction to look up — autocomplete failed first');
-        const d=await placeDetailsGoogle(firstId, g);
+        const d=await placeDetailsGoogle(firstId, g, probeSession);
         return {length:`${d.lat.toFixed(3)}, ${d.lng.toFixed(3)}`};
       });
       await probe('Google · Places text search', async()=>{
