@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r31</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r32</span>
         </div>
       </div>
 
@@ -1473,7 +1473,7 @@ details[open] summary::before{transform:rotate(90deg)}
             <button class="ghost" type="button" id="dev-test">
               <svg viewBox="0 0 24 24"><path d="M12 3v6M12 21a6 6 0 0 0 6-6c0-3-6-9-6-9s-6 6-6 9a6 6 0 0 0 6 6z"/></svg>Test data sources</button>
             <button class="ghost" type="button" id="dev-clear">
-              <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>Clear cached terrain</button>
+              <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>Clear cached data</button>
             <span class="log" id="dev-msg"></span>
           </div>
           <div id="dev-out" style="margin-top:14px"></div>
@@ -3786,7 +3786,52 @@ function chargeMinutes(kWh, chargerKW, carKW){
    — about 1.1 km — so replanning the same road costs nothing, however many
    times the inputs are nudged. Only genuinely new corridors bill.
    --------------------------------------------------------------- */
+/* Two caches, one in front of the other.
+
+   CHG_CACHE holds the in-flight promise, so two circles asked for at once
+   share a request. It lives as long as the page does, which in a WebView is
+   as long as the app is open — and that turned out to be the problem. Close
+   the app, reopen it, replan the same road, and every circle was fetched
+   again. A single person testing could empty a day's Nearby quota, which is
+   the SKU with the smallest free allowance and the largest price.
+
+   So the answers are also written to storage, keyed the same way, and read
+   back for six hours. Charger locations barely change in a day; live bay
+   counts do, which is what the six hours is for rather than a longer life.
+
+   JSON does not carry Dates, and `verified` is one — it drives the whole
+   confidence score — so it is revived on the way back in. */
 const CHG_CACHE = new Map();
+const CHG_TTL   = 6*3600*1000;
+const CHG_KEEP  = 300;                       // stored circles before the oldest go
+
+const reviveChargers = list => (list||[]).map(c =>
+  c && c.verified ? {...c, verified:new Date(c.verified)} : c);
+
+async function chargersCached(centre, radiusKm, ocm, key){
+  const disk = await sget('chg:'+key);
+  if(disk && disk.t && Date.now()-disk.t < CHG_TTL) return reviveChargers(disk.v);
+  const fresh = await findChargers(centre, radiusKm, ocm);
+  sset('chg:'+key, {t:Date.now(), v:fresh});             // not awaited: it is a cache
+  return fresh;
+}
+
+/* Drop stored circles that have gone stale, and keep the newest CHG_KEEP of
+   whatever is left. Runs once at start-up, off the critical path. */
+async function sweepChargerCache(){
+  try{
+    if(typeof localStorage==='undefined') return;
+    const keys=Object.keys(localStorage).filter(k=>k.startsWith('chg:'));
+    const now=Date.now(), live=[];
+    for(const k of keys){
+      const v=await sget(k);
+      if(!v || !v.t || now-v.t >= CHG_TTL) await STORE.delete(k);
+      else live.push({k, t:v.t});
+    }
+    live.sort((a,b)=>b.t-a.t);
+    for(const {k} of live.slice(CHG_KEEP)) await STORE.delete(k);
+  }catch(e){}
+}
 
 function corridorCentres(samples, fromIdx, toIdx, radiusKm){
   const spacing = radiusKm*1600;                    // 1.6 x radius, in metres
@@ -3803,7 +3848,7 @@ async function corridorChargers(samples, centres, radiusKm, ocm){
     const c=samples[i].ll;
     const k=`${c.lat.toFixed(2)},${c.lng.toFixed(2)},${radiusKm}`;
     if(!CHG_CACHE.has(k)){
-      CHG_CACHE.set(k, findChargers(c, radiusKm, ocm).catch(e=>{ CHG_CACHE.delete(k); throw e; }));
+      CHG_CACHE.set(k, chargersCached(c, radiusKm, ocm, k).catch(e=>{ CHG_CACHE.delete(k); throw e; }));
     }
     return CHG_CACHE.get(k).then(r=>({ok:true,r}), e=>({ok:false,e}));
   });
@@ -3873,15 +3918,29 @@ async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat)
      road win a stop, which is not the same product. Cost comes off the
      cache and the quota cap instead. */
   const PASSES=[[25,true,'DC chargers'],[45,true,'DC, wider'],[45,false,'any charger']];
+
+  /* Only the first radius goes out up front. The wider one used to be
+     fetched alongside it so that an empty stretch of road did not have to
+     wait for two round trips in turn — but the wider circles are three more
+     Nearby calls on every stop of every plan, and most of the time the first
+     pass has already answered and they are thrown away. Nearby is the SKU
+     with the smallest free allowance and the highest price, so the trade is
+     the wrong way round: a second or two on the uncommon path costs less
+     than 40% of the quota on the common one.
+
+     Started lazily, kept in inFlight, so the third pass still shares the
+     second's circles rather than fetching them again. */
   const inFlight=new Map();
-  for(const [radius] of PASSES){
-    if(inFlight.has(radius)) continue;
-    const centres=corridorCentres(samples, fromIdx, hitIdx, radius);
-    inFlight.set(radius, {centres, p:corridorChargers(samples, centres, radius, ocm)});
-  }
+  const passFor=(radius)=>{
+    if(!inFlight.has(radius)){
+      const centres=corridorCentres(samples, fromIdx, hitIdx, radius);
+      inFlight.set(radius, {centres, p:corridorChargers(samples, centres, radius, ocm)});
+    }
+    return inFlight.get(radius);
+  };
 
   for(const [radius, dcOnly, label] of PASSES){
-    const {centres, p}=inFlight.get(radius);
+    const {centres, p}=passFor(radius);
     if(onStat) onStat(label, radius, centres.length);
     const {list, errs, answered, calls}=await p;
     totalCalls+=calls; lastErrs=errs; everAnswered=everAnswered||answered;
@@ -5339,10 +5398,10 @@ $('dev-clear').addEventListener('click',async()=>{
   let n=0;
   try{
     const keys=Object.keys((typeof localStorage!=='undefined')?localStorage:{});
-    for(const k of keys) if(k.startsWith('leg:')||k.startsWith('elev:')){ await STORE.delete(k); n++; }
+    for(const k of keys) if(k.startsWith('leg:')||k.startsWith('elev:')||k.startsWith('chg:')){ await STORE.delete(k); n++; }
   }catch(e){}
   TILES.clear();
-  $('dev-msg').innerHTML=`<span class="done">Cleared ${n} cached leg${n===1?'':'s'} and the tile cache.</span>`;
+  $('dev-msg').innerHTML=`<span class="done">Cleared ${n} cached item${n===1?'':'s'} — terrain legs, charger circles and the tile cache.</span>`;
 });
 
 $('dev-test').addEventListener('click',async()=>{
@@ -5488,6 +5547,7 @@ $('t_add').addEventListener('click',async()=>{
 
 (async function init(){
   S.trips=(await sget('trips'))||[];
+  sweepChargerCache();          // stale circles, off the critical path
   /* Left over from when Settings had a key field. Nothing reads it now, and
      an abandoned API key sitting in local storage is not something to keep. */
   try{ if(await sget('gkey')) await STORE.delete('gkey'); }catch(e){}
