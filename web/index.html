@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r35</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r36</span>
         </div>
       </div>
 
@@ -3686,22 +3686,34 @@ function mergeChargers(lists){
 
 async function findChargers(center, km, key){
   const lists=[], errs=[];
+  let answered=0;                       // sources that replied, empty or not
   const g=useGoogleChargers() ? gmapKey() : '';
   const jobs=[];
-  if(g)   jobs.push(chargersGoogle(center,km,g).then(r=>lists.push(r),
+  if(g)   jobs.push(chargersGoogle(center,km,g).then(r=>{ lists.push(r); answered++; },
                      e=>errs.push(noteErr('Google Places', e))));
-  if(key) jobs.push(chargersOCM(center,km,key).then(r=>lists.push(r),
+  if(key) jobs.push(chargersOCM(center,km,key).then(r=>{ lists.push(r); answered++; },
                      e=>errs.push(noteErr('Open Charge Map', e))));
   await Promise.all(jobs);
   if(!lists.flat().length){
-    try{ lists.push(await chargersOSM(center,km)); }
+    try{ lists.push(await chargersOSM(center,km)); answered++; }
     catch(e){ errs.push(noteErr('OpenStreetMap', e)); }
   }
   const merged=mergeChargers(lists);
+
   /* An empty result and a broken service are different problems and must not
-     look the same to the caller. */
-  if(!merged.length && errs.length){
-    const e=new Error(errs.join(' · ')); e.lookup=true; throw e;
+     look the same to the caller — but the test for which one this is used to
+     be "did anything error", and that made adding a source able to make the
+     answer worse. On Everything, Google runs alongside Open Charge Map; with
+     Google out of quota every genuinely empty circle now had an error beside
+     it, so it threw, the circle was dropped, and a corridor Open Charge Map
+     had answered perfectly well reported "no chargers found" — while the
+     same corridor on Free, where Google never ran, found them.
+
+     A source that replied with nothing has answered. Only when not one of
+     them replied at all is this a broken lookup. */
+  if(!merged.length && !answered){
+    const e=new Error(errs.join(' · ')||'no charger service answered');
+    e.lookup=true; throw e;
   }
   return merged;
 }
@@ -3903,7 +3915,11 @@ function corridorCentres(samples, fromIdx, toIdx, radiusKm){
 async function corridorChargers(samples, centres, radiusKm, ocm){
   const jobs=centres.map(i=>{
     const c=samples[i].ll;
-    const k=`${c.lat.toFixed(2)},${c.lng.toFixed(2)},${radiusKm}`;
+    /* The source set belongs in the key. Without it, a circle looked up on
+       Free — Open Charge Map only — was handed back on Everything for the
+       next six hours, so switching to Google bought nothing: no ratings, no
+       live bay counts, and none of the chargers only Google has. */
+    const k=`${c.lat.toFixed(2)},${c.lng.toFixed(2)},${radiusKm},${useGoogleChargers()?'g':'f'}`;
     if(!CHG_CACHE.has(k)){
       CHG_CACHE.set(k, chargersCached(c, radiusKm, ocm, k).catch(e=>{ CHG_CACHE.delete(k); throw e; }));
     }
