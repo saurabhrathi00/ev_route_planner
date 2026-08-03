@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r34</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-03 r35</span>
         </div>
       </div>
 
@@ -3064,16 +3064,26 @@ function resample(pts, step){
    ============================================================ */
 const DEM = {delay:320, hits:0};
 
-async function askJSON(url, opts, timeoutMs=15000){
+/* Retries exist for rate limiting, where waiting genuinely helps. They were
+   also being spent on a service that was simply down: four attempts at
+   fifteen seconds, plus backoff, is sixty-six seconds before the first
+   provider gives up, and the second provider then repeats it — a leg could
+   hold the plan for over two minutes, and legs run one after another.
+
+   A leg is cached the moment it lands, so failing is cheap: press Plan again
+   and everything already fetched comes straight back. Failing quickly and
+   saying so beats a wait long enough that people assume the app has hung.
+   Three attempts at eight seconds keeps the useful part of the backoff. */
+async function askJSON(url, opts, timeoutMs=8000){
   let wait=900;
-  for(let attempt=0; attempt<4; attempt++){
+  for(let attempt=0; attempt<3; attempt++){
     let r;
     const ctrl=new AbortController();
     const timer=setTimeout(()=>ctrl.abort(), timeoutMs);
     try{ r=await fetch(url, Object.assign({}, opts, {signal:ctrl.signal})); }
     catch(err){
       clearTimeout(timer);
-      if(attempt===3) throw new Error(err.name==='AbortError'
+      if(attempt===2) throw new Error(err.name==='AbortError'
         ? 'A terrain batch timed out. Press Plan again — every leg already fetched is cached, so it picks up where it stopped.'
         : 'Could not reach the terrain service. Check your connection.');
       await sleep(wait); wait*=2; continue;
@@ -3084,11 +3094,16 @@ async function askJSON(url, opts, timeoutMs=15000){
     const reason = (body && (body.reason||body.error)) || `HTTP ${r.status}`;
     if(r.status===429 || r.status>=500){
       DEM.delay=Math.min(4000, DEM.delay*1.8);        // ease off for the rest of the run
-      if(attempt===3) throw Object.assign(new Error(reason),{rate:true});
+      if(attempt===2) throw Object.assign(new Error(reason),{rate:true});
       await sleep(wait); wait*=2; continue;
     }
     throw new Error(reason);
   }
+  /* Unreachable while every branch above either returns or throws on the
+     last attempt — but falling out of here would return undefined, and the
+     caller would fail on `j.elevation` with a type error instead of a
+     sentence anyone can act on. */
+  throw new Error('The terrain service gave up. Press Plan again — finished legs are cached.');
 }
 
 async function demOpenMeteo(pts){
@@ -3130,7 +3145,7 @@ function tileData(z,x,y){
   return new Promise((res,rej)=>{
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    const timer = setTimeout(()=>rej(new Error('tile timeout')), 15000);
+    const timer = setTimeout(()=>rej(new Error('tile timeout')), 9000);
     img.onload = ()=>{
       clearTimeout(timer);
       try{
