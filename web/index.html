@@ -1129,7 +1129,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r41</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r42</span>
         </div>
       </div>
 
@@ -1710,41 +1710,41 @@ const lerp = (a,b,f) => ({lat:a.lat+(b.lat-a.lat)*f, lng:a.lng+(b.lng-a.lng)*f})
    worth more than a better guess. */
 const CARS = {
   /* Tata */
-  curvv55:{name:'Tata Curvv EV 55',   cap:52,   kerb:1650, cdA:0.72, dckw:70},
-  curvv45:{name:'Tata Curvv EV 45',   cap:42,   kerb:1600, cdA:0.72, dckw:70},
-  harrier:{name:'Tata Harrier EV',    cap:71,   kerb:2200, cdA:0.85, dckw:120},
-  nexon45:{name:'Tata Nexon EV 45',   cap:40.5, kerb:1550, cdA:0.78, dckw:60},
-  nexon30:{name:'Tata Nexon EV 30',   cap:28.5, kerb:1435, cdA:0.78, dckw:45},
+  curvv55:{name:'Tata Curvv EV 55',   cap:52,   kerb:1650, cdA:0.72, dckw:70, k:1.19},
+  curvv45:{name:'Tata Curvv EV 45',   cap:42,   kerb:1600, cdA:0.72, dckw:70, k:1.19},
+  harrier:{name:'Tata Harrier EV',    cap:71,   kerb:2200, cdA:0.85, dckw:120, k:1.21},
+  nexon45:{name:'Tata Nexon EV 45',   cap:40.5, kerb:1550, cdA:0.78, dckw:60, k:0.93},
+  nexon30:{name:'Tata Nexon EV 30',   cap:28.5, kerb:1435, cdA:0.78, dckw:45, k:0.93},
   punch:  {name:'Tata Punch EV LR',   cap:33,   kerb:1390, cdA:0.80, dckw:50},
   punchmr:{name:'Tata Punch EV MR',   cap:23.5, kerb:1310, cdA:0.80, dckw:50},
-  tiago:  {name:'Tata Tiago EV LR',   cap:22,   kerb:1235, cdA:0.78, dckw:25},
-  tiagomr:{name:'Tata Tiago EV MR',   cap:18,   kerb:1180, cdA:0.78, dckw:25},
-  tigor:  {name:'Tata Tigor EV',      cap:24,   kerb:1250, cdA:0.75, dckw:25},
+  tiago:  {name:'Tata Tiago EV LR',   cap:22,   kerb:1235, cdA:0.78, dckw:25, k:1.05},
+  tiagomr:{name:'Tata Tiago EV MR',   cap:18,   kerb:1180, cdA:0.78, dckw:25, k:1.05},
+  tigor:  {name:'Tata Tigor EV',      cap:24,   kerb:1250, cdA:0.75, dckw:25, k:1.16},
 
   /* Mahindra */
-  be6:    {name:'Mahindra BE 6 79',   cap:75,   kerb:1900, cdA:0.70, dckw:175},
-  be6s:   {name:'Mahindra BE 6 59',   cap:56,   kerb:1825, cdA:0.70, dckw:140},
-  xev9e:  {name:'Mahindra XEV 9e 79', cap:75,   kerb:2000, cdA:0.72, dckw:175},
-  xev9es: {name:'Mahindra XEV 9e 59', cap:56,   kerb:1930, cdA:0.72, dckw:140},
+  be6:    {name:'Mahindra BE 6 79',   cap:75,   kerb:1900, cdA:0.70, dckw:175, k:1.34},
+  be6s:   {name:'Mahindra BE 6 59',   cap:56,   kerb:1825, cdA:0.70, dckw:140, k:1.34},
+  xev9e:  {name:'Mahindra XEV 9e 79', cap:75,   kerb:2000, cdA:0.72, dckw:175, k:1.26},
+  xev9es: {name:'Mahindra XEV 9e 59', cap:56,   kerb:1930, cdA:0.72, dckw:140, k:1.26},
   xuv400: {name:'Mahindra XUV400 EL', cap:37.5, kerb:1578, cdA:0.82, dckw:50},
 
   /* MG */
-  zsev:   {name:'MG ZS EV',           cap:48,   kerb:1620, cdA:0.80, dckw:76},
-  windsor:{name:'MG Windsor EV',      cap:37.9, kerb:1550, cdA:0.80, dckw:45},
-  windpro:{name:'MG Windsor EV Pro',  cap:50.6, kerb:1610, cdA:0.80, dckw:60},
-  comet:  {name:'MG Comet EV',        cap:17.3, kerb:815,  cdA:0.75, dckw:12},
+  zsev:   {name:'MG ZS EV',           cap:48,   kerb:1620, cdA:0.80, dckw:76, k:1.14},
+  windsor:{name:'MG Windsor EV',      cap:37.9, kerb:1550, cdA:0.80, dckw:45, k:0.99},
+  windpro:{name:'MG Windsor EV Pro',  cap:50.6, kerb:1610, cdA:0.80, dckw:60, k:0.99},
+  comet:  {name:'MG Comet EV',        cap:17.3, kerb:815,  cdA:0.75, dckw:12, k:0.91},
 
   /* Hyundai */
-  creta:  {name:'Hyundai Creta Electric LR',  cap:51.4, kerb:1720, cdA:0.78, dckw:100},
-  cretaex:{name:'Hyundai Creta Electric 42',  cap:40,   kerb:1650, cdA:0.78, dckw:100},
+  creta:  {name:'Hyundai Creta Electric LR',  cap:51.4, kerb:1720, cdA:0.78, dckw:100, k:0.91},
+  cretaex:{name:'Hyundai Creta Electric 42',  cap:40,   kerb:1650, cdA:0.78, dckw:100, k:0.91},
   ioniq5: {name:'Hyundai Ioniq 5',    cap:70,   kerb:1910, cdA:0.72, dckw:233},
   kona:   {name:'Hyundai Kona Electric',      cap:39.2, kerb:1535, cdA:0.75, dckw:50},
 
   /* Kia */
   ev6:    {name:'Kia EV6',            cap:77.4, kerb:2090, cdA:0.73, dckw:240},
   ev9:    {name:'Kia EV9',            cap:96,   kerb:2600, cdA:0.85, dckw:210},
-  clavis: {name:'Kia Carens Clavis EV 51', cap:49, kerb:1720, cdA:0.80, dckw:100},
-  clavis4:{name:'Kia Carens Clavis EV 42', cap:40, kerb:1660, cdA:0.80, dckw:100},
+  clavis: {name:'Kia Carens Clavis EV 51', cap:49, kerb:1720, cdA:0.80, dckw:100, k:1.04},
+  clavis4:{name:'Kia Carens Clavis EV 42', cap:40, kerb:1660, cdA:0.80, dckw:100, k:1.04},
 
   /* Maruti Suzuki / Toyota */
   evitara:{name:'Maruti e Vitara 61', cap:58.5, kerb:1799, cdA:0.78, dckw:70},
@@ -1763,9 +1763,9 @@ const CARS = {
   modely: {name:'Tesla Model Y LR',   cap:75,   kerb:1980, cdA:0.58, dckw:250},
 
   /* Citroen / VinFast */
-  ec3:    {name:'Citroen eC3',        cap:27.5, kerb:1320, cdA:0.80, dckw:30},
+  ec3:    {name:'Citroen eC3',        cap:27.5, kerb:1320, cdA:0.80, dckw:30, k:1.04},
   vf6:    {name:'VinFast VF6',        cap:57,   kerb:1600, cdA:0.78, dckw:60},
-  vf7:    {name:'VinFast VF7',        cap:68,   kerb:1900, cdA:0.76, dckw:90},
+  vf7:    {name:'VinFast VF7',        cap:68,   kerb:1900, cdA:0.76, dckw:90, k:1.35},
 
   /* Premium */
   xc40:   {name:'Volvo XC40 / EC40 Recharge', cap:75, kerb:2150, cdA:0.85, dckw:150},
@@ -1833,11 +1833,30 @@ function referenceFor(car, style){
 /* Push derived reference figures into the form. */
 /* The form's own defaults and the car table could drift apart — and did.
    Apply the selected car on load so the table is the single source of truth. */
+/* How much more road load this car really has than the physics predicts.
+
+   Measured, not guessed: Autocar India's real-world range tests for fourteen
+   Indian EVs, worked back through this model — see data/validation.md. Without
+   it the worst cars are 23% optimistic, and optimistic is the dangerous
+   direction: it puts a driver on a road with less charge than they were told.
+   A correction carrying one test's worth of noise is a far better bet than a
+   known 23%.
+
+   Cars with no measurement get 1.09, the median of the fourteen, because ten
+   of them say the model is light and 1.00 would be a claim the data contradicts.
+   Variants share a body, so they share its figure.
+
+   It is a stand-in for not having measured this driver's own car, and it stands
+   down the moment they do — see cfg below. */
+const K_DEFAULT = 1.09;
+let carK = K_DEFAULT;
+
 function applyCar(){
   const c=CARS[$('carpick').value];
   if(!c) return;
   $('carname').value=c.name; $('cap').value=c.cap;
   $('kerb').value=c.kerb; $('cdA').value=c.cdA; $('dckw').value=c.dckw;
+  carK = c.k || K_DEFAULT;
 }
 
 function refreshReference(){
@@ -5125,7 +5144,14 @@ async function plan(e){
        one of them quietly using the nameplate figure. */
     const cfg={cap:num('cap')*clamp(num('soh')||100,50,100)/100,
       kerb:num('kerb'),people:num('people'),bags:num('bags'),
-      acPct:clamp(num('acpct')||0,0,100), cdA:num('cdA'),crr:num('crr'),
+      /* The correction scales rolling and aero together, because the fourteen
+         tests cannot say which of the two is short — backing it out as drag
+         alone produced 1.37 for a VinFast, which is not a figure any car has.
+         It applies only while the reference trips are still derived: once a
+         driver enters their own measured pair, that fit already describes
+         their car and multiplying it again would count the same thing twice. */
+      acPct:clamp(num('acpct')||0,0,100),
+      cdA:num('cdA')*(refMeasured?1:carK), crr:num('crr')*(refMeasured?1:carK),
       soh:clamp(num('soh')||100,50,100),
       style:refMeasured?ST.accel:1, styleKey:$('style').value, vhwy:ST.hwy, vroad:ST.road,
       regen:clamp((num('regeneff')||0.25)*ST.regen,0.05,0.9), regenKW:num('regenkw'),dckw:num('dckw'),
@@ -5375,7 +5401,12 @@ $('style').addEventListener('change',()=>{ refreshReference(); calibrate(); });
 }));
 // hand-editing any spec means it is no longer the stock car
 ['cap','kerb','cdA','dckw','carname'].forEach(id=>
-  $(id).addEventListener('input',()=>{ $('carpick').value='custom'; }));
+  $(id).addEventListener('input',()=>{
+    $('carpick').value='custom';
+    /* Edited figures describe a car we have no measurement for, so the
+       measured correction no longer belongs to them. */
+    carK=K_DEFAULT;
+  }));
 
 $('strat-toggle').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
