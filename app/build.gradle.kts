@@ -30,8 +30,8 @@ android {
         targetSdk = 35
         // Play rejects an upload whose versionCode it has seen before, so this
         // has to go up by at least one for every release you push.
-        versionCode = 17
-        versionName = "1.2"
+        versionCode = 18
+        versionName = "1.3"
     }
 
     signingConfigs {
