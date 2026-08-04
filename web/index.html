@@ -1135,7 +1135,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r44</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r45</span>
         </div>
       </div>
 
@@ -1536,6 +1536,18 @@ details[open] summary::before{transform:rotate(90deg)}
 
 
       <div class="reveal" style="--i:3">
+        <div class="acc" data-open="false" id="acc-cars">
+          <button type="button">Where each car's figures come from
+            <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="panelbody"><div><div class="inner">
+            <p class="hint" style="margin-top:0">The physics needs three things from a car: how much charge it really holds, what it weighs, and how hard it is to push through air. The first two are published. The third almost never is, so it starts as an estimate from the body shape — and an estimate from a shape is exactly the sort of thing that turns out wrong.</p>
+            <p class="hint">So where a car has been through a measured range test, that test is worked back through this model to find what it actually costs to move, and the difference is carried as a correction. <strong>Bigger than 1.00 means the car uses more than the shape suggests</strong> — heavy SUVs mostly do, and the largest here was out by a third.</p>
+            <div id="carsrc"></div>
+            <p class="hint">Measured figures are from <a href="https://www.autocarindia.com/auto-features/real-world-ev-range-tested-of-top-ev-cars-in-india-434105" target="_blank" rel="noopener">Autocar India's real-world range tests</a> — their measurements, our arithmetic. Cars they have not tested carry 1.09, the middle of the ones they have, because most cars turn out to use more than the shape alone predicts and 1.00 would be a guess in the wrong direction.</p>
+            <p class="hint">None of this is as good as your own drive. Log one and the correction stands down — your car's own numbers replace the estimate for it entirely.</p>
+          </div></div></div>
+        </div>
+
         <div class="acc" data-open="false" id="acc-cal">
           <button type="button">Calibration &amp; vehicle physics
             <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -5415,7 +5427,7 @@ function sampNote(){
     : `Fine enough to catch individual ghat hairpins. Terrain comes from map tiles, which are priced by the ground the route covers rather than by how closely it is read — so this costs no more network than a coarse setting, only a little more work on the phone.`;
 }
 $('sampling').addEventListener('change',sampNote);
-$('carpick').addEventListener('change',()=>{ applyCar(); refreshReference(); calibrate(); });
+$('carpick').addEventListener('change',()=>{ applyCar(); refreshReference(); calibrate(); paintCarSources(); });
 // the reference trips depend on the car's specs and on how it is driven
 ['cap','kerb','cdA','crr'].forEach(id=>
   $(id).addEventListener('input',()=>{ refreshReference(); calibrate(); }));
@@ -5839,6 +5851,40 @@ async function askAboutLastDrive(){
   };
 }
 
+/* The car table in Settings. Everything in it is already in CARS — this only
+   lays it out and says, per row, whether the correction came from a measured
+   range test or from the median of the ones that did.
+
+   Worth showing rather than hiding: it is the one screen that explains why the
+   answer for a Harrier is not the answer for a Comet, and the empty column is
+   an invitation — a car marked "estimated" is a car whose owner could settle
+   it with one logged drive. */
+function paintCarSources(){
+  const box=$('carsrc'); if(!box) return;
+  const rows=Object.entries(CARS)
+    .sort((a,b)=>(b[1].k?1:0)-(a[1].k?1:0) || a[1].name.localeCompare(b[1].name))
+    .map(([key,c])=>{
+      const measured=!!c.k, k=c.k||K_DEFAULT;
+      const tag=measured
+        ? '<span class="pill live">measured</span>'
+        : '<span class="pill old">estimated</span>';
+      return `<tr${key===$('carpick').value?' style="background:var(--charge-soft)"':''}>
+        <td style="text-align:left">${c.name}</td>
+        <td>${fmt(c.cap,1)}</td>
+        <td>${fmt(c.kerb)}</td>
+        <td class="mono">${k.toFixed(2)}</td>
+        <td style="text-align:left">${tag}</td></tr>`;
+    }).join('');
+  const n=Object.values(CARS).filter(c=>c.k).length;
+  box.innerHTML=
+    `<div style="overflow-x:auto"><table>
+      <thead><tr>
+        <th style="text-align:left">Car</th><th>Usable kWh</th><th>Kerb kg</th>
+        <th>Correction</th><th style="text-align:left">From</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>
+     <p class="note">${n} of ${Object.keys(CARS).length} carry a figure worked back from a measured range test. The rest sit at the median until someone drives one and logs it.</p>`;
+}
+
 function paintKeyState(){
   const routing = orsKey() ? 'OpenRouteService' : 'OSRM';
   const free = `<strong style="color:var(--ok)">Running free</strong> — OpenStreetMap map tiles, ${routing} routing, Photon place search, and Open Charge Map plus OpenStreetMap for chargers.`;
@@ -5892,6 +5938,7 @@ $('t_add').addEventListener('click',async()=>{
   attachPlaces('from','ac-from','from');
   attachPlaces('to','ac-to','to');
   syncClear('from'); syncClear('to');       // in case a value survived a reload
+  paintCarSources();
   attachPlaces('pick-search','pick-ac',null, p=>{ if(pickSearch) pickSearch(p); });
   calibrate();
 })();
