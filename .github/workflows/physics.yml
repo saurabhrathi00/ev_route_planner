@@ -1,0 +1,61 @@
+# Runs the physics suite on every change to the planner.
+#
+# The engine had no test at all until this week, and in the same week its regen
+# constant turned out to have been wrong since the first commit — 0.05 where it
+# should have been 0.65, worth eight points of pack on a mountain descent, and
+# nothing anywhere would have caught it. The suite is cheap to run and the whole
+# point of it is that it runs without being remembered.
+name: Physics
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'web/index.html'
+      - 'tools/physics-test.js'
+      - 'tools/verify-real.js'
+      - '.github/workflows/physics.yml'
+  pull_request:
+    paths:
+      - 'web/index.html'
+      - 'tools/physics-test.js'
+  workflow_dispatch:
+
+jobs:
+  physics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Every <script> in the page, parsed. A syntax error in a single-file app
+      # is a blank screen on every device at once, and it is the one class of
+      # failure that costs nothing to rule out.
+      - name: Parse the page
+        run: |
+          node -e '
+            const fs=require("fs"), vm=require("vm");
+            const src=fs.readFileSync("web/index.html","utf8");
+            const re=/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+            let m,i=0,bad=0;
+            while((m=re.exec(src))){ i++;
+              try{ new vm.Script(m[1]); }
+              catch(e){ bad++; console.error("script "+i+": "+e.message); } }
+            console.log(i+" scripts, "+bad+" errors");
+            process.exit(bad?1:0);
+          '
+
+      # Conservation, monotonicity, SOC bounds, the regen threshold — across
+      # twenty-two drives, against the shipped simulate() rather than a copy.
+      - name: Physics invariants
+        run: node tools/physics-test.js
+
+      # Not a pass/fail gate: what it prints depends on an assumption about a
+      # test profile nobody published, so it is here to be read after a change
+      # to the model, not to block one.
+      - name: Against published range tests
+        continue-on-error: true
+        run: node tools/verify-real.js
