@@ -1111,7 +1111,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r37</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r38</span>
         </div>
       </div>
 
@@ -1227,19 +1227,10 @@ details[open] summary::before{transform:rotate(90deg)}
                 <button type="button" data-v="0" aria-pressed="true">Skip</button>
               </div>
             </label>
-            <label class="f"><span>Search off the route</span>
-              <select id="searchkm">
-                <option value="10">Up to 10 km</option>
-                <option value="20" selected>Up to 20 km</option>
-                <option value="35">Up to 35 km</option>
-                <option value="50">Up to 50 km — slowest</option>
-              </select>
-            </label>
           </div>
           <p class="hint">Leave traffic on <strong>Work it out for me</strong> and the app decides from your departure time — with a Google key it uses the delay Google measured for that hour, otherwise a rule of thumb from the clock. Override it if you know better than both.</p>
           <p class="hint" id="depart-note">Leave departure empty for now. Setting it matters more than it looks: the app fetches the temperature and wind for the hour you will actually be at each point, and a hot afternoon can cost several points of charge more than the same drive at dawn.</p>
           <p class="hint">Chargers are off by default — the plan still tells you where you drop to your floor, what to charge to and where to look. Switch it on to have the app find and rank actual chargers, which adds a few seconds.</p>
-          <p class="hint"><strong>Search off the route</strong> is how far the first look goes. A detour costs charge in both directions, so a wide search finds more and asks more of the battery — but it is not a ceiling: if nothing is found within it, the app widens on its own rather than telling you there is nowhere to stop. Wider searches take a little longer.</p>
           <p class="hint">Speed comes from your driving style — gentle means both softer acceleration and a lower cruise. The router's own speed for each road still wins where it is lower, so nobody cruises at 82 km/h through a village.</p>
         </div>
       </section>
@@ -3974,14 +3965,6 @@ function decorate(c){
   return x;
 }
 
-/* How far off the road the driver is willing to go, in km. The passes below
-   widen past it when nothing is found — this is the first, tightest look, not
-   a hard ceiling, because a stop 30 km away still beats running flat. */
-const searchKm = () => {
-  const v = parseFloat(($('searchkm')||{}).value);
-  return isFinite(v) && v>0 ? v : 20;
-};
-
 /* The alternatives listed under a stop card, scored the ordinary way. Used
    when a chosen stop has already won, so the card still offers the others —
    they are how a driver changes their mind. */
@@ -4041,7 +4024,7 @@ async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat)
      Nearby calls become three, with the same chargers and the same choice
      of stop — the caps below are untouched. */
   const FETCH_R=45;
-  const BASE=[[searchKm(),true,'DC chargers'],[FETCH_R,true,'DC, wider'],[FETCH_R,false,'any charger']];
+  const BASE=[[25,true,'DC chargers'],[FETCH_R,true,'DC, wider'],[FETCH_R,false,'any charger']];
 
   /* A stop the driver chose gets its own pass, ahead of the rest.
 
@@ -5548,13 +5531,6 @@ function pickOnMap(title, start){
 $('show-intro').addEventListener('click',()=>{
   if(window.UI_INTRO) UI_INTRO.open();
 });
-$('searchkm').addEventListener('change',()=>{
-  sset('searchkm', $('searchkm').value);
-  /* Changing how far to look changes the answer, so the cached circles are
-     still valid but the ranking is not — replan rather than leave a plan on
-     screen that no longer matches the setting beside it. */
-  if(S.from && S.to && $('out') && !$('out').hidden) plan({preventDefault(){}});
-});
 $('gsrc-toggle').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
   gSrcMode=b.dataset.v; sset('gsrc',gSrcMode); sset('gsrc_chosen',true);
@@ -5731,8 +5707,6 @@ $('t_add').addEventListener('click',async()=>{
      by themselves for anyone who had not pasted a key, so a stored 'free' may
      be a leftover rather than a decision. `gsrc_chosen` is written only when
      somebody actually touches the switch, which tells the two apart. */
-  const sk=await sget('searchkm');
-  if(sk && $('searchkm')) $('searchkm').value=sk;
   const gs=await sget('gsrc'), chosen=await sget('gsrc_chosen');
   gSrcMode = !bundledGKey()                  ? 'free'
            : (gs && (gs!=='free' || chosen)) ? gs
