@@ -474,6 +474,17 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
    your finger covers the exact point you are aiming at; panning the map
    under a fixed target is both more precise and the gesture every other
    map app has already taught people. */
+/* Forty-five cars is a long scroll to put in the middle of a settings page,
+   and the rows below the fold are the ones nobody needs — the row that matters
+   is the selected car, which is scrolled to. A fixed box keeps the section the
+   size of a section. */
+.carbox{max-height:280px;overflow:auto;border:1px solid var(--rule);
+  border-radius:var(--r-s);background:var(--sheet)}
+.carbox table{font-size:12.5px}
+.carbox thead th{position:sticky;top:0;background:var(--sheet);z-index:1;
+  box-shadow:0 1px 0 var(--rule)}
+.carbox td,.carbox th{padding:7px 10px;white-space:nowrap}
+
 .osm-cross{
   position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-34px 0 0 -17px;
   pointer-events:none;z-index:3;
@@ -1135,7 +1146,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r45</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r46</span>
         </div>
       </div>
 
@@ -5868,7 +5879,8 @@ function paintCarSources(){
       const tag=measured
         ? '<span class="pill live">measured</span>'
         : '<span class="pill old">estimated</span>';
-      return `<tr${key===$('carpick').value?' style="background:var(--charge-soft)"':''}>
+      const mine=key===$('carpick').value;
+      return `<tr${mine?' data-here style="background:var(--charge-soft)"':''}>
         <td style="text-align:left">${c.name}</td>
         <td>${fmt(c.cap,1)}</td>
         <td>${fmt(c.kerb)}</td>
@@ -5877,12 +5889,16 @@ function paintCarSources(){
     }).join('');
   const n=Object.values(CARS).filter(c=>c.k).length;
   box.innerHTML=
-    `<div style="overflow-x:auto"><table>
+    `<div class="carbox"><table>
       <thead><tr>
         <th style="text-align:left">Car</th><th>Usable kWh</th><th>Kerb kg</th>
         <th>Correction</th><th style="text-align:left">From</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
      <p class="note">${n} of ${Object.keys(CARS).length} carry a figure worked back from a measured range test. The rest sit at the median until someone drives one and logs it.</p>`;
+  /* Scroll the selected car into view rather than making someone hunt for it
+     in a box that only shows a dozen rows at a time. */
+  const here=box.querySelector('tr[data-here]');
+  if(here) here.scrollIntoView({block:'center'});
 }
 
 function paintKeyState(){
