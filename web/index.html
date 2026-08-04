@@ -1129,7 +1129,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r40</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r41</span>
         </div>
       </div>
 
@@ -1369,7 +1369,19 @@ details[open] summary::before{transform:rotate(90deg)}
             <label class="f"><span>Max DC charge rate (kW)</span><input type="number" id="dckw" value="70" min="10" step="any"></label>
           </div>
           <input type="hidden" id="regenkw" value="60">
-          <input type="hidden" id="regeneff" value="0.05">
+          <!-- Fraction of the descent's net surplus that reaches the pack. This
+               is the conversion chain only — motor, inverter, charge acceptance
+               — because the three physical limits that also cut regen are
+               applied separately in simulate(): the charging path's power
+               ceiling, the taper into a nearly full pack, and the little a
+               motor makes below walking pace.
+
+               It shipped as 0.05, which is the clamp's floor rather than a
+               figure anyone chose, and the ||0.25 fallback beside it never
+               ran because the field was never empty. At 0.05 a 1800 m descent
+               returned 0.33 kWh instead of about 4.6 — eight points of pack on
+               exactly the roads this app exists for. -->
+          <input type="hidden" id="regeneff" value="0.65">
           <p class="hint">Battery figures are <strong>usable</strong> capacity, not the nameplate number — a Curvv EV 55 gives about 52 kWh. Only the Curvv figure is confirmed; the rest are estimates, so correct yours if you know it.</p>
         </div>
       </section>
@@ -1458,34 +1470,28 @@ details[open] summary::before{transform:rotate(90deg)}
       <section class="card reveal" style="--i:2">
         <div class="head"><h2>Where data comes from</h2><span class="tag">google or free</span></div>
         <div class="body">
-          <label class="f"><span>Routing, place search &amp; map</span>
-            <div class="seg" id="gsrc-toggle" style="--n:3;--i:2">
-              <button type="button" data-v="free" aria-pressed="false">Free</button>
-              <button type="button" data-v="chargers" aria-pressed="false">Chargers</button>
-              <button type="button" data-v="all" aria-pressed="true">Everything</button>
+          <label class="f"><span>Best available data</span>
+            <div class="seg" id="gsrc-toggle" style="--n:2;--i:0">
+              <button type="button" data-v="all" aria-pressed="true">On</button>
+              <button type="button" data-v="free" aria-pressed="false">Off</button>
             </div>
           </label>
-          <p class="hint"><strong>Everything</strong> is the default and what this build is tuned for: Google handles place search, routing, the map and chargers. Place search is markedly better on Indian town names, chargers outside the metros are often in Google alone — with star ratings and live free-bay counts — and the traffic-aware duration gives the energy model a measured correction instead of a guess. Every one of these still falls back to a free service on its own if Google fails or the daily quota runs out.</p>
-          <p class="hint"><strong>Chargers</strong> narrows Google down to charger lookups, which is where it counts for most. Routing, place search and the map go back to the free sources.</p>
-          <p class="hint"><strong>Free</strong> skips Google altogether: OpenStreetMap tiles, OpenRouteService or OSRM routing, Photon place search, Open Charge Map and OpenStreetMap chargers. Everything still works — you lose ratings and live bay counts, and thinly mapped regions stay empty.</p>
-          <p class="hint">Reverse place-naming always uses the free service: Google's Geocoding API refuses browser requests, so it cannot be called from here at all.</p>
-        </div>
-      </section>
+          <p class="hint">Leave this <strong>On</strong>. It is the default and what the app is tuned for: better place search for Indian town names, chargers that the open databases miss entirely outside the metros, star ratings and live free-bay counts where the network reports them, and a measured traffic delay instead of a guess.</p>
+          <p class="hint">Turning it <strong>Off</strong> uses only open data — OpenStreetMap, Open Charge Map, OpenRouteService. Everything still works and the physics is identical; you lose ratings, live bay counts, and chargers in thinly mapped areas. There is nothing to pay either way — this is not a paid tier, and no key of yours is involved.</p>
+          <p class="hint">Either way the app falls back on its own whenever a service is slow or unavailable, so a plan never fails for want of one.</p>
 
-      <section class="card reveal" style="--i:2">
-        <div class="head"><h2>Services</h2><span class="tag">built in</span></div>
-        <div class="body">
-          <!-- Keys are injected at build time by tools/build.sh, not typed in.
-               They still live in inputs because the engine reads them from
-               here; hiding the fields is a product decision, not a security
-               one — anything shipped to a browser can be read out of it. -->
+          <!-- Injected at build time by tools/build.sh. They live in inputs
+               because the engine reads them from here; hidden because there is
+               nothing for anyone to do with them, which is a product decision
+               and not a security one — anything shipped to a device can be
+               read off it. -->
           <input type="hidden" id="ocm" value="">
           <input type="hidden" id="gkey" value="__GOOGLE_MAPS_KEY__">
           <p id="keystate" class="hint" style="margin-top:0"></p>
           <div class="trust">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 4.5 5.9v5.4c0 4.6 3.2 8.4 7.5 9.6 4.3-1.2 7.5-5 7.5-9.6V5.9z"/><path d="M8.7 12.1l2.4 2.4 4.3-4.6"/></svg>
             <div>
-              <strong>Nothing you enter here leaves this device.</strong>
+              <strong>Nothing about your drive leaves this device.</strong>
               <ul>
                 <li><b>There is no server.</b> This app has no backend of any kind and no account behind it. Every calculation happens on this device.</li>
                 <li>Your trip log, calibration and cached terrain are written to this device's local storage and nowhere else. Uninstalling erases them.</li>
@@ -1503,8 +1509,11 @@ details[open] summary::before{transform:rotate(90deg)}
             <span class="log" id="dev-msg"></span>
           </div>
           <div id="dev-out" style="margin-top:14px"></div>
+
+          <p class="hint">Reverse place-naming always uses the free service: Google's Geocoding API refuses browser requests, so it cannot be called from here at all.</p>
         </div>
       </section>
+
 
       <div class="reveal" style="--i:3">
         <div class="acc" data-open="false" id="acc-cal">
@@ -2328,7 +2337,12 @@ async function routeORS(a,b,key){
    the free sources. So chargers-only is the setting that buys almost all of
    the benefit for a fraction of the calls — and it only fires when the user
    turns charger search on, which is off by default. */
-let gSrcMode = 'free';                 // 'free' | 'chargers' | 'all'
+/* 'all' or 'free'. 'chargers' — Google for charger lookups only — was a third
+   button once, and it is still handled here because an install that chose it
+   has it in storage; the migration on start-up folds it into 'all'. Nobody can
+   select it now. Asking a driver to choose which of four APIs answer which of
+   five questions was a control written from the inside of the code out. */
+let gSrcMode = 'free';
 const useGoogle = () => gSrcMode === 'all' && !!gmapKey();          // routing, search, map
 const useGoogleChargers = () => (gSrcMode==='all' || gSrcMode==='chargers') && !!gmapKey();
 
@@ -5732,8 +5746,8 @@ function paintKeyState(){
   $('keystate').innerHTML =
     !bundledGKey()      ? free + ` This build shipped without a Google key, so the switch above has nothing to turn on.`
     : gSrcMode==='free' ? free + ` Google is built in but switched off above.`
-    : gSrcMode==='all'  ? `<strong style="color:var(--ok)">Google for everything</strong> — routing, place search, the map and chargers all go to Google, with the free sources behind them as fallbacks.`
-    :                     `<strong style="color:var(--ok)">Google for chargers</strong> — ratings and live free-bay counts when you search for chargers, with Open Charge Map and OpenStreetMap behind it as fallbacks. Routing, place search and the map stay on the free sources.`;
+    : gSrcMode==='all'  ? `<strong style="color:var(--ok)">On</strong> — place search, routing, the map and chargers use the best source available, with the open ones behind them whenever it is slow or unavailable.`
+    :                     `<strong style="color:var(--ok)">Chargers only</strong> — a setting from an older build. Switch it Off and On again to move to the current one.`;
 }
 $('t_add').addEventListener('click',async()=>{
   const d=parseFloat($('t_d').value), pred=parseFloat($('t_p').value), actual=parseFloat($('t_a').value);
@@ -5762,7 +5776,9 @@ $('t_add').addEventListener('click',async()=>{
      by themselves for anyone who had not pasted a key, so a stored 'free' may
      be a leftover rather than a decision. `gsrc_chosen` is written only when
      somebody actually touches the switch, which tells the two apart. */
-  const gs=await sget('gsrc'), chosen=await sget('gsrc_chosen');
+  let gs=await sget('gsrc'); const chosen=await sget('gsrc_chosen');
+  if(gs==='chargers') gs='all';            // the third button is gone; it meant "on"
+
   gSrcMode = !bundledGKey()                  ? 'free'
            : (gs && (gs!=='free' || chosen)) ? gs
            :                                   'all';
