@@ -34,3 +34,35 @@ then Share → *Add to Home Screen*. You get a standalone icon, offline start-up
 and the same planner, with no Xcode, no signing and no developer account. For
 most people this is the better route; the native wrapper exists for the App
 Store and for the file-backed storage guarantees.
+
+## What is shared, and what is not
+
+The planner — every screen, the physics, the charger logic, the map, the pin
+picker — is `web/index.html`, and `tools/build.sh` writes it into all three
+targets at once. Change it and iOS gets the change with no iOS work at all.
+`app/src/main/assets/index.html` and `ios/Resources/index.html` are the same
+bytes; if they ever differ, build.sh has not been run.
+
+Only the shell around the WebView is per-platform, and it is deliberately
+thin. Current state against `MainActivity.kt`:
+
+| | Android | iOS |
+|---|---|---|
+| WebView, storage, link handling | yes | yes |
+| Location for the Start field | yes | yes, via `GeolocationBridge` |
+| AdMob banner | yes | **not yet** |
+
+The ads SDK is the one real gap. It needs a Swift Package dependency and a
+banner view under the WebView, mirroring what `MainActivity.attachBanner`
+does — the banner sits below the web view rather than over it, because the
+planner has its own fixed bar at the foot of the page. It is not urgent: the
+app is not on the App Store yet, and AdMob does not serve live ads to an app
+that is not published.
+
+## Why geolocation needs a bridge here and not on Android
+
+WKWebView gates `navigator.geolocation` on a secure origin, and a page loaded
+from `file://` does not have one. The call neither succeeds nor says why.
+`GeolocationBridge` replaces the API before the page runs and answers it from
+CoreLocation instead, in the shape the W3C spec promises, so the planner
+cannot tell the difference — which is the point of keeping one file.

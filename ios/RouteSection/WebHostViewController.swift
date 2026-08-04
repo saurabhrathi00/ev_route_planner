@@ -8,17 +8,26 @@ import WebKit
 final class WebHostViewController: UIViewController {
 
     private var web: WKWebView!
+    private var geo: GeolocationBridge!
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
         let cfg = WKWebViewConfiguration()
-        // the default store is on disk, so localStorage — the trip log, cached
-        // terrain and saved keys — survives the app being closed
+        // the default store is on disk, so localStorage — the trip log, the
+        // cached terrain and the cached charger circles — survives a restart
         cfg.websiteDataStore = .default()
         cfg.allowsInlineMediaPlayback = true
 
+        /* The Start field's crosshair calls navigator.geolocation, which
+           WKWebView will not serve to a page loaded from file://. The script
+           goes in before the page runs so the planner only ever sees the
+           replacement. See GeolocationBridge. */
+        cfg.userContentController.addUserScript(GeolocationBridge.userScript)
+
         web = WKWebView(frame: .zero, configuration: cfg)
+        geo = GeolocationBridge(web: web)
+        cfg.userContentController.add(geo, name: GeolocationBridge.handlerName)
         web.navigationDelegate = self
         web.allowsBackForwardNavigationGestures = true   // edge-swipe goes back a view
         web.scrollView.bounces = false                   // the layout is fixed; rubber-banding fights it

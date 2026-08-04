@@ -28,6 +28,10 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIRequiresFullScreen: false
         UIViewControllerBasedStatusBarAppearance: true
+        NSLocationWhenInUseUsageDescription: >-
+          Used only when you tap the crosshair in the Start field, to fill in
+          where you are setting off from. Your location is never sent to us —
+          this app has no server.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.routesection.evplanner

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		207AE8BF51D004479675DF34 /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = 6DFB902F83529D148E1B12C8 /* index.html */; };
+		6966564A24D4357BE9EAA364 /* GeolocationBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A98BC7D0A01D18EEA9FF9EDF /* GeolocationBridge.swift */; };
 		6D73B371B32144AB3A28F260 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BC03B9D2CC8F7C51B5AB96 /* AppDelegate.swift */; };
 		7BE6F2F992E7498C4A6E0458 /* WebHostViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFE242EBFCE4AB19F48F0BF5 /* WebHostViewController.swift */; };
 /* End PBXBuildFile section */
@@ -15,6 +16,7 @@
 /* Begin PBXFileReference section */
 		6DFB902F83529D148E1B12C8 /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
 		7B60A53AE3DE9605A82F0996 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		A98BC7D0A01D18EEA9FF9EDF /* GeolocationBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeolocationBridge.swift; sourceTree = "<group>"; };
 		BDDAA500FDEF1C41D7C33DC5 /* EVRoutePlanner.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EVRoutePlanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1BC03B9D2CC8F7C51B5AB96 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		EFE242EBFCE4AB19F48F0BF5 /* WebHostViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebHostViewController.swift; sourceTree = "<group>"; };
@@ -25,6 +27,7 @@
 			isa = PBXGroup;
 			children = (
 				C1BC03B9D2CC8F7C51B5AB96 /* AppDelegate.swift */,
+				A98BC7D0A01D18EEA9FF9EDF /* GeolocationBridge.swift */,
 				7B60A53AE3DE9605A82F0996 /* Info.plist */,
 				EFE242EBFCE4AB19F48F0BF5 /* WebHostViewController.swift */,
 			);
@@ -127,6 +130,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				6D73B371B32144AB3A28F260 /* AppDelegate.swift in Sources */,
+				6966564A24D4357BE9EAA364 /* GeolocationBridge.swift in Sources */,
 				7BE6F2F992E7498C4A6E0458 /* WebHostViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
