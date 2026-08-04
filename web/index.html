@@ -593,6 +593,11 @@ input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:va
 .intro-page p{margin:14px 0 0;color:var(--ink2);font-size:15.5px;line-height:1.55;max-width:34ch}
 .intro-page p strong{color:var(--ink)}
 .intro-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+/* Same chips on the Plan screen, where they have to sit under a paragraph
+   rather than centred under an illustration. The intro is shown once and can
+   be skipped; this is the screen everyone sees every time, so the claim has
+   to survive here on its own. */
+.reads{justify-content:flex-start;margin-top:12px}
 .intro-chips span{font:500 11.5px "IBM Plex Mono",monospace;letter-spacing:.07em;
   text-transform:uppercase;color:var(--ink2);border:1px solid var(--rule);
   padding:5px 11px;border-radius:100px;background:var(--sheet)}
@@ -983,7 +988,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </svg>
       </div>
       <h2><span class="wm-ev">EV</span><span class="wm-route">Route</span></h2>
-      <p class="intro-tag">Smart route. Maximum range.</p>
+      <p class="intro-tag">Your car. This road. Today’s weather.</p>
       <p>Tells you the one number that matters: <strong>the charge you'll have left when you arrive.</strong></p>
     </section>
 
@@ -1118,10 +1123,13 @@ details[open] summary::before{transform:rotate(90deg)}
     <section class="view" id="v-plan">
       <div class="view-head reveal" style="--i:0">
         <h1>Plan a <em>drive</em></h1>
-        <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
+        <p>Not a range estimate — a simulation of <em>this</em> drive in <em>your</em> car. Every metre of climb and descent, the air you push through at the speed you'll hold, and the wind and temperature forecast for the hour you'll be there. It ends with the number that matters: the charge left when you arrive.</p>
+        <div class="intro-chips reads">
+          <span>Elevation</span><span>Wind</span><span>Temperature</span><span>Your car's weight</span><span>Traffic</span>
+        </div>
         <div class="metastrip">
-          <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r39</span>
+          <span id="m-model">Model: ready</span><span id="m-eff">—</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r40</span>
         </div>
       </div>
 
@@ -1958,9 +1966,15 @@ function calibrate(){
   const aeroShare=v=>{const vs=v/3.6;const a=0.5*rho*cdA*vs*vs;return a/(crr*m*G+a)*100;};
 
   $('m-model').textContent=`Model: ${$('carname').value||'car'}`;
+  /* "uncalibrated" was the first thing a new driver read about the model, and
+     it reads as "not set up, do not trust this". What is actually true is the
+     opposite: the drivetrain efficiency and road load have already been solved
+     for the selected car, from a real measured pair of drives. What has not
+     happened yet is tuning against this particular driver's own trips, which
+     is a refinement, not a prerequisite. Say that instead. */
   $('m-eff').textContent = S.trips.length
-    ? `Drivetrain ${fmt(eta*100,1)}% · corrected ×${fmt(S.learn,3)}`
-    : `Drivetrain ${fmt(eta*100,1)}% · uncalibrated`;
+    ? `Drivetrain ${fmt(eta*100,1)}% · tuned from ${S.trips.length} trip${S.trips.length===1?'':'s'}`
+    : `Drivetrain ${fmt(eta*100,1)}% · solved for this car`;
   $('calout').innerHTML =
     (assumed ? `<strong style="color:var(--warn)">Driving times missing — assuming 80 km/h, which is the single most likely thing to be wrong.</strong> Put in how long each trip actually took and re-read the numbers below.<br><br>` : '')
     + `Average speeds <strong class="mono">${fmt(A.v)} km/h</strong> climbing and <strong class="mono">${fmt(B.v)} km/h</strong> flat.
