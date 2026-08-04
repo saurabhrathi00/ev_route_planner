@@ -323,8 +323,18 @@ button.ghost svg,a.ghost svg{width:15px;height:15px;fill:none;stroke:currentColo
 /* ---- "use my location" ----------------------------------------
    Sits inside the Start field rather than beside it, so the row keeps one
    visual weight and the button reads as part of the input it fills. */
-input.has-loc{padding-right:48px}
-input.has-two{padding-right:86px}          /* pin and crosshair side by side */
+/* Room is reserved for every button the field can ever show, not for the
+   ones showing now — the clear button comes and goes as you type, and a
+   padding that changed with it would make the text jump under the cursor. */
+input.has-loc{padding-right:86px}          /* clear + pin */
+input.has-two{padding-right:124px}         /* clear + pin + crosshair */
+
+/* The clear sits at the inside end of the group rather than the outside, so
+   it appears and disappears without leaving a gap against the field edge. */
+.clearbtn{right:44px}
+.has-two ~ .clearbtn{right:82px}
+.place:not(.has-text) .clearbtn{opacity:0;pointer-events:none;transform:scale(.8)}
+.clearbtn{transition:opacity var(--t1) var(--e-out),transform var(--t1) var(--e-spring)}
 .locbtn{
   position:absolute;right:6px;bottom:6px;width:34px;height:34px;
   border:0;border-radius:var(--r-s);background:none;color:var(--ink3);
@@ -1111,7 +1121,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <p>Reads the road's cross-section every 100 metres, adds the air you'll push through, and tells you the number that matters: the charge left when you arrive.</p>
         <div class="metastrip">
           <span id="m-model">Model: uncalibrated</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r38</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-04 r39</span>
         </div>
       </div>
 
@@ -1122,6 +1132,10 @@ details[open] summary::before{transform:rotate(90deg)}
         <div class="body">
           <label class="f place"><span>Start</span>
             <input type="text" id="from" class="has-loc has-two" placeholder="Where you set off" autocomplete="off">
+            <button class="locbtn clearbtn" type="button" id="clr-from" tabindex="-1"
+                    title="Clear" aria-label="Clear the start">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
             <button class="locbtn" type="button" id="btn-pin-from" title="Pick on the map"
                     aria-label="Pick the start on the map" style="right:44px">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1145,6 +1159,10 @@ details[open] summary::before{transform:rotate(90deg)}
           </div>
           <label class="f place"><span>Destination</span>
             <input type="text" id="to" class="has-loc" placeholder="Where you're headed" autocomplete="off">
+            <button class="locbtn clearbtn" type="button" id="clr-to" tabindex="-1"
+                    title="Clear" aria-label="Clear the destination">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
             <button class="locbtn" type="button" id="btn-pin-to" title="Pick on the map"
                     aria-label="Pick the destination on the map">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2776,7 +2794,7 @@ function attachPlaces(inputId, menuId, slot, onPick){
   }
   async function pick(i){
     const it=items[i]; if(!it) return;
-    menu.hidden=true; items=[]; input.value=it.name;
+    menu.hidden=true; items=[]; input.value=it.name; syncClear(inputId);
     if(it.placeId && it.lat==null){
       /* an autocomplete prediction has no coordinates; only the one the
          user actually chose costs a details call */
@@ -5370,7 +5388,7 @@ $('btn-loc').addEventListener('click',async()=>{
     if(acc>5000) throw {code:-1, message:`Only accurate to ${fmt(acc/1000,1)} km`};
 
     const fallback=`${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`;
-    input.value=fallback;
+    input.value=fallback; syncClear('from');
     S.from={...ll, name:fallback};
     $('ac-from').hidden=true;
     if(window.UI) UI.toast(`Located to within ${acc<1000?fmt(acc)+' m':fmt(acc/1000,1)+' km'}`);
@@ -5378,7 +5396,7 @@ $('btn-loc').addEventListener('click',async()=>{
     const name=await reverseName(ll).catch(()=>null);
     /* only if nothing else has been typed in the meantime */
     if(name && input.value===fallback){
-      input.value=name;
+      input.value=name; syncClear('from');
       S.from={...ll, name};
     }
   }catch(e){
@@ -5513,6 +5531,28 @@ function pickOnMap(title, start){
   });
 }
 
+/* The clear button only earns its place when there is something to clear, so
+   the field carries a class saying whether there is. Called from everywhere
+   that writes a value — typing, the map picker, the location button — because
+   setting .value in script fires no input event. */
+function syncClear(inputId){
+  const el=$(inputId); if(!el) return;
+  const wrap=el.closest('.place'); if(!wrap) return;
+  wrap.classList.toggle('has-text', !!el.value.trim());
+}
+
+[['clr-from','from','from'],['clr-to','to','to']].forEach(([btn,input,slot])=>{
+  const b=$(btn); if(!b) return;
+  b.addEventListener('click',()=>{
+    const el=$(input);
+    el.value=''; S[slot]=null;
+    const menu=$('ac-'+slot); if(menu) menu.hidden=true;
+    syncClear(input);
+    el.focus();
+  });
+  $(input).addEventListener('input',()=>syncClear(input));
+});
+
 /* Both fields get one. The start also has the crosshair that reads the
    device's own position; the destination has nowhere to read from, so a pin
    is the only way to say "that lay-by, not the town centre". */
@@ -5525,6 +5565,7 @@ function pickOnMap(title, start){
     $(input).value=got.name;
     S[slot]={lat:got.lat, lng:got.lng, name:got.name};
     const menu=$('ac-'+slot); if(menu) menu.hidden=true;
+    syncClear(input);
   });
 });
 
@@ -5720,6 +5761,7 @@ $('t_add').addEventListener('click',async()=>{
   departBounds(); departNote(); acNote(); sohNote(); marginNote();
   attachPlaces('from','ac-from','from');
   attachPlaces('to','ac-to','to');
+  syncClear('from'); syncClear('to');       // in case a value survived a reload
   attachPlaces('pick-search','pick-ac',null, p=>{ if(pickSearch) pickSearch(p); });
   calibrate();
 })();
