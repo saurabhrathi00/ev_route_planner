@@ -330,9 +330,15 @@ input.has-loc{padding-right:86px}          /* clear + pin */
 input.has-two{padding-right:124px}         /* clear + pin + crosshair */
 
 /* The clear sits at the inside end of the group rather than the outside, so
-   it appears and disappears without leaving a gap against the field edge. */
-.clearbtn{right:44px}
-.has-two ~ .clearbtn{right:82px}
+   it appears and disappears without leaving a gap against the field edge.
+
+   Qualified with .locbtn on purpose. These rules come before .locbtn in the
+   sheet, and .locbtn also sets right — on one class each that is a specificity
+   tie, which the later rule wins, and the clear button landed on top of the
+   pin. The Start field escaped it only because its own rule happens to carry
+   two classes. */
+.locbtn.clearbtn{right:44px}
+.has-two ~ .locbtn.clearbtn{right:82px}
 .place:not(.has-text) .clearbtn{opacity:0;pointer-events:none;transform:scale(.8)}
 .clearbtn{transition:opacity var(--t1) var(--e-out),transform var(--t1) var(--e-spring)}
 .locbtn{
@@ -1129,7 +1135,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r43</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r44</span>
         </div>
       </div>
 
