@@ -218,6 +218,42 @@ authoritative about its own chargers and knows nothing about anyone else's.
 
 ---
 
+## Collecting the data the physics actually needs
+
+`data/validation.md` checked the model against fourteen measured Indian EVs and
+found it systematically light by roughly 9%, worse the heavier the car. It also
+found that nothing in that comparison is strong enough to change a constant on:
+each car appears once, on one day, at a temperature nobody recorded — and the
+model itself says the same drive differs by 1.55x between 0 °C and 25 °C.
+
+More scraping will not fix that. What is needed is many observations per car,
+across seasons, with conditions attached, and separated by model year — a 2025
+Tiago and a 2026 Tiago are not the same car. That dataset does not exist
+publicly for Indian EVs.
+
+It does exist, unwritten, in the trip log. Every entry is a real drive with the
+conditions already known to the app: distance, climb, mean temperature, the car
+and its figures, predicted against actual. Today it stays on the device.
+
+So the Worker gets a third endpoint beside the charger proxy and the operator
+lookup:
+
+    POST /trip   { car, modelYear, km, climbM, meanTempC,
+                   predictedPct, actualPct, style }
+
+No identity, no route, no coordinates — none of it is needed to fit a road-load
+correction, and leaving it out keeps the privacy claim in PRIVACY.md true as
+written. Opt-in, off by default, and worth saying plainly in the UI what it is
+for: the numbers get better for everyone as people drive.
+
+What comes back is the thing this app is actually short of — a per-car, per-year
+correction fitted to hundreds of real drives instead of one afternoon's review,
+and one that keeps working as new models arrive.
+
+That is a better reason to build the proxy than the charger quota was.
+
+---
+
 ## Order
 
 | Step | Effort | Result |
