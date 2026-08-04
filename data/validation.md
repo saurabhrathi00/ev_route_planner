@@ -71,6 +71,46 @@ So: no constant in `web/index.html` has been changed on the strength of this.
 It is here as a reference to test future changes against, and as the reason for
 what follows.
 
+## Second test: does the correction hold at a different speed?
+
+`tools/verify-real.js`. The corrections above were fitted to Autocar's
+**combined** figures. This runs the shipped engine against their **highway**
+ones — same cars, same method, a different part of the data and a different
+speed regime. A single scalar cannot tell rolling resistance from drag, so the
+question is whether one fitted at a mixed speed still holds at a steady cruise,
+or whether it only ever fitted the average.
+
+Measured highway range: Curvv EV 55 359 km, Nexon EV 45 345 km, Windsor 289 km.
+
+**With the correction, by assumed test speed:**
+
+| Speed assumed | Curvv | Nexon | Windsor |
+|---|---|---|---|
+| 65 km/h | +5% | +6% | +10% |
+| **70 km/h** | **−1%** | **−0%** | **+4%** |
+| 75 km/h | −7% | −6% | −2% |
+| 85 km/h | −17% | −17% | −14% |
+
+**Without it, at 85 km/h:** −3%, −23%, −15%.
+
+Two things fall out.
+
+**The correction does what it was for.** Uncorrected, the three cars are
+scattered across twenty points — one nearly right, one badly wrong. Corrected,
+they move together: at any assumed speed they sit within about five points of
+each other. It generalised out of the regime it was fitted in, which was the
+thing most likely to have gone wrong.
+
+**The absolute level is not settled, and cannot be from here.** It rests
+entirely on a number nobody published: the speed Autocar actually held. At
+70 km/h the model is within 1%; at 85 it is 17% pessimistic. A highway loop
+averaging 70-75 km/h through Indian traffic is entirely plausible, and so is
+85 — the data cannot say which.
+
+So: the shape of the model is right and the per-car corrections are doing
+their job. Where the whole thing sits is an open question that one drive with
+a known average speed would close, and that no amount of further reading will.
+
 ## What would actually settle it
 
 Not more scraping. What is missing is many observations per car, spread across
