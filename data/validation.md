@@ -111,6 +111,61 @@ So: the shape of the model is right and the per-car corrections are doing
 their job. Where the whole thing sits is an open question that one drive with
 a known average speed would close, and that no amount of further reading will.
 
+## Third test: an independent source, at a speed it states
+
+The two tests above share a publication and a method, and both leave the same
+hole — nobody published the speed. [InsideEVs run a constant 70 mph highway
+loop](https://insideevs.com/reviews/443791/ev-range-test-results/), GPS-verified,
+from 100%, repeated and averaged. Different country, different testers, a speed
+that is stated rather than assumed, and four cars that overlap with `CARS`.
+
+None of those four has ever been fitted to anything: they sit at the 1.09
+median, so this is out of sample twice over.
+
+| Car | Measured @112.7 km/h | Model | Error |
+|---|---|---|---|
+| Kia EV6 GT-Line AWD | 394 km | 315 km | −20.1% |
+| Tesla Model 3 AWD | 499 km | 401 km | −19.6% |
+| Tesla Model Y AWD | 444 km | 360 km | −19.0% |
+| Hyundai Ioniq 5 AWD | 365 km | 309 km | −15.4% |
+
+Without the 1.09 applied: −13%, −13%, −12%, −8%.
+
+The model wants more energy than these cars use, consistently, and by about the
+same amount each time. Four cars clustered inside five points is a bias, not
+noise — and it points the same way as the Autocar highway figures did at 85 km/h.
+
+**Solving each car for the drivetrain efficiency that would match it:**
+
+| Car | Implied eta |
+|---|---|
+| Kia EV6 AWD | 89.1% |
+| Tesla Model 3 AWD | 88.8% |
+| Tesla Model Y AWD | 87.8% |
+| Hyundai Ioniq 5 AWD | 84.1% |
+
+The anchor fit produces **77.4%**. A real EV drivetrain, battery to wheels,
+runs 85-90%. Four independent cars land in that band; the anchor does not.
+
+And the anchor is the one input in this whole model known to be invented — its
+two reference drives were taken off the internet rather than measured, which is
+what prompted this file in the first place.
+
+`eta` scales rolling, aero and climb alike, so it is the single most
+consequential number in the app. If it is 77.4% where it should be near 88%,
+everything the app predicts is about 12% too expensive — which is the size of
+the gap both independent sources report.
+
+Nothing has been changed on this yet, deliberately. Moving `eta` invalidates
+every per-car correction above, since those were fitted with 0.774 assumed;
+the two have to be re-derived together. Doing that as the last commit of a long
+day, on a model whose previous change is still unverified, is how the 0.05
+regen figure survived four years.
+
+The drive settles both at once. If a real trip costs about 12% less than the
+app predicts, this is confirmed and both numbers get re-derived from data that
+was measured rather than found.
+
 ## What would actually settle it
 
 Not more scraping. What is missing is many observations per car, spread across
