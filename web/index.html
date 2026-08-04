@@ -1129,11 +1129,25 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r42</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r43</span>
         </div>
       </div>
 
       <div id="errbox" class="err-box" hidden></div>
+
+      <section class="card reveal" id="askdrive" hidden style="--i:0">
+        <div class="head"><h2>How did that drive go?</h2><span class="tag">one number</span></div>
+        <div class="body">
+          <p class="hint" id="askdrive-what" style="margin-top:0"></p>
+          <label class="f"><span>Charge actually used (%)</span>
+            <input type="number" id="askdrive-pct" min="1" max="100" step="any" inputmode="decimal"></label>
+          <div class="cta">
+            <button class="run" type="button" id="askdrive-save">Save it</button>
+            <button class="ghost" type="button" id="askdrive-skip">Not this time</button>
+          </div>
+          <p class="hint">Every answer tunes the model to how you actually drive, and nothing but this can. It stays on this device.</p>
+        </div>
+      </section>
 
       <section class="card reveal" style="--i:1">
         <div class="head"><span class="num">1</span><h2>Where to</h2><span class="tag">route</span></div>
@@ -5281,6 +5295,14 @@ async function plan(e){
        quietly leaves the field empty */
     $('t_d').value=sim.dist.toFixed(1); $('t_p').value=sim.used.toFixed(1);
     $('t_h').value=Math.round(sim.gain);
+    /* Hold on to this drive so it can be asked about later. The trip log is
+       the only thing that tunes the model to how someone actually drives, and
+       the form has never been the obstacle — it arrives pre-filled and wants
+       one number. Remembering to come back after the drive is the obstacle,
+       so the app remembers instead. */
+    sset('pending', {from:S.from.name.split(',')[0], to:S.to.name.split(',')[0],
+                     d:+sim.dist.toFixed(1), h:Math.round(sim.gain),
+                     pred:+sim.used.toFixed(1), cap:num('cap'), at:Date.now()});
     if(window.UI) UI.showResult(); else $('out').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(err){
     console.error(err);
@@ -5771,6 +5793,46 @@ document.addEventListener('click', e=>{
 
 /* Says which services this build can actually reach, so a missing key shows
    up here rather than as a puzzling failure in the middle of a plan. */
+/* A planned drive is worth asking about once it has plausibly been driven —
+   three hours, which is long enough that a short trip is over and short enough
+   that the answer is still in the driver's head. Asked once: answered or
+   waved away, it is gone either way, because a prompt that will not take no
+   for an answer is worse than no prompt.
+
+   Dropped silently if the car changed. A percentage is a percentage of one
+   particular pack, and the prediction it would be measured against was made
+   for a different one. */
+async function askAboutLastDrive(){
+  const p=await sget('pending');
+  const box=$('askdrive'); if(!box) return;
+  if(!p || !p.at) return;
+  if(Date.now()-p.at < 3*3600e3) return;
+  if(Math.abs((p.cap||0)-num('cap'))>0.05){ await STORE.delete('pending'); return; }
+
+  const days=Math.round((Date.now()-p.at)/864e5);
+  $('askdrive-what').innerHTML =
+    `You planned <strong>${p.from} to ${p.to}</strong>${days>=1?` ${days} day${days===1?'':'s'} ago`:' earlier today'}`
+    + ` — ${fmt(p.d)} km, and the app expected it to cost <strong>${fmt(p.pred)}%</strong>.`
+    + ` If you drove it, what did it actually cost?`;
+  box.hidden=false;
+
+  const done=async()=>{ await STORE.delete('pending'); box.hidden=true; };
+  $('askdrive-skip').onclick=done;
+  $('askdrive-save').onclick=async()=>{
+    const a=parseFloat($('askdrive-pct').value);
+    if(!(a>0&&a<=100)){
+      if(window.UI) UI.toast('That should be the percentage the drive used, between 1 and 100', true);
+      return;
+    }
+    S.trips.push({at:Date.now(), d:p.d, h:p.h, pred:p.pred, actual:a});
+    await sset('trips',S.trips);
+    relearn(); renderTrips(); calibrate();
+    await done();
+    if(window.UI) UI.toast(a>p.pred ? `Saved — it cost ${fmt(a-p.pred,1)} points more than expected, and the model now knows`
+                                    : `Saved — it cost ${fmt(p.pred-a,1)} points less than expected, and the model now knows`, false, 6000);
+  };
+}
+
 function paintKeyState(){
   const routing = orsKey() ? 'OpenRouteService' : 'OSRM';
   const free = `<strong style="color:var(--ok)">Running free</strong> — OpenStreetMap map tiles, ${routing} routing, Photon place search, and Open Charge Map plus OpenStreetMap for chargers.`;
@@ -5820,6 +5882,7 @@ $('t_add').addEventListener('click',async()=>{
   applyCar();
   relearn(); renderTrips(); sampNote(); fitAnchor(); markReference();
   departBounds(); departNote(); acNote(); sohNote(); marginNote();
+  askAboutLastDrive();
   attachPlaces('from','ac-from','from');
   attachPlaces('to','ac-to','to');
   syncClear('from'); syncClear('to');       // in case a value survived a reload
