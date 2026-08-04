@@ -1,0 +1,68 @@
+# Compiles the iOS app on a GitHub macOS runner, which already has Xcode.
+#
+# The point is that nobody has to install Xcode to find out whether the iOS
+# side still builds. It is a 10 GB download and wants about 40 GB free to
+# unpack, which is a lot to spend on a target that is only a WKWebView around
+# the same index.html the Android app runs — but "it is only a wrapper" is
+# exactly the reasoning under which a wrapper quietly stops compiling.
+#
+# No signing and no Apple account: this builds for the simulator, which needs
+# neither. It answers "does the Swift still compile", not "can this ship".
+# Shipping needs the $99 Developer Program, and then an archive step with an
+# App Store Connect API key — see ios/README.md.
+name: Build iOS
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'ios/**'
+      - 'web/index.html'
+      - 'tools/build.sh'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'web/index.html'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show the Xcode the runner already has
+        run: xcodebuild -version
+
+      - name: xcodegen
+        run: brew install xcodegen
+
+      # No GOOGLE_MAPS_KEY here on purpose. The build falls back to the
+      # free-sources version, which is all a compile check needs, and it keeps
+      # the key out of a public runner's logs.
+      - name: Build the planner into the iOS bundle
+        run: ./tools/build.sh
+
+      - name: Fail if the bundles drifted apart
+        run: |
+          a=$(shasum -a 256 app/src/main/assets/index.html | cut -d' ' -f1)
+          b=$(shasum -a 256 ios/Resources/index.html      | cut -d' ' -f1)
+          echo "android $a"
+          echo "ios     $b"
+          [ "$a" = "$b" ] || { echo "::error::Android and iOS are not shipping the same planner"; exit 1; }
+
+      - name: Regenerate the Xcode project
+        working-directory: ios
+        run: xcodegen
+
+      - name: Compile for the simulator
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project EVRoutePlanner.xcodeproj \
+            -scheme EVRoutePlanner \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build

@@ -19,15 +19,20 @@ final class WebHostViewController: UIViewController {
         cfg.websiteDataStore = .default()
         cfg.allowsInlineMediaPlayback = true
 
-        /* The Start field's crosshair calls navigator.geolocation, which
-           WKWebView will not serve to a page loaded from file://. The script
-           goes in before the page runs so the planner only ever sees the
-           replacement. See GeolocationBridge. */
-        cfg.userContentController.addUserScript(GeolocationBridge.userScript)
-
         web = WKWebView(frame: .zero, configuration: cfg)
+
+        /* The Start field's crosshair calls navigator.geolocation, which
+           WKWebView will not serve to a page loaded from file://. See
+           GeolocationBridge.
+
+           Registered through web.configuration rather than the cfg above,
+           because WKWebView copies the configuration it is given: anything
+           added to cfg after this point may never reach the web view. The
+           script still lands before the page does — nothing is loaded until
+           the end of viewDidLoad. */
         geo = GeolocationBridge(web: web)
-        cfg.userContentController.add(geo, name: GeolocationBridge.handlerName)
+        web.configuration.userContentController.addUserScript(GeolocationBridge.userScript)
+        web.configuration.userContentController.add(geo, name: GeolocationBridge.handlerName)
         web.navigationDelegate = self
         web.allowsBackForwardNavigationGestures = true   // edge-swipe goes back a view
         web.scrollView.bounces = false                   // the layout is fixed; rubber-banding fights it
