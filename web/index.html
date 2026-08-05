@@ -1186,7 +1186,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r51</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r52</span>
         </div>
       </div>
 
@@ -4139,7 +4139,7 @@ function rankRest(list, samples, fromIdx, hitIdx, sim, offset, reserve, cfg, rad
 /* No second stop within this of the last one. Stopping twice a few kilometres
    apart is never the right answer — the charge taken at the first one should
    simply have been larger, and every stop costs its own overhead on top. */
-const MIN_STOP_GAP_KM = 25;
+const MIN_STOP_GAP_KM = 45;
 
 async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat, afterKm){
   const hitKm=samples[hitIdx].s/1000;
