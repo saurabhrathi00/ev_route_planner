@@ -298,6 +298,7 @@ async function main() {
   console.log('\n  charging strategy');
   console.log('  ' + '-'.repeat(55));
   const S = vm.runInContext('S', env);
+  vm.runInContext('CHG_CACHE.clear()', env);
   const clock = (plan) => plan.reduce((t, s) =>
     t + env.chargeCurveMinutes(s.arrive, s.target, gcfg.cap,
           Math.min(s.best && s.best.kw > 0 ? s.best.kw : 50, gcfg.dckw))
@@ -320,6 +321,51 @@ async function main() {
       (!f.length || f[f.length-1].after >= reserve - 1),
       `${t.length ? t[t.length-1].after.toFixed(1) : '-'} / ${f.length ? f[f.length-1].after.toFixed(1) : '-'}`);
   }
+
+  /* AC posts, and chargers of different speeds. The AC sites here are the most
+     attractive things on the route by every other measure — better rated, more
+     bays, right where the car runs low — which is exactly the case that used to
+     get one into a plan on a scoring penalty alone. And two DC sites of the
+     same quality but different power must not cost the same to use. */
+  console.log('\n  chargers');
+  console.log('  ' + '-'.repeat(55));
+  const MIX = [[60,50,3.8,1,1],[105,7.4,4.9,6,0],[110,60,4.0,2,1],[194,22,5.0,8,0],
+               [200,25,4.0,2,1],[262,50,3.9,2,1],[318,120,4.6,6,1],[381,60,4.1,2,1],
+               [409,50,3.9,2,1],[470,60,4.2,2,1]];
+  /* The plan-level cache holds a circle for six hours, which is right in the
+     app and wrong here: without clearing it this whole block would be checked
+     against the previous block's chargers and pass without ever seeing an AC
+     post. It did, before this line existed. */
+  vm.runInContext('CHG_CACHE.clear()', env);
+  env.findChargers = async (centre) => MIX
+    .map(([km, kw, rating, bays, dc]) => ({ name: `${dc?'DC':'AC'}${kw}@${km}`, loc: gs[km].ll,
+      kw, points: bays, dc: !!dc, plugs: [dc ? 'CCS2' : 'Type2'], working: true,
+      membership: false, verified: new Date(), src: 't', url: '', rating, votes: 60 }))
+    .filter(c => Math.hypot((c.loc.lat - centre.lat) * 111, (c.loc.lng - centre.lng) * 95) < 50);
+
+  for (const reserve of [30, 50]) {
+    const p = (await env.planStops(gsim, gs, reserve, '', gcfg, null)).filter(x => !x.none);
+    const acs = p.filter(x => x.best && !x.best.dc);
+    const alts = p.flatMap(x => x.list || []).filter(c => !c.dc);
+    console.log(`  reserve ${reserve}%  ${p.map(x => x.best.name).join(', ')}`);
+    check(`chargers ${reserve}%: no AC post is a planned stop`, acs.length === 0,
+      acs.map(x => x.best.name).join(','));
+    check(`chargers ${reserve}%: no AC post offered as an alternative`, alts.length === 0,
+      alts.map(c => c.name).join(','));
+    check(`chargers ${reserve}%: every stop quotes its own charger's speed`,
+      p.every(x => Math.abs(x.minutes - env.chargeCurveMinutes(x.arrive, x.target, gcfg.cap,
+        Math.min(x.best.kw, gcfg.dckw))) < 0.01),
+      p.map(x => `${x.best.name} ${x.minutes.toFixed(1)}`).join(' '));
+  }
+
+  /* The same charge, on posts a car can and cannot saturate. */
+  const slow = env.chargeCurveMinutes(30, 80, 52, Math.min(25, 70));
+  const fast = env.chargeCurveMinutes(30, 80, 52, Math.min(120, 70));
+  console.log(`  30->80% on a 25 kW post ${slow.toFixed(0)} min, on a 120 kW post ${fast.toFixed(0)} min`);
+  check('a slow post takes longer than a fast one', slow > fast * 2,
+    `${slow.toFixed(1)} vs ${fast.toFixed(1)} min`);
+  check('the car caps what a fast post gives',
+    Math.abs(fast - env.chargeCurveMinutes(30, 80, 52, 70)) < 0.01, 'car limit not applied');
 
   /* The taper is the whole reason the two strategies can differ, so if it ever
      flattens the choice becomes cosmetic. The last tenth of a pack must cost

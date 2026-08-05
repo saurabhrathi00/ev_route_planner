@@ -3956,6 +3956,10 @@ function chargePlan(arriveSoC, needPct, reserve, cfg){
   const opts=[];
   for(let K=kmin;K<=kmin+3;K++){
     const add=A/K, target=Math.min(100, arriveSoC+add);
+    /* No charger is known here — this branch plans against bare points on the
+       map when the search came back empty — so the car's own limit is the only
+       rate there is. Everywhere a real charger exists the estimate goes
+       through plugPower instead. */
     let t = chargeCurveMinutes(arriveSoC,target,cfg.cap,cfg.dckw) + STOP_OVERHEAD_MIN;
     for(let j=1;j<K;j++)
       t += chargeCurveMinutes(reserve, Math.min(100,reserve+add), cfg.cap, cfg.dckw) + STOP_OVERHEAD_MIN;
@@ -3982,6 +3986,17 @@ function chargeMinutes(kWh, chargerKW, carKW){
   if(!(p>0)) return null;
   return kWh/(p*0.75)*60;
 }
+
+/* What a stop is actually going to deliver.
+
+   A car that can take 250 kW plugged into a 50 kW post gets 50, and the car's
+   own figure was standing in for both — so a plan routed through cheap 50 kW
+   posts quoted the same charging time as one routed through 120 kW ones, and
+   an itinerary could promise twenty minutes for something that takes an hour.
+   The whole point of choosing between chargers is that they differ; every
+   estimate has to come through here. */
+const plugPower = (chargerKW, carKW) =>
+  Math.max(1, Math.min(chargerKW > 0 ? chargerKW : 50, carKW));
 
 /* ---------------------------------------------------------------
    Finding a stop.
@@ -4184,12 +4199,20 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
   for(const raw of list){
     const c = decorate(raw);
     if(c.working === false) continue;
+    /* AC has no business in a route plan. A 7 kW post adds about 40 km in an
+       hour; on any leg worth planning that is not a stop, it is an overnight.
+       They were let in on a scoring penalty, which a well-reviewed AC site
+       could out-argue, and then the card carried a warning to undo the
+       damage. Leaving them out says the same thing without the plan having to
+       be wrong first. Nothing stops a driver charging on AC — it is just not
+       what "where should I stop" means. */
+    if(!c.dc) continue;
     const pr = projectToRoute(samples, 0, END, c.loc);
     if(pr.detour > DETOUR_MAX) continue;
     const detourPct = (pr.detour * 2) * sim.perKm / 1000 / cfg.cap * 100;
     cands.push({ ...c, idx: pr.i, detour: pr.detour, detourPct,
                  picked: PREFERRED.has(chgKey(c)),
-                 merit: c.conf + (c.dc ? 2.5 : -3.5) - pr.detour * 0.6
+                 merit: c.conf - pr.detour * 0.6
                         + (PREFERRED.has(chgKey(c)) ? 1000 : 0) });
   }
   cands.sort((a, b) => a.idx - b.idx);
@@ -4217,7 +4240,7 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
      and a 50 kW site never gives more than 50 whatever the car can take —
      both matter here, because the whole difference between the two strategies
      lives in that curve. */
-  const plugKW = c => Math.max(1, Math.min(c.kw > 0 ? c.kw : 50, cfg.dckw));
+  const plugKW = c => plugPower(c.kw, cfg.dckw);
   const plugMins = (c, arrive, target) =>
     chargeCurveMinutes(arrive, Math.max(arrive, target), cfg.cap, plugKW(c))
     + c.detour * 2 / 45 * 60;                                       // there and back
@@ -4364,8 +4387,9 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
       need: legCost(sim, c.idx, nextIdx),
       chosen: c.picked || undefined, pickedMissed,
       detourPct: c.detourPct, kWh, movedBack: 0, radius: DETOUR_MAX,
-      mode: c.dc ? 'dc' : 'ac', hitKm: samples[c.idx].s/1000, calls,
-      minutes: chargeMinutes(kWh, c.kw, cfg.dckw),
+      mode: 'dc', hitKm: samples[c.idx].s/1000, calls,
+      kw: c.kw,
+      minutes: chargeCurveMinutes(arrive, target, cfg.cap, plugKW(c)),
       after: target - legCost(sim, c.idx, END),
       alt: k === 0 ? altNote : null
     });
@@ -4598,7 +4622,7 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
        charger. Anything a driver looks at or drives to uses `chg`. */
     real.forEach(r=> stops.push({i:r.i, arrive:r.arrive, target:r.target,
                                  name:r.best.name, ll:samples[r.i].ll,
-                                 chg:r.best.loc, detour:r.detour}));
+                                 chg:r.best.loc, detour:r.detour, kw:r.best.kw}));
   }else{
     let offset=0, prev=-1;
     for(let guard=0; guard<8; guard++){
@@ -4628,8 +4652,8 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
       driveMins:(sim.timeTrace[st.i]-sim.timeTrace[fromIdx])/60,
       toName:st.name, toKm:samples[st.i].s/1000, arrive,
       target:st.target, addKWh:(st.target-arrive)/100*cfg.cap,
-      addMins:chargeCurveMinutes(arrive, st.target, cfg.cap, cfg.dckw),
-      ll:st.ll, chg:st.chg, detour:st.detour, stop:true});
+      addMins:chargeCurveMinutes(arrive, st.target, cfg.cap, plugPower(st.kw, cfg.dckw)),
+      kw:st.kw, ll:st.ll, chg:st.chg, detour:st.detour, stop:true});
     offset += st.target-arrive;
     fromIdx=st.i; fromName=st.name; leave=st.target;
   });
@@ -5169,7 +5193,6 @@ function render(o){
         <p class="why">
           ${moved ? `Best option in the ${fmt(s.best.searchedKm||120)} km before you hit ${fmt(reserve)}% at ${fmt(s.hitKm)} km — <strong>${fmt(s.hitKm-s.km)} km earlier</strong>, where you arrive with charge in hand.`
                   : `Right about where you come down to your ${fmt(reserve)}% floor.`}
-          ${s.mode==='ac' ? ' <strong style="color:var(--warn)">No DC charger anywhere along this stretch — this one is AC, so expect hours rather than minutes.</strong>' : ''}
           ${s.chosen ? ' <strong style="color:var(--ok)">This is the stop you picked.</strong>' : ''}
           ${s.pickedMissed ? ` <strong style="color:var(--warn)">The charger you picked cannot be reached on this leg — you would arrive below your ${fmt(reserve)}% floor after the detour, so the best reachable one is shown instead.</strong>` : ''}
         </p>
