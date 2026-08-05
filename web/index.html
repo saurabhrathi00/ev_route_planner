@@ -4125,21 +4125,30 @@ function decorate(c){
    split unachievable, and the result was a charge at 381 km followed by
    another at 409, and before that two at the same site.
 
-   Two passes now, and neither guesses.
+   Planning backwards from the end fixes that: each stop only needs enough for
+   the leg in front of it, and by then that leg is known rather than assumed.
+   It also makes the whole thing separable. Because every stop is left with
+   exactly what the next leg costs, a car arrives at every stop but the first
+   holding the reserve — so what a stop costs in time depends only on the two
+   chargers at its ends, never on the route taken to get there. That is the
+   condition for a shortest path, so the stops are chosen by one rather than
+   by a greedy walk: nodes are the chargers, an edge is a leg the car can
+   actually make, and its weight is the minutes spent plugged in at the near
+   end of it.
 
-   The first asks where to stop: go as far as the charge allows, stop at the
-   last charger still in reach, repeat. That is the classic minimum-refuelling
-   greedy and it gives provably the fewest stops. Distance never enters it —
-   reach is measured in energy off the simulation's own trace, so 60 km of
-   ghat and 60 km of plain are weighed as the different journeys they are.
+   Which is what makes the driver's choice of strategy mean something. Fewest
+   stops and least time are genuinely different routes through that graph —
+   the taper is why. A DC charger past about 55% delivers a fraction of its
+   rated power, so the last fifth of a battery can cost as long as the first
+   half; one more stop to skip it is often the faster trip. Both answers come
+   from the same shortest path with a different weight on a stop: the real ten
+   minutes for least time, an unpayable one for fewest stops.
 
-   The second asks how much to take, working back from the end: each stop
-   needs enough for the leg in front of it, and by then that leg is known
-   rather than assumed. Filling to 100% at the one stop where it pays beats
-   stopping twice more to avoid the taper.
-
-   One sweep of the whole corridor rather than one per run-out, which also
-   costs fewer Nearby calls than the old approach did. */
+   Distance never enters any of it — reach is measured in energy off the
+   simulation's own trace, so 60 km of ghat and 60 km of plain are weighed as
+   the different journeys they are. And it is one sweep of the whole corridor
+   rather than one per run-out, which costs fewer Nearby calls than the old
+   approach did. */
 
 /* Reach is energy, not distance: charging shifts the curve without changing
    what a segment costs, so the untouched trace answers "what does a to b
@@ -4147,11 +4156,16 @@ function decorate(c){
    fact. */
 const legCost = (sim, a, b) => sim.socTrace[a] - sim.socTrace[b];
 
-/* Among the chargers we could reach, the furthest wins — that is what makes
-   the legs long and the stops few. But a mediocre site 8 km further on should
-   not beat a good one, so anything within this of the furthest is judged on
-   its merits instead. */
+/* Only the fallback walk uses this, for the routes no complete chain reaches:
+   there the furthest charger in range wins, except that a mediocre site 8 km
+   further on should not beat a good one, so anything within this of the
+   furthest is judged on its merits instead. */
 const REACH_BAND_KM = 25;
+
+/* Charger quality, priced in minutes, so it competes with time rather than
+   overriding it: about a quarter hour separates the best site from the worst
+   plausible one, which a genuinely faster leg can still beat. */
+const MERIT_MIN = 1.5;
 
 async function planStops(sim, samples, reserve, ocm, cfg, onStat){
   const END = samples.length - 1;
@@ -4186,41 +4200,144 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
               need: startPct - sim.socTrace[END] }];
   }
 
-  /* ---- pass one: where, and how few ---- */
-  const chosen = [];
-  let at = 0, soc = startPct;
-  for(let guard = 0; guard < 6; guard++){
-    if(soc - legCost(sim, at, END) >= reserve) break;              // home from here
+  if(startPct - legCost(sim, 0, END) >= reserve) return [];        // no stop needed
 
-    const reachable = cands.filter(c =>
-      c.idx > at && soc - legCost(sim, at, c.idx) - c.detourPct >= reserve);
-    if(!reachable.length) break;                                    // nothing in range
+  /* ---- choosing the stops ----
+     Leave every stop with exactly what the leg in front costs, and the car
+     reaches the next one holding this. It is what makes a leg's cost depend
+     on its two ends alone. */
+  const ARRIVE = reserve + marginPct();
 
-    const furthest = reachable[reachable.length - 1];
-    const bandKm = samples[furthest.idx].s/1000 - REACH_BAND_KM;
-    const band = reachable.filter(c => samples[c.idx].s/1000 >= bandKm);
-    const pick = band.sort((a, b) => b.merit - a.merit)[0];
+  /* What a stop must be charged to in order to reach the next one, detour
+     included. Above 100 the leg cannot be made at all. */
+  const departFor = (fromIdx, toIdx, toDetourPct) =>
+    legCost(sim, fromIdx, toIdx) + toDetourPct + ARRIVE;
 
-    chosen.push(pick);
-    soc = FULL; at = pick.idx;
+  /* Rated power is not what a car gets. Above 55% a DC charger tapers hard,
+     and a 50 kW site never gives more than 50 whatever the car can take —
+     both matter here, because the whole difference between the two strategies
+     lives in that curve. */
+  const plugKW = c => Math.max(1, Math.min(c.kw > 0 ? c.kw : 50, cfg.dckw));
+  const plugMins = (c, arrive, target) =>
+    chargeCurveMinutes(arrive, Math.max(arrive, target), cfg.cap, plugKW(c))
+    + c.detour * 2 / 45 * 60;                                       // there and back
+
+  /* Quality as a time penalty, so a poor charger has to save real minutes to
+     win — measured down from the best site on the route, never as a reward.
+     A credit here would be a reason to add stops that charge nothing, which
+     is exactly what it did when this was written the other way round.
+     A charger the driver picked themselves is not scored at all: it is in. */
+  const meritTop = Math.max(...cands.filter(c => !c.picked).map(c => c.merit), 0);
+  const meritCost = c => c.picked ? -1e4 : Math.max(0, meritTop - c.merit) * MERIT_MIN;
+
+  /* What the trip really costs at the plug, with nothing else priced in. Both
+     candidate plans are measured on it at the end, which is what stops least
+     time from ever returning the slower of the two — the search itself also
+     weighs charger quality, and without this check a one-minute detour to a
+     better site could come back labelled as the quickest way. */
+  const trueMins = chain => chain.reduce((t, c, k) => {
+    const arrive = k ? ARRIVE : startPct - legCost(sim, 0, c.idx) - c.detourPct;
+    const need = departFor(c.idx, k + 1 < chain.length ? chain[k + 1].idx : END,
+                                  k + 1 < chain.length ? chain[k + 1].detourPct : 0);
+    return t + plugMins(c, arrive, Math.min(FULL, need)) + STOP_OVERHEAD_MIN;
+  }, 0);
+
+  const n = cands.length;
+  const INF = Infinity;
+  /* Two ways to be standing at a charger: straight from the start, still on
+     the charge we set off with, or off a previous stop holding ARRIVE. They
+     cost different amounts to leave, so they are different states. */
+  const arriveAt = [
+    cands.map(c => startPct - legCost(sim, 0, c.idx) - c.detourPct),
+    cands.map(() => ARRIVE),
+  ];
+
+  /* One search, parameterised by what a stop is worth. Ten minutes is what a
+     stop actually costs; an unpayable price is how you ask for the fewest of
+     them. Everything else about the two answers is identical. */
+  function solve(stopCost){
+  const dp = [ cands.map((c, i) => arriveAt[0][i] >= reserve ? 0 : INF),
+               cands.map(() => INF) ];
+  const from = [ cands.map(() => null), cands.map(() => null) ];
+
+  for(let i = 0; i < n; i++){
+    for(let st = 0; st < 2; st++){
+      if(dp[st][i] === INF) continue;
+      const arrive = arriveAt[st][i];
+      const leaving = dp[st][i] + stopCost + meritCost(cands[i]);
+      for(let j = i + 1; j < n; j++){
+        if(cands[j].idx <= cands[i].idx) continue;
+        const need = departFor(cands[i].idx, cands[j].idx, cands[j].detourPct);
+        if(need > FULL) continue;                                   // cannot make that leg
+        const cost = leaving + plugMins(cands[i], arrive, need);
+        if(cost < dp[1][j]){ dp[1][j] = cost; from[1][j] = [st, i]; }
+      }
+    }
+  }
+
+  /* The last stop is the one from which the destination is reachable. */
+  let bestEnd = null, bestCost = INF;
+  for(let i = 0; i < n; i++) for(let st = 0; st < 2; st++){
+    if(dp[st][i] === INF) continue;
+    const need = departFor(cands[i].idx, END, 0);
+    if(need > FULL) continue;
+    const cost = dp[st][i] + stopCost + meritCost(cands[i])
+               + plugMins(cands[i], arriveAt[st][i], need);
+    if(cost < bestCost){ bestCost = cost; bestEnd = [st, i]; }
+  }
+
+  if(!bestEnd) return null;
+  const chain = [];
+  for(let cur = bestEnd; cur; cur = from[cur[0]][cur[1]]) chain.unshift(cands[cur[1]]);
+  return chain;
+  }
+
+  /* Both answers, then the one the driver asked for — and for least time,
+     only if it is actually quicker. */
+  const byTime  = solve(STOP_OVERHEAD_MIN);
+  const byStops = solve(1e5);
+  let chosen = (S.strategy === 'stops') ? byStops : byTime;
+  if(S.strategy !== 'stops' && byStops && (!chosen || trueMins(byStops) < trueMins(chosen)))
+    chosen = byStops;
+  if(!chosen){
+    /* No chain reaches the end. Rather than nothing, walk as far as the
+       chargers allow and let the caller say how short it falls. */
+    chosen = [];
+    let at = 0, soc = startPct;
+    for(let guard = 0; guard < 6; guard++){
+      const reach = cands.filter(c =>
+        c.idx > at && soc - legCost(sim, at, c.idx) - c.detourPct >= reserve);
+      if(!reach.length) break;
+      const far = reach[reach.length - 1];
+      const bandKm = samples[far.idx].s/1000 - REACH_BAND_KM;
+      const pick = reach.filter(c => samples[c.idx].s/1000 >= bandKm)
+                        .sort((a, b) => b.merit - a.merit)[0];
+      chosen.push(pick); soc = FULL; at = pick.idx;
+    }
   }
 
   if(!chosen.length){
-    /* Either it is reachable without stopping, or nothing was in range. */
-    if(startPct - legCost(sim, 0, END) >= reserve) return [];
     return [{ none:true, km: samples[END].s/1000, errors: errs, answered,
               searchedKm: samples[END].s/1000, calls,
               need: startPct - sim.socTrace[END] }];
   }
 
-  /* ---- pass two: how much, decided from the end ---- */
-  const targets = new Array(chosen.length);
-  for(let k = chosen.length - 1; k >= 0; k--){
-    const nextIdx = (k + 1 < chosen.length) ? chosen[k + 1].idx : END;
-    const nextDetour = (k + 1 < chosen.length) ? chosen[k + 1].detourPct : 0;
-    targets[k] = Math.min(FULL,
-      legCost(sim, chosen[k].idx, nextIdx) + nextDetour + reserve + marginPct());
-  }
+  /* ---- how much, decided from the end ---- */
+  const targetsFor = chain => chain.map((c, k) =>
+    Math.min(FULL, departFor(c.idx,
+      k + 1 < chain.length ? chain[k + 1].idx : END,
+      k + 1 < chain.length ? chain[k + 1].detourPct : 0)));
+  const targets = targetsFor(chosen);
+
+  /* The plan not chosen, quoted under the card. Both were worked out anyway,
+     and a driver deciding whether the extra stop is worth it should be told
+     what it buys rather than made to flip the setting and re-plan. */
+  const other = (chosen === byStops) ? byTime : byStops;
+  const altNote = (other && other !== chosen && other.length !== chosen.length)
+    ? { stops: other.length,
+        target: Math.max(...targetsFor(other)),
+        deltaMin: trueMins(other) - trueMins(chosen) }
+    : null;
 
   /* A charger the driver picked but the plan could not use — it did not fall
      inside any leg the car can actually make. Saying so beats the tap having
@@ -4230,7 +4347,7 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
 
   /* ---- read it off forwards ---- */
   const stops = [];
-  soc = startPct; at = 0;
+  let soc = startPct, at = 0;
   chosen.forEach((c, k) => {
     const arrive = soc - legCost(sim, at, c.idx) - c.detourPct;
     const target = Math.max(arrive, Math.min(FULL, targets[k]));
@@ -4249,7 +4366,8 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
       detourPct: c.detourPct, kWh, movedBack: 0, radius: DETOUR_MAX,
       mode: c.dc ? 'dc' : 'ac', hitKm: samples[c.idx].s/1000, calls,
       minutes: chargeMinutes(kWh, c.kw, cfg.dckw),
-      after: target - legCost(sim, c.idx, END)
+      after: target - legCost(sim, c.idx, END),
+      alt: k === 0 ? altNote : null
     });
     soc = target; at = c.idx;
   });

@@ -290,6 +290,44 @@ async function main() {
       planned.length <= Math.ceil(KM / 150), `${planned.length} stops for ${KM} km`);
   }
 
+  /* The two strategies, which are only worth offering if they differ and only
+     honest if each wins at the thing it is named after. Least time is allowed
+     to spend a stop; what it may never do is come back slower than the plan
+     that spends fewer. That is not obvious from the code — both come out of
+     the same search with a different price on a stop — so it is asserted. */
+  console.log('\n  charging strategy');
+  console.log('  ' + '-'.repeat(55));
+  const S = vm.runInContext('S', env);
+  const clock = (plan) => plan.reduce((t, s) =>
+    t + env.chargeCurveMinutes(s.arrive, s.target, gcfg.cap,
+          Math.min(s.best && s.best.kw > 0 ? s.best.kw : 50, gcfg.dckw))
+      + (s.detour || 0) * 2 / 45 * 60 + 10, 0);
+
+  for (const reserve of [20, 35, 50]) {
+    S.strategy = 'time';
+    const t = (await env.planStops(gsim, gs, reserve, '', gcfg, null)).filter(s => !s.none);
+    S.strategy = 'stops';
+    const f = (await env.planStops(gsim, gs, reserve, '', gcfg, null)).filter(s => !s.none);
+    S.strategy = 'time';
+    console.log(`  reserve ${String(reserve).padStart(2)}%  least time ${t.length} stops `
+      + `${clock(t).toFixed(0)} min   fewest stops ${f.length} stops ${clock(f).toFixed(0)} min`);
+    check(`strategy ${reserve}%: fewest stops does not stop more often`,
+      f.length <= t.length, `${f.length} vs ${t.length}`);
+    check(`strategy ${reserve}%: least time is not the slower plan`,
+      clock(t) <= clock(f) + 0.5, `${clock(t).toFixed(1)} vs ${clock(f).toFixed(1)} min`);
+    check(`strategy ${reserve}%: both arrive on the reserve`,
+      (!t.length || t[t.length-1].after >= reserve - 1) &&
+      (!f.length || f[f.length-1].after >= reserve - 1),
+      `${t.length ? t[t.length-1].after.toFixed(1) : '-'} / ${f.length ? f[f.length-1].after.toFixed(1) : '-'}`);
+  }
+
+  /* The taper is the whole reason the two strategies can differ, so if it ever
+     flattens the choice becomes cosmetic. The last tenth of a pack must cost
+     appreciably more than the first. */
+  const tp = (a, b) => env.chargeCurveMinutes(a, b, 52, 60);
+  check('the last tenth of the pack costs more than the first',
+    tp(90, 100) > tp(30, 40) * 3, `${tp(90,100).toFixed(1)} vs ${tp(30,40).toFixed(1)} min`);
+
   console.log('\n  ' + '-'.repeat(55));
   console.log(`  ${pass} passed, ${fail} failed\n`);
   if (bad.length) { bad.forEach(b => console.log('  FAIL ' + b)); console.log(); }
