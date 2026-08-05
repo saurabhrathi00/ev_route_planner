@@ -462,8 +462,11 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
    ancestor's transform. */
 .mapwrap.full .mapbox{height:78vh}
 .mapwrap.full .mapbox svg.routeshape{height:78vh}
+/* Above the map's own stacking context. It sits at the top-left because that
+   is the one corner neither map puts anything in — OpenStreetMap's zoom column
+   is top-right, Google's controls are right and bottom. */
 .fsbtn{
-  position:absolute;left:10px;top:10px;z-index:4;width:34px;height:34px;
+  position:absolute;left:10px;top:10px;z-index:6;width:34px;height:34px;
   border-radius:var(--r-s);border:1px solid var(--rule);background:var(--sheet);
   color:var(--ink);display:grid;place-items:center;cursor:pointer;
   box-shadow:var(--shadow-1);transition:transform var(--t1) var(--e-spring);
@@ -474,7 +477,12 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
 .fsbtn .out{display:none}
 .mapwrap.full .fsbtn .out{display:block}
 .mapwrap.full .fsbtn .in{display:none}
-.mapbox{width:100%;height:340px;background:var(--paper);position:relative}
+/* z-index:0 rather than auto, so this is a stacking context. Without one the
+   Google map's own furniture — which numbers its layers in the hundreds of
+   thousands — escapes the box and paints over anything sitting beside it,
+   which is where the toggle button went. Containing it costs nothing: the
+   map's controls only ever need to be above the map. */
+.mapbox{width:100%;height:340px;background:var(--paper);position:relative;z-index:0}
 .mapbox svg.routeshape{display:block;width:100%;height:340px}
 .osm{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;background:var(--paper)}
 .osm.grabbing{cursor:grabbing}
@@ -1168,7 +1176,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r48</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r49</span>
         </div>
       </div>
 
