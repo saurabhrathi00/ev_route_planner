@@ -451,7 +451,30 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
 .jump button.on{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
 :root[data-theme=dark] .jump button.on,:root:not([data-theme=light]) .jump button.on{color:var(--paper)}
 
-.mapwrap{padding:0}
+.mapwrap{padding:0;position:relative}
+
+/* Full screen by growing the container, not through the Fullscreen API.
+   requestFullscreen needs WebChromeClient.onShowCustomView on the Android
+   side, which this app does not implement — the call would resolve to nothing
+   and the button would look broken on the one platform it ships on. Fixing to
+   the viewport works the same everywhere and needs no native code. */
+.mapwrap.full{position:fixed;inset:0;z-index:300;background:var(--paper);
+  padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+.mapwrap.full .mapbox{height:100%}
+.mapwrap.full .mapbox svg.routeshape{height:100%}
+.fsbtn{
+  position:absolute;left:10px;top:10px;z-index:4;width:34px;height:34px;
+  border-radius:var(--r-s);border:1px solid var(--rule);background:var(--sheet);
+  color:var(--ink);display:grid;place-items:center;cursor:pointer;
+  box-shadow:var(--shadow-1);transition:transform var(--t1) var(--e-spring);
+}
+.fsbtn:active{transform:scale(.9)}
+.fsbtn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
+.mapwrap.full .fsbtn{top:calc(10px + env(safe-area-inset-top))}
+.fsbtn .out{display:none}
+.mapwrap.full .fsbtn .out{display:block}
+.mapwrap.full .fsbtn .in{display:none}
 .mapbox{width:100%;height:340px;background:var(--paper);position:relative}
 .mapbox svg.routeshape{display:block;width:100%;height:340px}
 .osm{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;background:var(--paper)}
@@ -1146,7 +1169,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r46</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r47</span>
         </div>
       </div>
 
@@ -5071,7 +5094,15 @@ function render(o){
   </div>
   <section class="panel">
     <div class="head"><h2>The map</h2><span class="tag" id="map-tag">${useGoogle()?'google maps':'openstreetmap'}</span></div>
-    <div class="mapwrap"><div id="mapbox" class="mapbox"></div></div>
+    <div class="mapwrap" id="mapwrap">
+      <button class="fsbtn" type="button" id="mapfull" title="Full screen" aria-label="Full screen">
+        <svg class="in" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        <svg class="out" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+      </button>
+      <div id="mapbox" class="mapbox"></div>
+    </div>
     <div class="navrow">
       <a class="run navbtn" target="_blank" rel="noopener" href="${mapsDirUrl(samples, itinerary)}">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
@@ -5165,6 +5196,32 @@ function render(o){
     seen.add(k); return true;
   });
   mountMap(samples, itinerary, candidates);
+
+  /* Full screen. Both maps have to be told the box changed: the OpenStreetMap
+     one recomputes its own tiling from a ResizeObserver, and Google's watches
+     the window rather than the element, so a resize event is dispatched for
+     it. Escape leaves, because a map filling the screen with no way out but a
+     small button is a trap on a phone with gestures turned off. */
+  const wrap=$('mapwrap'), fsb=$('mapfull');
+  if(wrap && fsb){
+    const setFull=(on)=>{
+      wrap.classList.toggle('full', on);
+      fsb.title = on ? 'Leave full screen' : 'Full screen';
+      fsb.setAttribute('aria-label', fsb.title);
+      document.documentElement.style.overflow = on ? 'hidden' : '';
+      setTimeout(()=>window.dispatchEvent(new Event('resize')), 60);
+    };
+    fsb.onclick=()=>setFull(!wrap.classList.contains('full'));
+    document.addEventListener('keydown',e=>{
+      if(e.key==='Escape' && wrap.classList.contains('full')) setFull(false);
+    });
+    /* Full screen covers the tab bar, and a phone has no Escape key — so the
+       button is the only way out, and Android's back gesture would otherwise
+       change the view underneath and leave the map stranded on top of it. */
+    window.addEventListener('hashchange',()=>{
+      if(wrap.classList.contains('full')) setFull(false);
+    });
+  }
   if(SCRUB) mountScrub(reserve, cfg);
 }
 
