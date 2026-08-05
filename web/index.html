@@ -453,15 +453,15 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
 
 .mapwrap{padding:0;position:relative}
 
-/* Full screen by growing the container, not through the Fullscreen API.
-   requestFullscreen needs WebChromeClient.onShowCustomView on the Android
-   side, which this app does not implement — the call would resolve to nothing
-   and the button would look broken on the one platform it ships on. Fixing to
-   the viewport works the same everywhere and needs no native code. */
-.mapwrap.full{position:fixed;inset:0;z-index:300;background:var(--paper);
-  padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
-.mapwrap.full .mapbox{height:100%}
-.mapwrap.full .mapbox svg.routeshape{height:100%}
+/* The map grows in place rather than escaping to the viewport.
+   position:fixed was the obvious way and it did nothing: .view.on carries a
+   keyframe animation whose frames set transform, and a transformed ancestor
+   becomes the containing block for fixed descendants — so the map "went full
+   screen" inside its own card, which looks exactly like a dead button.
+   Making it tall needs no containing block and cannot be broken by an
+   ancestor's transform. */
+.mapwrap.full .mapbox{height:78vh}
+.mapwrap.full .mapbox svg.routeshape{height:78vh}
 .fsbtn{
   position:absolute;left:10px;top:10px;z-index:4;width:34px;height:34px;
   border-radius:var(--r-s);border:1px solid var(--rule);background:var(--sheet);
@@ -471,7 +471,6 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
 .fsbtn:active{transform:scale(.9)}
 .fsbtn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;
   stroke-linecap:round;stroke-linejoin:round}
-.mapwrap.full .fsbtn{top:calc(10px + env(safe-area-inset-top))}
 .fsbtn .out{display:none}
 .mapwrap.full .fsbtn .out{display:block}
 .mapwrap.full .fsbtn .in{display:none}
@@ -1169,7 +1168,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r47</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r48</span>
         </div>
       </div>
 
@@ -5206,18 +5205,22 @@ function render(o){
   if(wrap && fsb){
     const setFull=(on)=>{
       wrap.classList.toggle('full', on);
-      fsb.title = on ? 'Leave full screen' : 'Full screen';
+      fsb.title = on ? 'Smaller map' : 'Bigger map';
       fsb.setAttribute('aria-label', fsb.title);
-      document.documentElement.style.overflow = on ? 'hidden' : '';
+      /* Both maps have to be told the box changed: the OpenStreetMap one
+         recomputes its tiling from a ResizeObserver, and Google's watches the
+         window rather than the element. */
       setTimeout(()=>window.dispatchEvent(new Event('resize')), 60);
+      /* Growing something below the fold is invisible until you scroll to it,
+         which reads as nothing having happened. */
+      if(on) setTimeout(()=>wrap.scrollIntoView({behavior:'smooth', block:'start'}), 80);
     };
     fsb.onclick=()=>setFull(!wrap.classList.contains('full'));
     document.addEventListener('keydown',e=>{
       if(e.key==='Escape' && wrap.classList.contains('full')) setFull(false);
     });
-    /* Full screen covers the tab bar, and a phone has no Escape key — so the
-       button is the only way out, and Android's back gesture would otherwise
-       change the view underneath and leave the map stranded on top of it. */
+    /* Leaving the view resets it, so coming back does not land on a map
+       taking up most of the screen for no reason anyone remembers. */
     window.addEventListener('hashchange',()=>{
       if(wrap.classList.contains('full')) setFull(false);
     });

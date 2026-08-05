@@ -30,7 +30,7 @@ android {
         targetSdk = 35
         // Play rejects an upload whose versionCode it has seen before, so this
         // has to go up by at least one for every release you push.
-        versionCode = 28
+        versionCode = 29
         versionName = "1.3"
     }
 
