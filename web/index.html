@@ -460,8 +460,18 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
    screen" inside its own card, which looks exactly like a dead button.
    Making it tall needs no containing block and cannot be broken by an
    ancestor's transform. */
-.mapwrap.full .mapbox{height:78vh}
-.mapwrap.full .mapbox svg.routeshape{height:78vh}
+/* dvh, not vh. On a phone 100vh is the viewport with the browser chrome
+   hidden, which is taller than what you can actually see — and this app also
+   keeps a fixed tab bar across the bottom. A map sized in vh ends up running
+   underneath both, which looks like a broken map rather than a big one.
+   dvh is the height that is really there; the subtraction is the tab bar and
+   a little air. vh stays as the fallback for anything too old for dvh. */
+.mapwrap.full .mapbox{height:70vh}
+.mapwrap.full .mapbox svg.routeshape{height:70vh}
+@supports (height:100dvh){
+  .mapwrap.full .mapbox{height:calc(100dvh - 190px)}
+  .mapwrap.full .mapbox svg.routeshape{height:calc(100dvh - 190px)}
+}
 /* Above the map's own stacking context. It sits at the top-left because that
    is the one corner neither map puts anything in — OpenStreetMap's zoom column
    is top-right, Google's controls are right and bottom. */
@@ -1176,7 +1186,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r49</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r50</span>
         </div>
       </div>
 
