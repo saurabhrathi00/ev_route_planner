@@ -1186,7 +1186,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r52</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r53</span>
         </div>
       </div>
 
@@ -3995,7 +3995,7 @@ function chargeMinutes(kWh, chargerKW, carKW){
    spaced 1.6r apart tile a strip with no gaps, so a 120 km window needs
    three calls at 45 km — and they are independent, so they go at once.
    That radius is how wide the sweep looks, not how far a driver is asked
-   to detour; the detour caps live with the passes in findStop.
+   to detour; planStops caps the detour separately.
    Every candidate is then projected onto the route and scored, which
    also picks a better stop than "first one going backwards" did.
 
@@ -4113,190 +4113,154 @@ function decorate(c){
   return x;
 }
 
-/* The alternatives listed under a stop card, scored the ordinary way. Used
-   when a chosen stop has already won, so the card still offers the others —
-   they are how a driver changes their mind. */
-function rankRest(list, samples, fromIdx, hitIdx, sim, offset, reserve, cfg, radius, chosen){
-  const out=[];
-  const skip=chosen?chgKey(chosen):null;
-  for(const raw of list){
-    const c=decorate(raw);
-    if(c.working===false) continue;
-    if(skip && chgKey(c)===skip) continue;
-    const pr=projectToRoute(samples, fromIdx, hitIdx, c.loc);
-    if(pr.detour>radius) continue;
-    const socThere=sim.socTrace[pr.i]+offset;
-    const detourPct=(pr.detour*2)*sim.perKm/1000/cfg.cap*100;
-    if(socThere-detourPct < reserve-1) continue;
-    const earlyKm=samples[hitIdx].s/1000 - samples[pr.i].s/1000;
-    out.push({...c, idx:pr.i, detour:pr.detour, socThere, detourPct, earlyKm, picked:false,
-      score: c.conf + (c.dc?2.5:-3.5) - pr.detour*0.6 - earlyKm*0.02});
-  }
-  out.sort((a,b)=>b.score-a.score);
-  return out;
-}
+/* Planning the stops.
 
-/* No second stop within this of the last one. Stopping twice a few kilometres
-   apart is never the right answer — the charge taken at the first one should
-   simply have been larger, and every stop costs its own overhead on top. */
-const MIN_STOP_GAP_KM = 45;
+   This used to walk forwards: drive until the charge ran out, look back up to
+   120 km for a charger, take a share of what was still needed, repeat. It is
+   the obvious first design and it anchors on the wrong thing. The binding
+   constraint is the one it met last — arrive with the reserve intact — and
+   how much to take at each stop was decided by splitting the remaining deficit
+   across an imagined future in which every later stop began at the reserve.
+   The road does not oblige. Arriving at a charger with 71% left makes that
+   split unachievable, and the result was a charge at 381 km followed by
+   another at 409, and before that two at the same site.
 
-async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat, afterKm){
-  const hitKm=samples[hitIdx].s/1000;
-  const backKm=Math.min(120, Math.max(10, hitKm-1));
-  let fromIdx=hitIdx;
-  while(fromIdx>0 && (samples[hitIdx].s-samples[fromIdx].s) < backKm*1000) fromIdx--;
-  /* The search looks backwards from where charge runs out, and on a route
-     where charge falls fast that window can reach back past the previous stop
-     — which is how the same charger came to be chosen twice in a row, and how
-     two stops eight kilometres apart got planned. */
-  const floorKm = (afterKm==null ? -1 : afterKm + MIN_STOP_GAP_KM);
-  if(floorKm>0) while(fromIdx<hitIdx && samples[fromIdx].s/1000 < floorKm) fromIdx++;
+   Two passes now, and neither guesses.
 
-  let lastErrs=[], everAnswered=false, totalCalls=0;
+   The first asks where to stop: go as far as the charge allows, stop at the
+   last charger still in reach, repeat. That is the classic minimum-refuelling
+   greedy and it gives provably the fewest stops. Distance never enters it —
+   reach is measured in energy off the simulation's own trace, so 60 km of
+   ghat and 60 km of plain are weighed as the different journeys they are.
 
-  /* The three passes widen the net: DC within 25 km, DC within 45, then
-     anything at all within 45. Running them strictly in turn meant the
-     second pass did not put a single request on the wire until the first
-     had come back empty — so the slowest case, an empty stretch of road,
-     was also the one that waited twice.
+   The second asks how much to take, working back from the end: each stop
+   needs enough for the leg in front of it, and by then that leg is known
+   rather than assumed. Filling to 100% at the one stop where it pays beats
+   stopping twice more to avoid the taper.
 
-     The passes do not depend on each other, only on their radius, so both
-     radii go out together and each pass simply picks up the answer it needs.
-     Two distinct radii, so at most one extra set of circles is fetched, and
-     they warm the cache for the stops planned after this one. The third pass
-     shares the second's key and costs nothing either way.
+   One sweep of the whole corridor rather than one per run-out, which also
+   costs fewer Nearby calls than the old approach did. */
 
-     25 km for the first pass is deliberate and worth keeping: it is a
-     detour a driver will actually make. Widening it would fetch fewer
-     circles and bill less, but it would also let a charger 40 km off the
-     road win a stop, which is not the same product. Cost comes off the
-     cache and the quota cap instead. */
-  /* The number in each pass is the furthest a driver is asked to detour,
-     not the size of the circle fetched. They used to be the same thing,
-     which meant a 25 km cap forced 25 km circles — 40 km apart to tile the
-     corridor, so four calls, and then three more at 45 for the wider pass.
+/* Reach is energy, not distance: charging shifts the curve without changing
+   what a segment costs, so the untouched trace answers "what does a to b
+   take" whatever the pack held at the time. buildItinerary leans on the same
+   fact. */
+const legCost = (sim, a, b) => sim.socTrace[a] - sim.socTrace[b];
 
-     Nothing requires that. A charger within 25 km of the road is also within
-     45 km of it, so one sweep at the widest radius contains every candidate
-     all three passes can use, and each pass just applies its own cap. Seven
-     Nearby calls become three, with the same chargers and the same choice
-     of stop — the caps below are untouched. */
-  const FETCH_R=45;
-  const BASE=[[25,true,'DC chargers'],[FETCH_R,true,'DC, wider'],[FETCH_R,false,'any charger']];
+/* Among the chargers we could reach, the furthest wins — that is what makes
+   the legs long and the stops few. But a mediocre site 8 km further on should
+   not beat a good one, so anything within this of the furthest is judged on
+   its merits instead. */
+const REACH_BAND_KM = 25;
 
-  /* A stop the driver chose gets its own pass, ahead of the rest.
-
-     The +1000 on its score was not enough, because a pass returns the moment
-     it has any candidate at all: pick an AC charger, or one further off the
-     road than the first pass looks, and the first pass would quietly answer
-     with something else and never reach the one that was chosen. From the
-     outside the plan simply did not change, which is exactly what was
-     reported.
-
-     So the choice is honoured before anything is ranked. It still has to be
-     reachable — that check is about physics, not preference — and if it is
-     not, the passes below carry on and the plan says why. */
-  const PASSES = PREFERRED.size
-    ? [[FETCH_R, false, 'the stop you chose', true], ...BASE]
-    : BASE;
-  let pickedMissed=false;
-
-  /* One sweep, awaited by all three passes. Nothing is lazy any more and
-     nothing needs to be: there is only one set of circles left to fetch. */
-  const centres=corridorCentres(samples, fromIdx, hitIdx, FETCH_R);
-  const sweep=corridorChargers(samples, centres, FETCH_R, ocm);
-
-  for(const [radius, dcOnly, label, pickedOnly] of PASSES){
-    const p=sweep;
-    if(onStat) onStat(label, radius, centres.length);
-    const {list, errs, answered, calls}=await p;
-    totalCalls+=calls; lastErrs=errs; everAnswered=everAnswered||answered;
-
-    const cands=[];
-    for(const raw of list){
-      const c=decorate(raw);
-      if(pickedOnly && !PREFERRED.has(chgKey(c))) continue;
-      if(dcOnly && !c.dc) continue;
-      if(c.working===false) continue;
-      const pr=projectToRoute(samples, fromIdx, hitIdx, c.loc);
-      if(pr.detour>radius) continue;
-      if(floorKm>0 && samples[pr.i].s/1000 < floorKm) continue;   // too close to the last stop
-      const socThere=sim.socTrace[pr.i]+offset;
-      const detourPct=(pr.detour*2)*sim.perKm/1000/cfg.cap*100;
-      if(socThere-detourPct < reserve-1) continue;          // you could not actually reach it
-      const earlyKm=hitKm-samples[pr.i].s/1000;
-      cands.push({...c, idx:pr.i, detour:pr.detour, socThere, detourPct, earlyKm,
-        picked: PREFERRED.has(chgKey(c)),
-        score: c.conf + (c.dc?2.5:-3.5) - pr.detour*0.6 - earlyKm*0.02
-             + (PREFERRED.has(chgKey(c)) ? 1000 : 0)});
-    }
-    if(cands.length){
-      cands.sort((a,b)=>b.score-a.score);
-      /* On the chosen-stop pass, keep the rest of the list from the normal
-         passes rather than showing only the one charger — the alternatives
-         under the card are how the choice gets changed again. */
-      if(pickedOnly){
-        const rest=rankRest(list, samples, fromIdx, hitIdx, sim, offset, reserve, cfg, FETCH_R, cands[0]);
-        return {list:[cands[0], ...rest].slice(0,4), best:cands[0], calls:totalCalls,
-                radius, mode:cands[0].dc?'dc':'ac', searchedKm:backKm, chosen:true};
-      }
-      return {list:cands.slice(0,4), best:cands[0], calls:totalCalls, radius,
-              mode:dcOnly?'dc':'ac', searchedKm:backKm, pickedMissed};
-    }
-    if(pickedOnly){ pickedMissed=true; continue; }   // unreachable pick: fall through, and say so
-    if(!answered && errs.length) break;                     // services are down; widening will not help
-  }
-  return {none:true, errors:lastErrs, answered:everAnswered, searchedKm:backKm, calls:totalCalls};
-}
-
-/* Plan the stops, replanning the rest of the drive from each one. */
 async function planStops(sim, samples, reserve, ocm, cfg, onStat){
-  const stops=[]; let offset=0;
-  const endBase=sim.socTrace[sim.socTrace.length-1];
-  for(let guard=0; guard<4; guard++){
-    let hit=-1;
-    for(let i=0;i<sim.socTrace.length;i++) if(sim.socTrace[i]+offset<=reserve){ hit=i; break; }
-    if(hit<0) break;
+  const END = samples.length - 1;
+  const FULL = 100;
+  const startPct = sim.socTrace[0];
 
-    const last=stops.length ? stops[stops.length-1] : null;
-    const found=await findStop(samples, sim, hit, offset, reserve, cfg, ocm, onStat,
-                               last && !last.none ? last.km : null);
-    if(found.none){
-      /* Nothing usable further on. If the last stop was not filled, filling it
-         is the answer — better a longer stop than a report of nowhere to charge
-         when there was somewhere, just behind us. */
-      if(last && !last.none && last.target < 99.5){
-        const room=100-last.target;
-        last.target=Math.min(100, last.target+room);
-        last.kWh=(last.target-last.arrive)/100*cfg.cap;
-        last.minutes=chargeMinutes(last.kWh, last.best.kw, cfg.dckw);
-        last.after=endBase+offset+room;
-        last.toppedUp=true;
-        offset+=room;
-        continue;
-      }
-      stops.push({none:true, km:samples[hit].s/1000, errors:found.errors||[],
-                  answered:found.answered, searchedKm:found.searchedKm,
-                  need:(sim.socTrace[hit]+offset)-(endBase+offset)});
-      break;
-    }
-    const best=found.best, i=best.idx;
-    const arrive=best.socThere-best.detourPct;
-    const need=(sim.socTrace[i]+offset)-(endBase+offset);
-    const plan=chargePlan(arrive, need+marginPct(), reserve, cfg);
-    const target=plan.target;
-    const kWh=(target-arrive)/100*cfg.cap;
+  /* ---- one sweep of the whole route ---- */
+  const FETCH_R = 45;
+  const centres = corridorCentres(samples, 0, END, FETCH_R);
+  if(onStat) onStat('chargers along the route', FETCH_R, centres.length);
+  const { list, errs, answered, calls } = await corridorChargers(samples, centres, FETCH_R, ocm);
+
+  /* ---- everything that could be a stop, projected onto the road ---- */
+  const DETOUR_MAX = 45;
+  const cands = [];
+  for(const raw of list){
+    const c = decorate(raw);
+    if(c.working === false) continue;
+    const pr = projectToRoute(samples, 0, END, c.loc);
+    if(pr.detour > DETOUR_MAX) continue;
+    const detourPct = (pr.detour * 2) * sim.perKm / 1000 / cfg.cap * 100;
+    cands.push({ ...c, idx: pr.i, detour: pr.detour, detourPct,
+                 picked: PREFERRED.has(chgKey(c)),
+                 merit: c.conf + (c.dc ? 2.5 : -3.5) - pr.detour * 0.6
+                        + (PREFERRED.has(chgKey(c)) ? 1000 : 0) });
+  }
+  cands.sort((a, b) => a.idx - b.idx);
+
+  if(!cands.length){
+    return [{ none:true, km: samples[END].s/1000, errors: errs, answered,
+              searchedKm: samples[END].s/1000, calls,
+              need: startPct - sim.socTrace[END] }];
+  }
+
+  /* ---- pass one: where, and how few ---- */
+  const chosen = [];
+  let at = 0, soc = startPct;
+  for(let guard = 0; guard < 6; guard++){
+    if(soc - legCost(sim, at, END) >= reserve) break;              // home from here
+
+    const reachable = cands.filter(c =>
+      c.idx > at && soc - legCost(sim, at, c.idx) - c.detourPct >= reserve);
+    if(!reachable.length) break;                                    // nothing in range
+
+    const furthest = reachable[reachable.length - 1];
+    const bandKm = samples[furthest.idx].s/1000 - REACH_BAND_KM;
+    const band = reachable.filter(c => samples[c.idx].s/1000 >= bandKm);
+    const pick = band.sort((a, b) => b.merit - a.merit)[0];
+
+    chosen.push(pick);
+    soc = FULL; at = pick.idx;
+  }
+
+  if(!chosen.length){
+    /* Either it is reachable without stopping, or nothing was in range. */
+    if(startPct - legCost(sim, 0, END) >= reserve) return [];
+    return [{ none:true, km: samples[END].s/1000, errors: errs, answered,
+              searchedKm: samples[END].s/1000, calls,
+              need: startPct - sim.socTrace[END] }];
+  }
+
+  /* ---- pass two: how much, decided from the end ---- */
+  const targets = new Array(chosen.length);
+  for(let k = chosen.length - 1; k >= 0; k--){
+    const nextIdx = (k + 1 < chosen.length) ? chosen[k + 1].idx : END;
+    const nextDetour = (k + 1 < chosen.length) ? chosen[k + 1].detourPct : 0;
+    targets[k] = Math.min(FULL,
+      legCost(sim, chosen[k].idx, nextIdx) + nextDetour + reserve + marginPct());
+  }
+
+  /* A charger the driver picked but the plan could not use — it did not fall
+     inside any leg the car can actually make. Saying so beats the tap having
+     looked like it did nothing. */
+  const pickedMissed = PREFERRED.size > 0 &&
+    cands.some(c => c.picked) && !chosen.some(c => c.picked);
+
+  /* ---- read it off forwards ---- */
+  const stops = [];
+  soc = startPct; at = 0;
+  chosen.forEach((c, k) => {
+    const arrive = soc - legCost(sim, at, c.idx) - c.detourPct;
+    const target = Math.max(arrive, Math.min(FULL, targets[k]));
+    const kWh = (target - arrive) / 100 * cfg.cap;
+    const nextIdx = (k + 1 < chosen.length) ? chosen[k + 1].idx : END;
+    /* The alternatives under the card: everything else close enough to this
+       stop to be a real swap for it, ranked the ordinary way. */
+    const near = cands
+      .filter(o => o !== c && Math.abs(samples[o.idx].s - samples[c.idx].s) < 60000)
+      .sort((a, b) => b.merit - a.merit).slice(0, 3);
     stops.push({
-      i, km:samples[i].s/1000, list:found.list, best, arrive, need, target,
-      pickedMissed:found.pickedMissed, chosen:found.chosen,
-      detourPct:best.detourPct, kWh, movedBack:best.earlyKm>1?1:0, radius:found.radius,
-      mode:found.mode, hitKm:samples[hit].s/1000, calls:found.calls,
-      minutes:chargeMinutes(kWh, best.kw, cfg.dckw),
-      after:endBase+offset+(target-arrive)
+      i: c.idx, km: samples[c.idx].s/1000,
+      list: [c, ...near], best: c, arrive, target,
+      need: legCost(sim, c.idx, nextIdx),
+      chosen: c.picked || undefined, pickedMissed,
+      detourPct: c.detourPct, kWh, movedBack: 0, radius: DETOUR_MAX,
+      mode: c.dc ? 'dc' : 'ac', hitKm: samples[c.idx].s/1000, calls,
+      minutes: chargeMinutes(kWh, c.kw, cfg.dckw),
+      after: target - legCost(sim, c.idx, END)
     });
-    offset += target-arrive;
-    if(target-arrive>=need) break;
+    soc = target; at = c.idx;
+  });
+
+  /* Short of the reserve at the end even after every stop it could find. Say
+     so rather than presenting a plan that does not arrive. */
+  const endPct = soc - legCost(sim, at, END);
+  if(endPct < reserve - 1){
+    stops.push({ none:true, km: samples[END].s/1000, errors: errs, answered,
+                 searchedKm: samples[END].s/1000, calls,
+                 need: reserve - endPct });
   }
   return stops;
 }

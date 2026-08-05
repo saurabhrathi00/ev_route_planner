@@ -280,6 +280,11 @@ async function main() {
     console.log(`  reserve ${String(reserve).padStart(2)}%  stops at ${kms.join(', ') || '-'}`);
     check(`stops ${reserve}%: none within 25 km of the last`, tooClose === 0, `${tooClose} too close`);
     check(`stops ${reserve}%: strictly forward`, backwards === 0, `${backwards} not after the last`);
+    /* Fewest stops is the point of planning backwards from the arrival
+       constraint, so it is worth asserting rather than admiring: nobody
+       should need more than one stop per 150 km on a route like this. */
+    check(`stops ${reserve}%: not more than the route needs`,
+      planned.length <= Math.ceil(KM / 150), `${planned.length} stops for ${KM} km`);
   }
 
   console.log('\n  ' + '-'.repeat(55));
