@@ -22,7 +22,10 @@ const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
 
-const SRC = path.join(__dirname, '..', 'web', 'index.html');
+/* The page under test. EVROUTE_SRC points it at another copy — an older
+   checkout, say — so two versions of the planner can be compared side by side
+   without either of them being the one on disk. */
+const SRC = process.env.EVROUTE_SRC || path.join(__dirname, '..', 'web', 'index.html');
 
 /* ---- the stub DOM ------------------------------------------------------ */
 const FIELDS = {};                       // id -> value, set per scenario
