@@ -1186,7 +1186,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r50</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r51</span>
         </div>
       </div>
 
@@ -4136,11 +4136,22 @@ function rankRest(list, samples, fromIdx, hitIdx, sim, offset, reserve, cfg, rad
   return out;
 }
 
-async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat){
+/* No second stop within this of the last one. Stopping twice a few kilometres
+   apart is never the right answer — the charge taken at the first one should
+   simply have been larger, and every stop costs its own overhead on top. */
+const MIN_STOP_GAP_KM = 25;
+
+async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat, afterKm){
   const hitKm=samples[hitIdx].s/1000;
   const backKm=Math.min(120, Math.max(10, hitKm-1));
   let fromIdx=hitIdx;
   while(fromIdx>0 && (samples[hitIdx].s-samples[fromIdx].s) < backKm*1000) fromIdx--;
+  /* The search looks backwards from where charge runs out, and on a route
+     where charge falls fast that window can reach back past the previous stop
+     — which is how the same charger came to be chosen twice in a row, and how
+     two stops eight kilometres apart got planned. */
+  const floorKm = (afterKm==null ? -1 : afterKm + MIN_STOP_GAP_KM);
+  if(floorKm>0) while(fromIdx<hitIdx && samples[fromIdx].s/1000 < floorKm) fromIdx++;
 
   let lastErrs=[], everAnswered=false, totalCalls=0;
 
@@ -4210,6 +4221,7 @@ async function findStop(samples, sim, hitIdx, offset, reserve, cfg, ocm, onStat)
       if(c.working===false) continue;
       const pr=projectToRoute(samples, fromIdx, hitIdx, c.loc);
       if(pr.detour>radius) continue;
+      if(floorKm>0 && samples[pr.i].s/1000 < floorKm) continue;   // too close to the last stop
       const socThere=sim.socTrace[pr.i]+offset;
       const detourPct=(pr.detour*2)*sim.perKm/1000/cfg.cap*100;
       if(socThere-detourPct < reserve-1) continue;          // you could not actually reach it
@@ -4247,8 +4259,23 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
     for(let i=0;i<sim.socTrace.length;i++) if(sim.socTrace[i]+offset<=reserve){ hit=i; break; }
     if(hit<0) break;
 
-    const found=await findStop(samples, sim, hit, offset, reserve, cfg, ocm, onStat);
+    const last=stops.length ? stops[stops.length-1] : null;
+    const found=await findStop(samples, sim, hit, offset, reserve, cfg, ocm, onStat,
+                               last && !last.none ? last.km : null);
     if(found.none){
+      /* Nothing usable further on. If the last stop was not filled, filling it
+         is the answer — better a longer stop than a report of nowhere to charge
+         when there was somewhere, just behind us. */
+      if(last && !last.none && last.target < 99.5){
+        const room=100-last.target;
+        last.target=Math.min(100, last.target+room);
+        last.kWh=(last.target-last.arrive)/100*cfg.cap;
+        last.minutes=chargeMinutes(last.kWh, last.best.kw, cfg.dckw);
+        last.after=endBase+offset+room;
+        last.toppedUp=true;
+        offset+=room;
+        continue;
+      }
       stops.push({none:true, km:samples[hit].s/1000, errors:found.errors||[],
                   answered:found.answered, searchedKm:found.searchedKm,
                   need:(sim.socTrace[hit]+offset)-(endBase+offset)});

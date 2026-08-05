@@ -153,7 +153,7 @@ function check(name, ok, detail) {
   if (ok) { pass++; } else { fail++; bad.push(`${name} — ${detail}`); }
 }
 
-function main() {
+async function main() {
   const env = loadEngine();
   if (typeof env.simulate !== 'function') throw new Error('simulate() did not load');
 
@@ -241,6 +241,46 @@ function main() {
   const fullish  = run(env, { km: 40, profile: climbTo(2200, 400), spd: 35 }, { startPct: 99 }).kwh;
   check('full pack cannot absorb regen', fullish > emptyish, `${fullish.toFixed(2)} vs ${emptyish.toFixed(2)}`);
   console.log(`  descent from 40% / 99%          : ${emptyish.toFixed(2)} / ${fullish.toFixed(2)} kWh`);
+
+  /* Stops in order, and never two of them on top of each other.
+     Reported from a real Delhi-Manali plan: charge at 318 km, drive 8 km,
+     charge again. The search looks backwards from where charge runs out, and
+     on a route that drains fast that window reaches back past the last stop —
+     so the best-scoring charger, the one just used, won a second time. */
+  console.log('\n  stop spacing');
+  console.log('  ' + '-'.repeat(55));
+  const KM = 500;
+  const ghat = (i, n) => i < 340 ? 210 + i * 0.35
+                                 : 210 + 340 * 0.35 + (i - 340) * (2050 - 329) / (n - 340);
+  const { samples: gs, elev: ge } = drive({ km: KM, profile: ghat, spd: 70 });
+  const gcfg = { cap: 52, kerb: 1650, people: 2, bags: 20, acPct: 40,
+    cdA: 0.72 * 1.19, crr: 0.0095 * 1.19, soh: 100, style: 1, styleKey: 'normal',
+    vhwy: 250, vroad: 250, regen: 0.65, regenKW: 60, dckw: 70,
+    trafficRatio: 1, smoothWin: 1, step: 1000 };
+  const gsim = env.simulate({ samples: gs, elev: ge, marks: weatherFor(gs, 24, 0),
+    cal: { eta: 0.774, C: 0.990, learn: 1 }, cfg: gcfg, startPct: 100 });
+  /* Uneven quality matters: with every charger identical the scoring picks the
+     nearest and the bug never shows. It needs one that is clearly the best. */
+  const AT = [[60,50,3.8,1],[105,60,4.0,2],[194,60,4.2,2],[200,25,3.2,1],[262,50,3.9,2],
+              [318,120,4.6,6],[326,60,4.1,2],[383,50,3.7,1],[390,60,4.0,2],[440,50,3.9,2],[470,60,4.2,2]];
+  env.findChargers = async (centre) => AT
+    .map(([km, kw, rating, bays]) => ({ name: `C@${km}`, loc: gs[km].ll, kw, points: bays,
+      dc: true, plugs: ['CCS2'], working: true, membership: false,
+      verified: new Date(), src: 't', url: '', rating, votes: 60 }))
+    .filter(c => Math.hypot((c.loc.lat - centre.lat) * 111, (c.loc.lng - centre.lng) * 95) < 50);
+
+  for (const reserve of [20, 35, 50]) {
+    const planned = (await env.planStops(gsim, gs, reserve, '', gcfg, null)).filter(s => !s.none);
+    const kms = planned.map(s => Math.round(s.km));
+    let tooClose = 0, backwards = 0;
+    for (let i = 1; i < kms.length; i++) {
+      if (kms[i] - kms[i - 1] < 25) tooClose++;
+      if (kms[i] <= kms[i - 1]) backwards++;
+    }
+    console.log(`  reserve ${String(reserve).padStart(2)}%  stops at ${kms.join(', ') || '-'}`);
+    check(`stops ${reserve}%: none within 25 km of the last`, tooClose === 0, `${tooClose} too close`);
+    check(`stops ${reserve}%: strictly forward`, backwards === 0, `${backwards} not after the last`);
+  }
 
   console.log('\n  ' + '-'.repeat(55));
   console.log(`  ${pass} passed, ${fail} failed\n`);
