@@ -5387,7 +5387,8 @@ function itineraryTable(it, reserve){
         ${S.strategy==='stops'
           ? 'You asked for fewest stops, so that time is the price of not pulling over again.'
           : 'You asked for least time, so the extra stop is buying you those minutes.'}
-        Switch the charging strategy above to plan it the other way.</p>`:''}
+        <br><button type="button" class="ghost" style="margin-top:10px" data-strat="${
+          S.strategy==='stops'?'time':'stops'}">Plan it the other way</button></p>`:''}
       <p class="note">Charging time totals ${hhmm(it.chargeMins*60)} across ${it.stopCount} stop${it.stopCount===1?'':'s'}, plus about ${STOP_OVERHEAD_MIN} minutes each for pulling off, plugging in and paying. Levels are chosen to keep you out of the slow end of the charge curve: above roughly 80% a DC charger delivers a fraction of its rated power, so an extra short stop often beats one long one.</p>
     </div></section>`;
 }
@@ -6029,32 +6030,26 @@ $('style').addEventListener('change',()=>{ refreshReference(); calibrate(); });
     carK=K_DEFAULT;
   }));
 
-/* Changing the strategy with a plan on screen used to change nothing you could
-   see: it set a variable and waited for the next Plan press, so the answer in
-   front of you stayed the one worked out under the old setting and the toggle
-   read as broken. It replans instead. The corridor's chargers are already
-   cached, so this costs no lookups and usually finishes before the finger is
-   off the button. */
-function replanIfShowing(){
-  const out=$('out');
-  if(out && out.innerHTML.trim()) plan({preventDefault(){}});
-}
+/* These two live on the Plan screen, which is where you set things up before
+   pressing the button — so they set a preference and stop there.
 
+   They did replan for a day, to fix a real complaint: switching the strategy
+   while looking at a plan changed nothing you could see. The cure was worse.
+   Nobody switches it while looking at a plan, because you cannot — the toggle
+   is on this screen and the plan is on another — so all it ever did was start
+   a full planning run under someone still filling the form in, and throw them
+   at the results. The switch that belongs next to a plan is on the plan: see
+   the button in the note that quotes the other way round. */
 $('strat-toggle').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
-  if(S.strategy===b.dataset.v) return;
   [...e.currentTarget.children].forEach(c=>c.setAttribute('aria-pressed',c===b));
   S.strategy=b.dataset.v;
-  replanIfShowing();
 });
 
 $('chg-toggle').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
-  const on=b.dataset.v==='1';
-  if(S.chargers===on) return;
   [...e.currentTarget.children].forEach(c=>c.setAttribute('aria-pressed',c===b));
-  S.chargers=on;
-  replanIfShowing();                       // same reason as the strategy toggle
+  S.chargers=b.dataset.v==='1';
 });
 
 /* Current location for the Start field.
@@ -6397,6 +6392,18 @@ async function chooseCharger(key, label){
   }
   await plan({preventDefault(){}});
 }
+
+/* Switching strategy from the results page, where the trade has just been
+   spelled out in minutes. Replanning here is expected — you asked for the
+   other plan — and it is cheap, because the corridor's chargers are cached. */
+document.addEventListener('click', e=>{
+  const b=e.target.closest('button[data-strat]'); if(!b) return;
+  e.preventDefault();
+  S.strategy=b.dataset.strat;
+  const seg=$('strat-toggle');
+  if(seg) [...seg.children].forEach(c=>c.setAttribute('aria-pressed', c.dataset.v===S.strategy));
+  plan({preventDefault(){}});
+});
 
 document.addEventListener('click', e=>{
   const b=e.target.closest('.chgpick'); if(!b) return;

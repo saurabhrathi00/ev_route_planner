@@ -515,6 +515,21 @@ async function main() {
   check('a chip opens a folded panel before scrolling to it',
     /d\.open\s*=\s*true/.test(page), 'arrives at a shut panel');
 
+  /* Where the strategy can be changed, and where it cannot. The toggle sits on
+     the Plan screen, so replanning from it lands on someone still filling in
+     the form; the switch that acts belongs in the note that has just costed
+     the alternative in minutes. Both halves are asserted because the wrong
+     one was shipped, and it looked like a fix. */
+  const stratHandler = page.slice(page.indexOf("$('strat-toggle').addEventListener"),
+                                  page.indexOf("$('chg-toggle').addEventListener"));
+  check('the plan-screen toggle does not start a plan',
+    !/\bplan\(/.test(stratHandler), 'the toggle replans');
+  check('the results page offers the switch instead',
+    /data-strat="\$\{/.test(page), 'no switch on the results page');
+  check('and that switch does replan',
+    /closest\('button\[data-strat\]'\)[\s\S]{0,400}plan\(\{preventDefault/.test(page),
+    'the switch changes nothing');
+
   /* The taper is the whole reason the two strategies can differ, so if it ever
      flattens the choice becomes cosmetic. The last tenth of a pack must cost
      appreciably more than the first. */
