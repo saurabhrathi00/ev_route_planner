@@ -358,6 +358,35 @@ async function main() {
       p.map(x => `${x.best.name} ${x.minutes.toFixed(1)}`).join(' '));
   }
 
+  /* A real Google reply, in the shape that used to draw a green pin over a
+     station whose DC guns were both busy. Function declarations land on the
+     sandbox global, so the network call can be replaced from out here. */
+  const SITE = { places: [{
+    displayName: { text: 'Mixed site' },
+    location: { latitude: 28.6, longitude: 77.2 },
+    evChargeOptions: { connectorCount: 4, connectorAggregation: [
+      { type: 'EV_CONNECTOR_TYPE_CCS_COMBO_2', count: 2, availableCount: 0, maxChargeRateKw: 60 },
+      { type: 'EV_CONNECTOR_TYPE_TYPE_2',      count: 2, availableCount: 2, maxChargeRateKw: 7.4 },
+    ] } }] };
+  const realFetch = env.chgFetch;
+  env.chgFetch = async () => ({ ok: true, status: 200, json: async () => SITE });
+  const [got] = await env.chargersGoogle({ lat: 28.6, lng: 77.2 }, 40, 'k');
+  env.chgFetch = realFetch;
+  console.log(`  mixed site: 2 DC guns busy, 2 AC sockets free -> free ${got.free}, bays ${got.points}`);
+  check('AC sockets do not count as a free gun', got.free === 0, `free ${got.free}`);
+  check('bays counted are the DC ones', got.points === 2, `${got.points} bays`);
+  check('a mixed site is still a DC site', got.dc === true, `dc ${got.dc}`);
+
+  /* And a site that reports nothing stays unknown rather than reading as busy —
+     amber and grey mean different things to a driver. */
+  const QUIET = { places: [{ displayName:{text:'Quiet'}, location:{latitude:28.6,longitude:77.2},
+    evChargeOptions:{ connectorAggregation:[
+      { type:'EV_CONNECTOR_TYPE_CCS_COMBO_2', count:2, maxChargeRateKw:60 }] } }] };
+  env.chgFetch = async () => ({ ok: true, status: 200, json: async () => QUIET });
+  const [quiet] = await env.chargersGoogle({ lat: 28.6, lng: 77.2 }, 40, 'k');
+  env.chgFetch = realFetch;
+  check('a site that reports nothing is unknown, not busy', quiet.free === null, `free ${quiet.free}`);
+
   /* The same charge, on posts a car can and cannot saturate. */
   const slow = env.chargeCurveMinutes(30, 80, 52, Math.min(25, 70));
   const fast = env.chargeCurveMinutes(30, 80, 52, Math.min(120, 70));

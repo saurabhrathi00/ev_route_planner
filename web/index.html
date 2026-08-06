@@ -829,6 +829,21 @@ svg.section{display:block;width:100%;min-width:620px;height:340px}
 .legend i{display:inline-block;width:16px;height:0;border-top-width:3px;border-top-style:solid;
   vertical-align:middle;margin-right:6px}
 
+/* The map key. The pins carry three separate meanings — size for what a thing
+   is, colour for whether a bay is free, a dashed spur for a detour — and none
+   of them can be guessed from looking. It reads as a column of rows rather
+   than a paragraph because that is how a key is read: find the pin you are
+   looking at, read across. */
+.mapkey{padding:2px 18px 16px;font-size:12px;color:var(--ink2)}
+.mapkey .kr{display:flex;align-items:center;gap:9px;padding:3px 0;line-height:1.45}
+.mapkey .kr b{color:var(--ink);font-weight:600}
+.mapkey .ks{flex:none;width:26px;display:flex;justify-content:center;align-items:center}
+.mapkey .kg{display:flex;flex-wrap:wrap;gap:2px 20px;margin:2px 0 6px}
+.mapkey .kh{font:500 10px/1.3 "IBM Plex Mono",monospace;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink3);margin:10px 0 3px}
+.mapkey .kn{margin:8px 0 0;padding-left:2px;color:var(--ink3);line-height:1.5}
+.mapkey .kn strong{color:var(--ink2)}
+
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--rule2)}
 th:first-child,td:first-child{text-align:left}
@@ -2361,6 +2376,40 @@ function boltPin(x, y, r, fill, extra){
     + `</g>`;
 }
 
+/* The same pins again at legend size. Drawn from BOLT_D rather than described
+   in words, so the key cannot drift from the map it explains. */
+const keyPin = (px, fill) =>
+  `<svg viewBox="0 0 24 24" width="${px}" height="${px}" style="display:block" aria-hidden="true">`
+  + `<circle cx="12" cy="12" r="10" fill="${fill}" stroke="#fff" stroke-width="2.4"/>`
+  + `<path d="${BOLT_D}" fill="#fff" transform="translate(12 12) scale(.62) translate(-12 -12)"/></svg>`;
+const keyDot = (px, fill) =>
+  `<svg viewBox="0 0 24 24" width="${px}" height="${px}" style="display:block" aria-hidden="true">`
+  + `<circle cx="12" cy="12" r="9" fill="${fill}" stroke="#fff" stroke-width="2.4"/></svg>`;
+
+/* Size, colour and a dashed spur are three separate meanings and none of them
+   announces itself. Written out once, here, rather than half-said in a caption
+   under the map — which is where it lived, and which never mentioned that the
+   big pin is amber whatever the bays are doing, or that AC posts are missing
+   on purpose rather than for want of data. */
+function mapKeyHTML(){
+  const row = (pin, text) => `<div class="kr"><span class="ks">${pin}</span><span>${text}</span></div>`;
+  return `
+  <div class="kh">the pins</div>
+  ${row(keyPin(24,'#B87613'), '<b>Big</b> — a charging stop in your plan')}
+  ${row(keyPin(16,'#8C948E'), '<b>Small</b> — another charger along the way. Tap it to plan around it instead.')}
+  ${row(keyDot(14,'#2E6B4F') , '<b>Plain dot</b> — where you set off, and where you are headed (red)')}
+  <div class="kh">the colour of a small pin</div>
+  ${row(keyPin(16,'#2E6B4F'), '<b>Green</b> — a DC gun is free right now, as reported by the network')}
+  ${row(keyPin(16,'#B87613'), '<b>Amber</b> — nobody reports this one. Not a warning; just unknown.')}
+  ${row(keyPin(16,'#8C948E'), '<b>Grey</b> — every gun is busy, or the site is reported out of order')}
+  <p class="kn"><strong>Only DC fast chargers are shown.</strong> AC posts are left out on
+  purpose: 7 kW adds about 40 km in an hour, which is an overnight rather than a stop.
+  Free-gun counts ignore any AC sockets at the same site for the same reason.</p>
+  <p class="kn">A big pin stays amber whatever its bays are doing — colour is only telling you
+  about the chargers you have not chosen. A dashed line means that charger sits off the route,
+  and shows the detour.</p>`;
+}
+
 /* What a candidate pin says when you hold it, and what the list rows repeat.
    Free-bay counts only exist where the network reports them, so "unknown" is
    said out loud rather than shown as a hopeful blank. */
@@ -2753,6 +2802,7 @@ function onCandPick(c){
 function mapFallback(why){
   const box=$('mapbox'); if(!box||!MAP_LAST) return;
   box.innerHTML=routeSVG(MAP_LAST.path, MAP_LAST.stops);
+  const kb=$('map-key'); if(kb) kb.innerHTML='';     // no pins to explain
   SRC_USED.map='route outline (no map service)';
   const tg=$('map-tag'); if(tg) tg.textContent='route shape';
   const n=$('map-note');
@@ -2772,6 +2822,7 @@ async function mountMap(samples, it, cands){
   const stops=stopsFromItinerary(it);
   const candidates=cands||[];
   MAP_LAST={path, stops, candidates};
+  const kb=$('map-key'); if(kb) kb.innerHTML=mapKeyHTML();
   const key=gmapKey();
   const fallback=(why)=>mapFallback(why);
   box.classList.remove('is-google');
@@ -2782,9 +2833,7 @@ async function mountMap(samples, it, cands){
       const r=$('src-map'); if(r) r.textContent=SRC_USED.map;
       const tg=$('map-tag'); if(tg) tg.textContent='openstreetmap';
       const n=$('map-note');
-      if(n) n.textContent=candidates.length
-        ? 'Small dots are other chargers along the way — green where bays are free, amber where nobody reports. Tap one to stop there instead.'
-        : 'Drag to pan, scroll or use + / − to zoom. Start, charging stops and destination are marked.';
+      if(n) n.textContent='Drag to pan, scroll or use + / − to zoom.';
     }catch(e){ fallback('No map service answered — showing the route shape instead.'); }
     return;
   }
@@ -2829,9 +2878,7 @@ async function mountMap(samples, it, cands){
     SRC_USED.map='Google Maps JavaScript API';
     const row=$('src-map'); if(row) row.textContent=SRC_USED.map;
     const n=$('map-note');
-    if(n) n.textContent=candidates.length
-      ? 'Small dots are other chargers along the way — green where bays are free, amber where nobody reports. Tap one to stop there instead.'
-      : 'Start, charging stops and destination along the planned route.';
+    if(n) n.textContent='Start, charging stops and destination along the planned route.';
   }catch(e){
     try{
       osmMap(box, path, stops, {candidates, onPick:onCandPick});
@@ -3789,14 +3836,25 @@ async function chargersGoogle(center, km, key){
   return (j.places||[]).map(p=>{
     const ev=p.evChargeOptions||{}, agg=ev.connectorAggregation||[];
     const kw=Math.max(0,...agg.map(a=>a.maxChargeRateKw||0));
-    const free=agg.reduce((a,c)=>a+(c.availableCount!=null?c.availableCount:0),0);
-    const hasFree=agg.some(c=>c.availableCount!=null);
+    /* Google reports availability per connector group, and a site's groups are
+       not interchangeable. Summed across all of them, a station with both DC
+       guns busy and two Type 2 sockets free came back as "two free" and drew a
+       green dot — an answer to a question nobody asked, since a Type 2 socket
+       is not somewhere this app will ever send you. Only DC counts. */
+    const isDCplug = a => /CCS|CHADEMO|TESLA/i.test(a.type||'')
+                       || (a.maxChargeRateKw||0) >= 25;
+    const dcAgg=agg.filter(isDCplug), gun=dcAgg.length?dcAgg:agg;
+    const free=gun.reduce((a,c)=>a+(c.availableCount!=null?c.availableCount:0),0);
+    const hasFree=gun.some(c=>c.availableCount!=null);
     const types=[...new Set(agg.map(a=>a.type).filter(Boolean))];
     return {
       name:(p.displayName&&p.displayName.text)||'Charging station',
       loc:{lat:p.location.latitude, lng:p.location.longitude},
       addr:p.formattedAddress, operator:null, kw,
-      points:ev.connectorCount||agg.reduce((a,c)=>a+(c.count||0),0)||1,
+      /* Bays, for the same reason: connectorCount is every socket on the site,
+         AC included, and it decides how likely you are to find one free. */
+      points:(dcAgg.length?dcAgg.reduce((a,c)=>a+(c.count||0),0):0)
+             ||ev.connectorCount||agg.reduce((a,c)=>a+(c.count||0),0)||1,
       plugs:types.map(t=>PLUG[t]||t.replace('EV_CONNECTOR_TYPE_','')),
       dc: kw>=25 || types.some(t=>/CCS|CHADEMO|TESLA/i.test(t)),
       rating:p.rating, votes:p.userRatingCount||0,
@@ -5267,6 +5325,7 @@ function render(o){
         <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>OpenStreetMap</a>
     </div>
     <div class="legend"><span id="map-note">Loading…</span></div>
+    <div class="mapkey" id="map-key"></div>
   </section>
   ${S.trips.length ? '' : `
   <div class="verdict warn" style="border-left-color:var(--warn)">
