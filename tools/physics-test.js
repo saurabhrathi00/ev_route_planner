@@ -410,13 +410,18 @@ async function main() {
   const rows = evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:2,free:1},'
                  + '{plug:"CHAdeMO",kw:50,count:1,free:0}]})');
   console.log('  ' + rows.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
-  check('a free gun reads as free', /1 of 2 free/.test(rows), rows);
-  check('a busy gun reads as busy', /all 1 busy/.test(rows), rows);
+  const pips  = h => (h.match(/<i class="on"><\/i>/g)||[]).length;
+  const group = (h, name) => (h.split('<li>').find(x => x.includes(name)) || '');
+  check('the free group lights one pip of two',
+    pips(group(rows,'CCS2')) === 1 && (group(rows,'CCS2').match(/<i /g)||[]).length === 2,
+    group(rows,'CCS2'));
+  check('the busy group lights none', pips(group(rows,'CHAdeMO')) === 0, group(rows,'CHAdeMO'));
   check('a site that reports nothing says so',
     /does not report/.test(evalIn('gunRows({})')), 'silent');
-  check('a gun with no count is not called free',
-    /<b class="dim">2 guns<\/b>/.test(evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:2,free:null}]})')),
-    evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:2,free:null}]})'));
+  /* Unknown must not look like busy: dashed pips, not empty ones. */
+  const unknown = evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:2,free:null}]})');
+  check('unknown availability is drawn differently from none free',
+    (unknown.match(/class="unk"/g)||[]).length === 2 && pips(unknown) === 0, unknown);
 
   /* The taper is the whole reason the two strategies can differ, so if it ever
      flattens the choice becomes cosmetic. The last tenth of a pack must cost

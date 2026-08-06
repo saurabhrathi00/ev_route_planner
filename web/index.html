@@ -494,39 +494,91 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
    map's controls only ever need to be above the map. */
 /* The card that comes up when a pin is tapped.
 
-   It sits inside .mapbox, which owns a stacking context, so it needs no z-index
-   war with either map's own layers. Bottom-left because Google keeps its
-   controls right and bottom-right and OpenStreetMap keeps its zoom column
+   It sits inside .mapbox, which owns a stacking context, so it needs no
+   z-index war with either map's own layers. Bottom-left because Google keeps
+   its controls right and bottom-right and OpenStreetMap keeps its zoom column
    top-right, and because a card anchored to a corner cannot be pushed off
-   screen by a pin near the edge the way a tethered bubble can. */
-.chgpop{position:absolute;left:10px;bottom:10px;width:min(320px,calc(100% - 20px));
-  background:var(--sheet);border:1px solid var(--rule);border-radius:12px;
-  box-shadow:0 8px 28px rgba(0,0,0,.22);padding:12px 13px 10px;overflow:hidden;
-  animation:popin .16s ease-out}
-@keyframes popin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+   screen by a pin near the edge the way a tethered bubble can.
+
+   Built out of what the rest of the app already uses — the panel's radius and
+   shadow, the .pill for status, the run/ghost pair for actions — so it reads
+   as part of the page rather than as something bolted onto the map. The one
+   thing it adds is the pin itself, redrawn in the corner at the colour of the
+   charger you tapped, so there is no doubt which of forty dots this is about. */
+.chgpop{
+  position:absolute;left:12px;bottom:12px;width:min(330px,calc(100% - 24px));
+  background:color-mix(in srgb,var(--sheet) 92%,transparent);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);
+  border:1px solid var(--rule);border-radius:var(--r-l);box-shadow:var(--shadow-3);
+  padding:13px 14px 12px;overflow:hidden;
+  animation:popin var(--t2) var(--e-spring);
+}
+@supports not (backdrop-filter:blur(1px)){ .chgpop{background:var(--sheet)} }
+@keyframes popin{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.chgpop{animation:none}}
-.chgpop .x{position:absolute;top:6px;right:6px;width:26px;height:26px;padding:0;border:0;
-  background:none;color:var(--ink3);font-size:17px;line-height:1;cursor:pointer;border-radius:6px}
+
+.chgpop .top{display:flex;gap:10px;align-items:flex-start}
+.chgpop .badge{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.chgpop .badge svg{width:30px;height:30px;display:block}
+.chgpop .hd{min-width:0;flex:1}
+.chgpop .ttl{font:600 14.5px/1.3 "Public Sans",sans-serif;color:var(--ink);
+  overflow-wrap:anywhere}
+.chgpop .sub{font:11px/1.5 "IBM Plex Mono",monospace;color:var(--ink3);margin-top:3px}
+.chgpop .x{flex:none;width:26px;height:26px;margin:-3px -3px 0 0;padding:0;border:0;background:none;
+  color:var(--ink3);font-size:18px;line-height:1;cursor:pointer;border-radius:var(--r-s);
+  transition:background var(--t1),color var(--t1)}
 .chgpop .x:hover{background:var(--rule2);color:var(--ink)}
-.chgpop .ttl{font-weight:600;font-size:14px;color:var(--ink);padding-right:24px;line-height:1.3}
-.chgpop .sub{font:11px/1.5 "IBM Plex Mono",monospace;color:var(--ink3);margin-top:2px}
-.chgpop .st{margin-top:7px;font-size:12.5px;font-weight:600}
-.chgpop .st.ok{color:var(--ok)} .chgpop .st.dim{color:var(--ink3)} .chgpop .st.warn{color:var(--warn)}
-.chgpop .guns{list-style:none;margin:7px 0 0;padding:0;font-size:12px}
-.chgpop .guns li{display:flex;justify-content:space-between;gap:10px;padding:3px 0;
-  border-top:1px solid var(--rule2);color:var(--ink2)}
-.chgpop .guns li b{font-weight:600;white-space:nowrap}
-.chgpop .guns li b.ok{color:var(--ok)} .chgpop .guns li b.dim{color:var(--ink3)}
-.chgpop .acts{display:flex;gap:8px;margin-top:10px}
-.chgpop .acts button,.chgpop .acts a{flex:1;justify-content:center}
-.chgpop .age{font:10px/1.4 "IBM Plex Mono",monospace;color:var(--ink3);margin-top:7px}
+
+.chgpop .st{display:inline-flex;align-items:center;gap:6px;margin-top:10px;
+  font:500 10px "IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 9px;border:1px solid;border-radius:100px}
+.chgpop .st::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chgpop .st.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);
+  background:color-mix(in srgb,var(--ok) 9%,transparent)}
+.chgpop .st.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);
+  background:color-mix(in srgb,var(--warn) 9%,transparent)}
+.chgpop .st.dim{color:var(--ink3);border-color:var(--rule)}
+
+.chgpop .guns{list-style:none;margin:11px 0 0;padding:0}
+.chgpop .guns li{display:flex;align-items:center;gap:9px;padding:6px 0;
+  border-top:1px solid var(--rule2);font-size:12.5px;color:var(--ink2)}
+.chgpop .guns li:first-child{border-top:0}
+.chgpop .guns .gn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chgpop .guns .gk{font:11px "IBM Plex Mono",monospace;color:var(--ink3);flex:none}
+/* Free guns as a row of pips: countable at a glance, which a fraction is not. */
+.chgpop .pips{display:flex;gap:3px;flex:none}
+.chgpop .pips i{width:7px;height:12px;border-radius:2px;background:var(--rule);
+  border:1px solid var(--rule)}
+.chgpop .pips i.on{background:var(--ok);border-color:var(--ok)}
+.chgpop .pips i.unk{background:transparent;border-style:dashed;border-color:var(--ink3)}
+
+.chgpop .age{font:10px/1.5 "IBM Plex Mono",monospace;color:var(--ink3);margin:9px 0 0}
+.chgpop .acts{display:flex;gap:8px;margin-top:12px}
+.chgpop .acts .go{flex:1;font:600 13px "Public Sans",sans-serif;color:#fff;
+  background:var(--brand-green);border:0;border-radius:var(--r-m);padding:10px 12px;cursor:pointer;
+  transition:transform var(--t1) var(--e-spring),background var(--t2) var(--e-out)}
+:root[data-theme=dark] .chgpop .acts .go,
+:root:not([data-theme=light]) .chgpop .acts .go{color:#08120E}
+.chgpop .acts .go:hover{background:var(--brand-blue)}
+.chgpop .acts .go:active{transform:scale(.97)}
+.chgpop .acts .open{flex:none;padding:10px 13px;font-size:13px;text-decoration:none;
+  border:1px solid var(--rule);border-radius:var(--r-m);color:var(--ink2);background:var(--sheet);
+  display:inline-flex;align-items:center;transition:border-color var(--t1),color var(--t1)}
+.chgpop .acts .open:hover{border-color:var(--ink3);color:var(--ink)}
+
 /* How long is left before it goes. A bar rather than a number because it is
    read out of the corner of the eye, and it stops when a finger is on the card
    so the button is never pulled out from under one. */
-.chgpop .bar{position:absolute;left:0;bottom:0;height:2.5px;background:var(--charge);
-  width:100%;transform-origin:left;animation:popbar var(--pop) linear forwards}
+.chgpop .bar{position:absolute;left:0;bottom:0;height:2px;width:100%;
+  background:var(--brand-green);opacity:.55;transform-origin:left;
+  animation:popbar var(--pop) linear forwards}
 @keyframes popbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
-.chgpop.hold .bar{animation-play-state:paused}
+.chgpop.hold .bar{animation-play-state:paused;opacity:.2}
+
+@media (max-width:520px){
+  .chgpop{left:8px;right:8px;bottom:8px;width:auto}
+}
 
 .mapbox{width:100%;height:340px;background:var(--paper);position:relative;z-index:0}
 .mapbox svg.routeshape{display:block;width:100%;height:340px}
@@ -2875,44 +2927,63 @@ function gunRows(c){
   const g = c.guns||[];
   if(!g.length) return `<p class="age">This site does not report its guns individually.</p>`;
   return `<ul class="guns">${g.map(x=>{
-    const label = [x.plug, x.kw?fmt(x.kw)+' kW':null].filter(Boolean).join(' · ');
-    const state = x.free==null ? `<b class="dim">${x.count} gun${x.count===1?'':'s'}</b>`
-                : x.free>0     ? `<b class="ok">${x.free} of ${x.count} free</b>`
-                :                `<b class="dim">all ${x.count} busy</b>`;
-    return `<li><span>${esc(label)}</span>${state}</li>`;
+    /* One pip per gun, filled for the free ones. A dashed row is a site that
+       does not report — countable at a glance, which "1/2" is not, and visibly
+       different from a site reporting none free, which is the distinction that
+       actually decides whether you pull in. */
+    const n = Math.max(1, Math.min(8, x.count||1));
+    const pips = Array.from({length:n}, (_,i)=>
+      x.free==null ? '<i class="unk"></i>' : `<i class="${i < x.free ? 'on' : ''}"></i>`).join('');
+    return `<li>
+      <span class="gn">${esc(x.plug||'DC')}</span>
+      ${x.kw?`<span class="gk">${fmt(x.kw)} kW</span>`:''}
+      <span class="pips" title="${x.free==null?`${x.count} gun${x.count===1?'':'s'}, availability not reported`
+                                 :`${x.free} of ${x.count} free`}">${pips}</span>
+    </li>`;
   }).join('')}</ul>`;
+}
+
+/* The card's contents, as a string and nothing else — no DOM, no timers, no
+   map. Kept apart from showChgPop so both the tests and the design preview can
+   render the real thing rather than a copy of it that quietly stops matching. */
+function chgPopHTML(c, stop){
+  const sub = [c.kw?fmt(c.kw)+' kW':null, c.dc?'DC':null,
+               c.rating?'★ '+c.rating.toFixed(1)+(c.votes?` (${c.votes})`:''):null,
+               c.detour!=null?fmt(c.detour,1)+' km off route':null].filter(Boolean).join(' · ');
+  const st = c.working===false ? ['warn','out of order']
+           : c.free>0          ? ['ok',  `${fmt(c.free)} of ${fmt(c.points)} free`]
+           : c.free===0        ? ['dim', 'every gun busy']
+           :                     ['dim', 'availability unknown'];
+  return `
+    <div class="top">
+      <span class="badge">${keyPin(30, stop ? '#B87613' : chgColour(c))}</span>
+      <span class="hd">
+        <span class="ttl">${stop?`Stop ${stop.n} · `:''}${esc(c.name||'Charging station')}</span>
+        ${sub?`<span class="sub">${esc(sub)}</span>`:''}
+        ${stop?`<span class="sub">charge to ${fmt(stop.target)}% here</span>`:''}
+      </span>
+      <button class="x" type="button" aria-label="Close">×</button>
+    </div>
+    <span class="st ${st[0]}">${st[1]}</span>
+    ${gunRows(c)}
+    ${c.free!=null&&c.asOf?`<p class="age">as reported ${agoText(c.asOf)}</p>`:''}
+    <div class="acts">
+      <button class="go" type="button">${
+        PREFERRED.has(chgKey(c)) ? 'Undo — back to the best one'
+        : stop ? 'Keep this stop' : 'Plan around this one'}</button>
+      ${c.url?`<a class="open" href="${esc(c.url)}" target="_blank" rel="noopener"
+        aria-label="Open in maps">↗</a>`:''}
+    </div>
+    <i class="bar"></i>`;
 }
 
 function showChgPop(c, chosen, stop){
   hideChgPop();
   const box = $('mapbox'); if(!box || !c) return;
-
-  const sub = [c.kw?fmt(c.kw)+' kW':null, c.dc?'DC':null,
-               c.rating?'★ '+c.rating.toFixed(1)+(c.votes?` (${c.votes})`:''):null,
-               c.detour!=null?fmt(c.detour,1)+' km off route':null].filter(Boolean).join(' · ');
-  const st = c.working===false ? ['warn','Reported out of order']
-           : c.free>0          ? ['ok',  `${fmt(c.free)} of ${fmt(c.points)} guns free`]
-           : c.free===0        ? ['dim', 'Every gun busy']
-           :                     ['dim', 'Nobody reports this one'];
-
   const p = document.createElement('div');
   p.className = 'chgpop';
   p.style.setProperty('--pop', POP_MS+'ms');
-  p.innerHTML = `
-    <button class="x" type="button" aria-label="Close">×</button>
-    <div class="ttl">${stop?`Stop ${stop.n} · `:''}${esc(c.name||'Charging station')}</div>
-    ${sub?`<div class="sub">${esc(sub)}</div>`:''}
-    ${stop?`<div class="sub">charge to ${fmt(stop.target)}% here</div>`:''}
-    <div class="st ${st[0]}">${st[1]}</div>
-    ${gunRows(c)}
-    ${c.free!=null&&c.asOf?`<p class="age">Counts as reported ${agoText(c.asOf)}.</p>`:''}
-    <div class="acts">
-      <button class="go" type="button">${
-        PREFERRED.has(chgKey(c)) ? 'Undo — back to the best one'
-        : stop ? 'Keep this stop' : 'Plan around this one'}</button>
-      ${c.url?`<a class="ghost" href="${esc(c.url)}" target="_blank" rel="noopener">Open</a>`:''}
-    </div>
-    <i class="bar"></i>`;
+  p.innerHTML = chgPopHTML(c, stop);
   box.appendChild(p);
 
   const arm = () => { clearTimeout(POP_T); POP_T = setTimeout(hideChgPop, POP_MS); };
