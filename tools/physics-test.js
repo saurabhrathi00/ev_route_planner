@@ -491,6 +491,30 @@ async function main() {
   env.hideChgPop();
   console.log(`  open, replace, close, reopen — ${cards()} left on the map`);
 
+  /* Every panel on the results page has to be reachable from the chips at the
+     top, and the chips find heads with a selector. Folding the working panels
+     put their heads a level deeper and they silently left the list — a bug
+     with no error and no visual tell on the panel itself, only a shorter row
+     of chips that nobody counts. So the panels are counted here instead:
+     source-level, because afterRender lives outside the engine sandbox. */
+  console.log('\n  the results page');
+  console.log('  ' + '-'.repeat(55));
+  const page = fs.readFileSync(SRC, 'utf8');
+  const result = page.slice(page.indexOf("$('out').innerHTML=aliasBanner+`"),
+                            page.indexOf('if(window.UI) UI.afterRender();'));
+  const plainHeads = (result.match(/<div class="head">\s*<h2>/g)||[]).length;
+  const foldHeads  = (result.match(/<summary class="head">\s*<h2>/g)||[]).length;
+  const sel = (page.match(/const HEAD='([^']+)'/)||[])[1] || '';
+  console.log(`  written inline in the template: ${plainHeads} open, ${foldHeads} folding`
+              + ' (the rest come from functions)');
+  console.log(`  chips look for: ${sel}`);
+  check('the results page still folds some panels', foldHeads > 0, `${foldHeads}`);
+  check('the chips look for plain heads', /:scope > \.head h2/.test(sel), sel);
+  check('the chips look for folded heads too',
+    /:scope > details > summary\.head h2/.test(sel), sel);
+  check('a chip opens a folded panel before scrolling to it',
+    /d\.open\s*=\s*true/.test(page), 'arrives at a shut panel');
+
   /* The taper is the whole reason the two strategies can differ, so if it ever
      flattens the choice becomes cosmetic. The last tenth of a pack must cost
      appreciably more than the first. */

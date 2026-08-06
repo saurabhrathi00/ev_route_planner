@@ -6785,15 +6785,24 @@ function afterRender(){
   blocks.forEach((b,i)=>{ b.style.setProperty('--i', String(Math.min(i,8))); b.classList.add('reveal'); });
 
   const jump=el('jump');
-  const named=blocks.filter(b=>b.querySelector(':scope > .head h2'));
+  /* Two shapes of head: a plain one, and a summary inside the details that
+     folds the panel. Only the first was looked for, so the moment the working
+     panels learned to fold they dropped out of the chips — the chips are how
+     you reach the bottom of a long page, and they quietly stopped listing the
+     part of the page that is long. */
+  const HEAD=':scope > .head h2, :scope > details > summary.head h2';
+  const named=blocks.filter(b=>b.querySelector(HEAD));
   if(named.length>1){
     named.forEach((b,i)=>{ if(!b.id) b.id='sec-'+i; });
     jump.innerHTML=named.map((b,i)=>
-      `<button type="button" data-sec="${b.id}"${i===0?' class="on"':''}>${b.querySelector(':scope > .head h2').textContent}</button>`).join('');
+      `<button type="button" data-sec="${b.id}"${i===0?' class="on"':''}>${b.querySelector(HEAD).textContent}</button>`).join('');
     jump.hidden=false;
     jump.onclick=e=>{
       const b=e.target.closest('button[data-sec]'); if(!b) return;
-      el(b.dataset.sec).scrollIntoView({behavior:REDUCED.matches?'auto':'smooth',block:'start'});
+      const sec=el(b.dataset.sec);
+      /* Asking for a section and arriving at a shut one is not arriving. */
+      const d=sec.querySelector(':scope > details'); if(d) d.open=true;
+      sec.scrollIntoView({behavior:REDUCED.matches?'auto':'smooth',block:'start'});
     };
     if('IntersectionObserver' in window){
       const io=new IntersectionObserver(es=>{
