@@ -1445,6 +1445,21 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
       </section>
 
+      <!-- Plans already made. Opening one costs nothing: no route lookup, no
+           terrain sweep, no charger searches — it is redrawn from what was
+           saved. "Plan it again" is the other door, for when what you want is
+           today's chargers rather than that day's answer. -->
+      <section class="card reveal" id="hist-card" style="--i:6" hidden>
+        <div class="head"><h2>Plans you have made</h2>
+          <span class="tag" id="hist-count"></span></div>
+        <div class="body">
+          <div id="hist-list"></div>
+          <div class="cta" style="margin-top:14px">
+            <button class="ghost" type="button" id="hist-clear">Delete all</button>
+          </div>
+        </div>
+      </section>
+
       <section class="card reveal" style="--i:2">
         <div class="head"><span class="num">2</span><h2>The drive</h2><span class="tag">conditions</span></div>
         <div class="body">
@@ -1530,20 +1545,6 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
       </section>
 
-      <!-- Plans already made. Opening one costs nothing: no route lookup, no
-           terrain sweep, no charger searches — it is redrawn from what was
-           saved. "Plan it again" is the other door, for when what you want is
-           today's chargers rather than that day's answer. -->
-      <section class="card reveal" id="hist-card" style="--i:6" hidden>
-        <div class="head"><h2>Plans you have made</h2>
-          <span class="tag" id="hist-count"></span></div>
-        <div class="body">
-          <div id="hist-list"></div>
-          <div class="cta" style="margin-top:14px">
-            <button class="ghost" type="button" id="hist-clear">Delete all</button>
-          </div>
-        </div>
-      </section>
     </section>
 
     <!-- ============ 2. CAR ============ -->
