@@ -528,8 +528,12 @@ async function main() {
   console.log(`  gradle says ${want.__BUILD_VER__} (${want.__BUILD_CODE__})`);
   for(const token of ['__BUILD_ID__','__BUILD_VER__','__BUILD_CODE__','__BUILD_DATE__'])
     check(`the source carries ${token} rather than a version`, page.includes(token), 'hard-coded');
+  /* Two of these had been typed in by hand, in two different schemes, and both
+     went stale silently — one said r53 for weeks, the other r22. The check has
+     to ignore the comments that explain why, or it fails on its own epitaph. */
+  const code = page.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
   check('nothing in the source claims a version of its own',
-    !/build 20\d\d-\d\d-\d\d r\d+/.test(page), 'a typed build string is back');
+    !/20\d\d-\d\d-\d\d\s+r\d+/.test(code), (code.match(/20\d\d-\d\d-\d\d\s+r\d+/)||[])[0]);
 
   const built = path.join(__dirname, '..', 'app', 'src', 'main', 'assets', 'index.html');
   if (fs.existsSync(built)) {

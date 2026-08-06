@@ -1796,17 +1796,31 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
       </div>
     
+      <!-- This card used to name five services and a build number, all of them
+           typed in by hand. The build said 2026-08-01 r22 — five days and nine
+           releases out of date, in a scheme nothing else uses. Worse, the
+           services listed were the free ones: Photon, OSRM, Open Charge Map.
+           A build with a Google key bundled uses none of those first, so the
+           card was telling people the app works in a way it does not.
+
+           Both facts are known at run time and neither is known when the page
+           is written. The build is in the card at the top of Settings, stamped
+           from the version the store carries; what each service actually
+           resolved to is filled in below after a plan runs, and says "not used
+           yet" until then. -->
       <section class="card reveal" style="--i:4">
         <div class="head"><h2>Where the data comes from</h2><span class="tag">no accounts, no card</span></div>
         <div class="body">
           <div class="sources">
-            <div class="src"><b>Places</b><span>Photon · OpenStreetMap</span></div>
-            <div class="src"><b>Route</b><span>OSRM demo server</span></div>
+            <div class="src"><b>Places</b><span id="ss-places">not used yet</span></div>
+            <div class="src"><b>Route</b><span id="ss-route">not used yet</span></div>
+            <div class="src"><b>Map</b><span id="ss-map">not used yet</span></div>
             <div class="src"><b>Terrain</b><span>Terrarium tiles · AWS Open Data</span></div>
             <div class="src"><b>Weather</b><span>Open-Meteo forecast</span></div>
-            <div class="src"><b>Chargers</b><span>Open Charge Map · Overpass</span></div>
+            <div class="src"><b>Chargers</b><span id="ss-chg">not used yet</span></div>
           </div>
-          <p class="note">Build <strong class="mono">2026-08-01 r22</strong>. If this does not match BUILD.txt in the download, you have an older copy.</p>
+          <p class="note">Filled in from the last plan you ran, so this is what the app
+            reached rather than what it hoped to. The version is at the top of this page.</p>
         </div>
       </section>
     </section>
@@ -2666,7 +2680,12 @@ const useGoogle = () => gSrcMode === 'all' && !!gmapKey();          // routing, 
 const useGoogleChargers = () => (gSrcMode==='all' || gSrcMode==='chargers') && !!gmapKey();
 
 /* What actually answered, for the sources panel at the foot of a plan. */
-const SRC_USED = {route:'OSRM demo server', places:'Photon · OpenStreetMap', map:null};
+/* What each service resolved to on the last plan. The defaults are the free
+   ladder's bottom rung, which is the right guess for the results page — but a
+   guess, so `ran` records whether anything has actually been asked yet. Settings
+   says "not used yet" until it has, rather than naming a service the app may
+   never have called. */
+const SRC_USED = {route:'OSRM demo server', places:'Photon · OpenStreetMap', map:null, ran:false};
 
 /* Google packs a route into its own base-64 variant. Straight from the
    published algorithm — five-bit chunks, low bit set means "more to come",
@@ -5932,6 +5951,7 @@ async function plan(e){
       done();
     }
 
+    SRC_USED.ran = true;          // Settings may now name what was reached
     const itinerary = await buildItinerary(sim, samples, cfg, reserve, startPct, stops, arriveWith);
     render({sim,cal,cfg,samples,marks,reserve,arriveWith,stops,srcNote,alias,legs,reserveHit,emptyHit,itinerary});
     const fineBtn=$('btn-fine');
@@ -6580,7 +6600,23 @@ function paintCarSources(){
   if(here) here.scrollIntoView({block:'center'});
 }
 
+/* SRC_USED is written as each service answers during a plan. Repeating it in
+   Settings costs nothing and answers the question people actually ask there —
+   not "what could this app use" but "what did it just use". */
+function paintSourcesUsed(){
+  const chg = !bundledGKey() ? 'Open Charge Map · Overpass'
+            : useGoogleChargers() ? 'Google Places · Open Charge Map · Overpass'
+            : 'Open Charge Map · Overpass';
+  const set = (id, v) => { const e = $(id);
+    if(e) e.textContent = (SRC_USED.ran && v) ? v : 'not used yet'; };
+  set('ss-places', SRC_USED.places);
+  set('ss-route',  SRC_USED.route);
+  set('ss-map',    SRC_USED.map);
+  set('ss-chg',    SRC_USED.ran ? chg : null);
+}
+
 function paintKeyState(){
+  paintSourcesUsed();
   /* The build card repeats it in a word, because a tester saying "chargers
      were missing" and a tester saying "chargers were missing on Free" are two
      different reports and only one of them is a bug. */
