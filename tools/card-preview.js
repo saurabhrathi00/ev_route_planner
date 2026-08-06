@@ -41,7 +41,9 @@ const cardCSS = css.slice(css.indexOf('/* The card that comes up when a pin is t
    rather than in an impression of it. */
 const chrome =
   css.slice(css.indexOf('.panel{background:'), css.indexOf('.panel .body > :first-child'))
-  + css.slice(css.indexOf('.kpis{display:flex'), css.indexOf('/* jump chips built'));
+  + css.slice(css.indexOf('.kpis{display:flex'), css.indexOf('/* jump chips built'))
+  + css.slice(css.indexOf('button.run,a.run{'), css.indexOf('/* ---- the drive, drawn'))
+  + css.slice(css.indexOf('/* Three links under the map'), css.indexOf('/* ============================================================\n   INTRO'));
 
 const env = loadEngine();
 const card = (c, stop) => vm.runInContext(
@@ -152,6 +154,13 @@ ${cardCSS}
   padding:14px 0 5px}
 .order li.grp::before{content:""}
 .demo{margin-top:16px;max-width:520px}
+.phones{display:grid;gap:26px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:22px}
+.phone{width:360px;max-width:100%;background:var(--sheet);border:1px solid var(--rule);
+  border-radius:var(--r-l);overflow:hidden;padding-bottom:8px}
+/* the layout as it was: flex-wrap, and a primary that asks for 240px */
+.navrow-old{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:12px 18px 4px}
+.navbtn-old{text-decoration:none;font-size:14.5px;padding:13px 18px;flex:1 1 240px}
+.navrow .ghost svg,.navrow-old .ghost svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}
 .foot{margin-top:22px;color:var(--ink3);font-size:12.5px;max-width:62ch}
 .foot code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;color:var(--ink2)}
 </style>
@@ -206,6 +215,34 @@ ${cardCSS}
         <li class="fold">energy ledger</li><li class="fold">stretch by stretch</li>
         <li class="fold">conditions used</li>
       </ol>
+    </div>
+  </div>
+
+  <p class="eyebrow" style="margin-top:38px">under the map</p>
+  <h2 class="h2">Three links, one action</h2>
+  <p class="lede">Flex-wrap gave each of these a full-width line of its own on a phone —
+  three big buttons for what is one action and two asides. Shown at 360 px, which is
+  narrower than most phones.</p>
+  <div class="phones">
+    <div>
+      <p class="ohead was">before</p>
+      <div class="phone"><div class="navrow-old">
+        <a class="run navbtn-old" href="#"><svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+          stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg>
+          Navigate in Google Maps · 3 stops</a>
+        <a class="ghost" href="#" style="text-decoration:none;flex:0 1 auto"><svg viewBox="0 0 24 24"><path d="M13 2 5 13h6l-1 9 8-11h-6z"/></svg>Chargers on PlugShare</a>
+        <a class="ghost" href="#" style="text-decoration:none;flex:0 1 auto"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>OpenStreetMap</a>
+      </div></div>
+    </div>
+    <div>
+      <p class="ohead is">after</p>
+      <div class="phone"><div class="navrow">
+        <a class="run navbtn" href="#"><svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+          stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg>
+          Navigate in Google Maps · 3 stops</a>
+        <a class="ghost" href="#"><svg viewBox="0 0 24 24"><path d="M13 2 5 13h6l-1 9 8-11h-6z"/></svg><span>PlugShare</span></a>
+        <a class="ghost" href="#"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>OpenStreetMap</span></a>
+      </div></div>
     </div>
   </div>
 

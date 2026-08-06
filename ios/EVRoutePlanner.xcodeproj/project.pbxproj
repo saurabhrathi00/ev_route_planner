@@ -156,7 +156,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.8;
+				MARKETING_VERSION = 2.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.routesection.evplanner;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -234,7 +234,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.8;
+				MARKETING_VERSION = 2.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.routesection.evplanner;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;

@@ -739,7 +739,13 @@ input[type=datetime-local]::-webkit-calendar-picker-indicator:hover{
 /* empty reads as "now", so make that legible rather than a row of dashes */
 input[type=datetime-local]:not(:focus):invalid::-webkit-datetime-edit,
 input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:var(--ink3)}
-.navrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center;padding:12px 18px 4px}
+/* Three links under the map, and flex-wrap made a mess of them: the primary
+   asked for 240px and then grew, so on a phone it took the whole row and left
+   the other two to wrap onto a line each — three stacked full-width buttons
+   for what is one action and two asides. A grid says the proportion outright.
+   The primary spans, because it is the one anyone taps; the other two share
+   the line below it. */
+.navrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 18px 4px}
 
 /* ============================================================
    INTRO — shown once, skippable, four pages and no more.
@@ -817,8 +823,11 @@ input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:va
 .trust li b{color:var(--ink);font-weight:600}
 .trust p{margin:10px 0 0;font-size:12.8px;color:var(--ink2)}
 .trust .mono{font-size:12px;color:var(--ink)}
-.navbtn{text-decoration:none;font-size:14.5px;padding:13px 18px;flex:1 1 240px}
-.navrow .ghost{text-decoration:none;flex:0 1 auto}
+.navrow .navbtn{grid-column:1 / -1;text-decoration:none;font-size:15px;padding:13px 18px}
+.navrow .ghost{text-decoration:none;justify-content:center;min-width:0;
+  padding:10px 10px;font-size:13px;gap:6px}
+.navrow .ghost svg{flex:none}
+.navrow .ghost span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---- the drive, drawn ---------------------------------------- */
 /* ---- drive it: the interactive scrubber ---------------------- */
@@ -5687,10 +5696,10 @@ function render(o){
           : ''}</a>
       <a class="ghost" style="text-decoration:none" target="_blank" rel="noopener"
          href="${plugShareUrl(samples[Math.floor(samples.length/2)].ll)}">
-        <svg viewBox="0 0 24 24"><path d="M13 2 5 13h6l-1 9 8-11h-6z"/></svg>Chargers on PlugShare</a>
+        <svg viewBox="0 0 24 24"><path d="M13 2 5 13h6l-1 9 8-11h-6z"/></svg><span>PlugShare</span></a>
       <a class="ghost" style="text-decoration:none" target="_blank" rel="noopener"
          href="https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${samples[0].ll.lat.toFixed(5)},${samples[0].ll.lng.toFixed(5)};${samples[samples.length-1].ll.lat.toFixed(5)},${samples[samples.length-1].ll.lng.toFixed(5)}">
-        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>OpenStreetMap</a>
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>OpenStreetMap</span></a>
     </div>
     <div class="legend"><span id="map-note">Loading…</span></div>
     <div class="mapkey" id="map-key"></div>
