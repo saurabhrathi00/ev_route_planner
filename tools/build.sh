@@ -43,17 +43,34 @@ rm -rf dist && mkdir -p dist app/src/main/assets ios/Resources
 [ -n "$ORS" ] && echo "✓  bundling OpenRouteService key" || echo "!  no ORS_KEY — routing falls back to the OSRM demo server"
 
 KEY="$KEY" ORS="$ORS" python3 - "$SRC" <<'PY'
-import os, re, sys, shutil, pathlib
+import os, re, sys, shutil, pathlib, datetime
 
 src = sys.argv[1]
 key = os.environ.get('KEY', '')
 ors = os.environ.get('ORS', '')
 html = open(src, encoding='utf-8').read()
 
-for token in ('__GOOGLE_MAPS_KEY__', '__ORS_KEY__'):
+# The version the store listing carries, so the page and the listing cannot
+# disagree. It was typed into the page by hand and went stale immediately.
+gradle = open('app/build.gradle.kts', encoding='utf-8').read()
+def one(pat, what):
+    m = re.search(pat, gradle)
+    if not m:
+        raise SystemExit('build: could not read %s from app/build.gradle.kts' % what)
+    return m.group(1)
+ver  = one(r'versionName\s*=\s*"([^"]+)"', 'versionName')
+code = one(r'versionCode\s*=\s*(\d+)', 'versionCode')
+date = datetime.date.today().isoformat()
+
+STAMPS = {'__GOOGLE_MAPS_KEY__': key, '__ORS_KEY__': ors,
+          '__BUILD_VER__': ver, '__BUILD_CODE__': code, '__BUILD_DATE__': date,
+          '__BUILD_ID__': 'v%s (%s)' % (ver, code)}
+for token in STAMPS:
     if token not in html:
         raise SystemExit('build: %s placeholder missing from the source — refusing to guess' % token)
-built = html.replace('__GOOGLE_MAPS_KEY__', key).replace('__ORS_KEY__', ors)
+built = html
+for token, value in STAMPS.items():
+    built = built.replace(token, value)
 
 # the web build keeps the PWA plumbing
 pathlib.Path('dist/index.html').write_text(built, encoding='utf-8')
@@ -86,12 +103,14 @@ PY
 
 SHA=$(shasum -a 256 app/src/main/assets/index.html | cut -d' ' -f1)
 BYTES=$(wc -c < app/src/main/assets/index.html | tr -d ' ')
-STAMP=$(grep -oE 'build [0-9]{4}-[0-9]{2}-[0-9]{2} r[0-9]+' "$SRC" | head -1 | sed 's/^build //')
-printf 'EVRoute — build %s\n\nplanner sha256   %s\nplanner bytes    %s\n' \
-  "${STAMP:-unstamped}" "$SHA" "$BYTES" > BUILD.txt
+VER=$(grep -oE 'versionName *= *"[^"]+"' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)"/\1/')
+CODE=$(grep -oE 'versionCode *= *[0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')
+printf 'EVRoute %s (%s) — built %s\n\nplanner sha256   %s\nplanner bytes    %s\n' \
+  "$VER" "$CODE" "$(date +%F)" "$SHA" "$BYTES" > BUILD.txt
 
 # a bundled key must never reach git through the source file
-if grep -q "__GOOGLE_MAPS_KEY__" "$SRC" && grep -q "__ORS_KEY__" "$SRC"; then
+if grep -q "__GOOGLE_MAPS_KEY__" "$SRC" && grep -q "__ORS_KEY__" "$SRC" \
+   && grep -q "__BUILD_ID__" "$SRC"; then
   echo "✓  source still holds the placeholder (nothing secret committed)"
 else
   echo "!! web/index.html no longer has the placeholder — a key may have leaked into the source" >&2

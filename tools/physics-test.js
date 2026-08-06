@@ -515,6 +515,33 @@ async function main() {
   check('a chip opens a folded panel before scrolling to it',
     /d\.open\s*=\s*true/.test(page), 'arrives at a shut panel');
 
+  /* The version on the phone. It lived in the page as a typed string and said
+     r53 for weeks across a dozen releases, so a bug report carried a number
+     that meant nothing. It is a placeholder in the source now and gets filled
+     from app/build.gradle.kts at build time — which only works if the source
+     never carries a real version, and the build never leaves one unfilled. */
+  const gradle = fs.readFileSync(path.join(__dirname, '..', 'app', 'build.gradle.kts'), 'utf8');
+  const want = {
+    __BUILD_VER__:  (gradle.match(/versionName\s*=\s*"([^"]+)"/)||[])[1],
+    __BUILD_CODE__: (gradle.match(/versionCode\s*=\s*(\d+)/)||[])[1],
+  };
+  console.log(`  gradle says ${want.__BUILD_VER__} (${want.__BUILD_CODE__})`);
+  for(const token of ['__BUILD_ID__','__BUILD_VER__','__BUILD_CODE__','__BUILD_DATE__'])
+    check(`the source carries ${token} rather than a version`, page.includes(token), 'hard-coded');
+  check('nothing in the source claims a version of its own',
+    !/build 20\d\d-\d\d-\d\d r\d+/.test(page), 'a typed build string is back');
+
+  const built = path.join(__dirname, '..', 'app', 'src', 'main', 'assets', 'index.html');
+  if (fs.existsSync(built)) {
+    const b = fs.readFileSync(built, 'utf8');
+    check('the built bundle has no placeholder left',
+      !/__BUILD_(ID|VER|CODE|DATE)__/.test(b), 'unstamped');
+    check('the built bundle shows the version gradle was set to',
+      b.includes(`id="s-ver">${want.__BUILD_VER__}<`)
+      && b.includes(`id="s-code">${want.__BUILD_CODE__}<`),
+      'the page and the store listing disagree');
+  }
+
   /* Where the strategy can be changed, and where it cannot. The toggle sits on
      the Plan screen, so replanning from it lands on someone still filling in
      the form; the switch that acts belongs in the note that has just costed

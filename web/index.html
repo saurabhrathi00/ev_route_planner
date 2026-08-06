@@ -1326,7 +1326,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
         <div class="metastrip">
           <span id="m-model">Model: ready</span><span id="m-eff">—</span>
-          <span id="m-samp">1 km sampling</span><span id="m-build">build 2026-08-05 r53</span>
+          <span id="m-samp">1 km sampling</span><span id="m-build">__BUILD_ID__</span>
         </div>
       </div>
 
@@ -1659,6 +1659,25 @@ details[open] summary::before{transform:rotate(90deg)}
         <h1><em>Settings</em></h1>
         <p>What this build can reach, and how it behaves.</p>
       </div>
+
+      <!-- Which build is on the phone. It was a string typed into the page and
+           left there — it said r53 for weeks, across a dozen releases — so a
+           tester reporting a bug was reporting it against a number that meant
+           nothing. Stamped at build time now, from the same version the store
+           listing carries. -->
+      <section class="card reveal" style="--i:1">
+        <div class="head"><h2>This build</h2><span class="tag" id="s-ver-tag">__BUILD_VER__</span></div>
+        <div class="body">
+          <div class="sources">
+            <div class="src"><b>Version</b><span id="s-ver">__BUILD_VER__</span></div>
+            <div class="src"><b>Build</b><span id="s-code">__BUILD_CODE__</span></div>
+            <div class="src"><b>Dated</b><span id="s-date">__BUILD_DATE__</span></div>
+            <div class="src"><b>Chargers</b><span id="s-src">—</span></div>
+          </div>
+          <p class="note">Quote the version when you report something — it is the
+            only way to tell which of these is on your phone.</p>
+        </div>
+      </section>
 
       <section class="card reveal" style="--i:1">
         <div class="head"><h2>Appearance</h2><span class="tag">theme</span></div>
@@ -6495,6 +6514,13 @@ function paintCarSources(){
 }
 
 function paintKeyState(){
+  /* The build card repeats it in a word, because a tester saying "chargers
+     were missing" and a tester saying "chargers were missing on Free" are two
+     different reports and only one of them is a bug. */
+  const sv=$('s-src');
+  if(sv) sv.textContent = !bundledGKey() ? 'open sources only'
+                        : useGoogleChargers() ? 'Google + open sources'
+                        : 'open sources only';
   const routing = orsKey() ? 'OpenRouteService' : 'OSRM';
   const free = `<strong style="color:var(--ok)">Running free</strong> — OpenStreetMap map tiles, ${routing} routing, Photon place search, and Open Charge Map plus OpenStreetMap for chargers.`;
   $('keystate').innerHTML =
