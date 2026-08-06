@@ -577,6 +577,60 @@ async function main() {
     /closest\('button\[data-strat\]'\)[\s\S]{0,400}plan\(\{preventDefault/.test(page),
     'the switch changes nothing');
 
+  /* The floor and the arrival target, which used to be one number.
+
+     A driver who wants to arrive on 50% was telling the app it may never drop
+     below 50% anywhere, which on a 52 kWh pack halves every leg. Both must now
+     be honoured, and — this is the point of the change — raising only the
+     arrival must not buy stops, because only the last leg pays for it. */
+  console.log('\n  floor and arrival');
+  console.log('  ' + '-'.repeat(55));
+  vm.runInContext('CHG_CACHE.clear()', env);
+  env.findChargers = async (centre) => AT
+    .map(([km, kw, rating, bays]) => ({ name: `C@${km}`, loc: gs[km].ll, kw, points: bays,
+      dc: true, plugs: ['CCS2'], working: true, membership: false,
+      verified: new Date(), src: 't', url: '', rating, votes: 60 }))
+    .filter(c => Math.hypot((c.loc.lat - centre.lat) * 111, (c.loc.lng - centre.lng) * 95) < 50);
+
+  const legOf = (a, b) => gsim.socTrace[a] - gsim.socTrace[b];
+  const walk = async (floor, arrive) => {
+    const p = (await env.planStops(gsim, gs, floor, '', gcfg, null, arrive)).filter(x => !x.none);
+    let soc = 100, at = 0, low = 100;
+    for (const s of p) { const a = soc - legOf(at, s.i); low = Math.min(low, a); soc = Math.max(a, s.target); at = s.i; }
+    const end = soc - legOf(at, gs.length - 1);
+    return { n: p.length, low: Math.min(low, end), end, km: p.map(x => Math.round(x.km)) };
+  };
+
+  const both  = await walk(15, 50);
+  const oneNo = await walk(50, 50);
+  const plain = await walk(15, 15);
+  const high  = await walk(15, 70);
+  console.log(`  floor 15 arrive 50 -> ${both.n} stops [${both.km}] low ${both.low.toFixed(0)}% end ${both.end.toFixed(0)}%`);
+  console.log(`  floor 50 arrive 50 -> ${oneNo.n} stops [${oneNo.km}] low ${oneNo.low.toFixed(0)}% end ${oneNo.end.toFixed(0)}%`);
+  console.log(`  floor 15 arrive 70 -> ${high.n} stops [${high.km}] low ${high.low.toFixed(0)}% end ${high.end.toFixed(0)}%`);
+
+  check('the arrival target is met', both.end >= 50 - 1, `${both.end.toFixed(1)}%`);
+  check('the floor is held all the way', both.low >= 15 - 0.5, `dipped to ${both.low.toFixed(1)}%`);
+  check('a high arrival does not raise the floor', both.low < 50 - 1,
+    `never went below ${both.low.toFixed(1)}%, so the floor moved with it`);
+  /* The claim worth holding is not that a fuller arrival is free — on a sparse
+     corridor it can cost a stop, and it does here, 2 to 3. It is that it costs
+     somewhere between nothing and what raising the floor would have cost, and
+     on this route that is 3 against 4. The stronger version was asserted first
+     and the test caught it, which is the only reason the hint in the app does
+     not still promise it. */
+  check('a fuller arrival never costs more than raising the floor would',
+    both.n <= oneNo.n, `${both.n} vs ${oneNo.n}`);
+  check('and never costs less than not asking for it',
+    both.n >= plain.n, `${both.n} vs ${plain.n}`);
+  check('asking for more at the door is worth something here',
+    both.n < oneNo.n, `${both.n} vs ${oneNo.n} — no saving to show`);
+  check('a much fuller arrival is still met', high.end >= 70 - 1, `${high.end.toFixed(1)}%`);
+  /* Arriving on less than the floor is not a thing that can be asked for. */
+  const under = await walk(30, 10);
+  check('an arrival below the floor is treated as the floor', under.end >= 30 - 1,
+    `${under.end.toFixed(1)}% against a 30% floor`);
+
   /* The taper is the whole reason the two strategies can differ, so if it ever
      flattens the choice becomes cosmetic. The last tenth of a pack must cost
      appreciably more than the first. */

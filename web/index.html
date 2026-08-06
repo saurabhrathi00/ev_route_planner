@@ -1421,13 +1421,22 @@ details[open] summary::before{transform:rotate(90deg)}
                 <input type="number" id="soc0" value="100" min="1" max="100">
               </div>
             </label>
-            <label class="f"><span>Charge to stop at</span>
+            <label class="f"><span>Safety floor (%)</span>
               <div class="slider">
-                <input type="range" id="reserve_r" min="2" max="60" value="20" aria-label="Reserve percent">
+                <input type="range" id="reserve_r" min="2" max="60" value="20" aria-label="Safety floor percent">
                 <input type="number" id="reserve" value="20" min="2" max="60">
               </div>
             </label>
           </div>
+          <div class="grid" style="margin-top:16px">
+            <label class="f"><span>Arrive with (%)</span>
+              <div class="slider">
+                <input type="range" id="arrive_r" min="2" max="90" value="20" aria-label="Charge on arrival percent">
+                <input type="number" id="arrive" value="20" min="2" max="90">
+              </div>
+            </label>
+          </div>
+          <p class="hint" id="reserve-note"></p>
           <div class="grid" style="margin-top:16px">
             <label class="f"><span>Safety margin (%)</span>
               <div class="slider">
@@ -4541,7 +4550,7 @@ const REACH_BAND_KM = 25;
    plausible one, which a genuinely faster leg can still beat. */
 const MERIT_MIN = 1.5;
 
-async function planStops(sim, samples, reserve, ocm, cfg, onStat){
+async function planStops(sim, samples, reserve, ocm, cfg, onStat, arriveWith){
   const END = samples.length - 1;
   const FULL = 100;
   const startPct = sim.socTrace[0];
@@ -4582,18 +4591,28 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
               need: startPct - sim.socTrace[END] }];
   }
 
-  if(startPct - legCost(sim, 0, END) >= reserve) return [];        // no stop needed
+  /* Two different requirements, and conflating them cost people stops.
 
-  /* ---- choosing the stops ----
-     Leave every stop with exactly what the leg in front costs, and the car
-     reaches the next one holding this. It is what makes a leg's cost depend
-     on its two ends alone. */
-  const ARRIVE = reserve + marginPct();
+     The floor is what the car must never go below anywhere — a safety number,
+     15 to 20 percent for most people. What you want left at the door is a
+     separate wish, and often a much larger one: enough to get about the next
+     day without hunting for a charger. Asked as one number, a driver who wants
+     to arrive on 50% has to tell the app it may never drop below 50% for the
+     whole drive, which on a 52 kWh pack halves every leg. On the route this was
+     found with, that was four stops where two would do.
+
+     They are separate now. Only the last leg has to answer for the arrival. */
+  const arriveEnd = Math.max(reserve, arriveWith == null ? reserve : arriveWith);
+
+  const ARRIVE = reserve + marginPct();            // left at every intermediate stop
 
   /* What a stop must be charged to in order to reach the next one, detour
      included. Above 100 the leg cannot be made at all. */
   const departFor = (fromIdx, toIdx, toDetourPct) =>
-    legCost(sim, fromIdx, toIdx) + toDetourPct + ARRIVE;
+    legCost(sim, fromIdx, toIdx) + toDetourPct
+    + (toIdx === END ? arriveEnd + marginPct() : ARRIVE);
+
+  if(startPct - legCost(sim, 0, END) >= arriveEnd) return [];      // no stop needed
 
   /* Rated power is not what a car gets. Above 55% a DC charger tapers hard,
      and a 50 kW site never gives more than 50 whatever the car can take —
@@ -4764,10 +4783,10 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
   /* Short of the reserve at the end even after every stop it could find. Say
      so rather than presenting a plan that does not arrive. */
   const endPct = soc - legCost(sim, at, END);
-  if(endPct < reserve - 1){
+  if(endPct < arriveEnd - 1){
     stops.push({ none:true, km: samples[END].s/1000, errors: errs, answered,
                  searchedKm: samples[END].s/1000, calls,
-                 need: reserve - endPct });
+                 need: arriveEnd - endPct });
   }
   return stops;
 }
@@ -4974,7 +4993,7 @@ function chargerLine(c,j,lead){
    each as somewhere a charger must be found. Charging only shifts the
    curve — energy per segment does not depend on how full the battery is —
    so the entire chain comes off the one simulation already run. */
-async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
+async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops, arriveWith){
   const end=sim.socTrace.length-1;
   const real=(realStops||[]).filter(x=>!x.none);
   const stops=[];
@@ -5000,7 +5019,10 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
       if(hit<=prev) break;                                   // no progress: unreachable
       const arrive=sim.socTrace[hit]+offset;
       const need=(sim.socTrace[hit]+offset)-(sim.socTrace[end]+offset);
-      const plan=chargePlan(arrive, need+marginPct(), reserve, cfg);
+      /* The floor decides where the car has to stop; what it must be left with
+         at the end is the arrival target, which is the larger of the two. */
+      const plan=chargePlan(arrive, need+marginPct(),
+                            Math.max(reserve, arriveWith==null?reserve:arriveWith), cfg);
       if(!plan.feasible) break;
       stops.push({i:hit, arrive, target:plan.target, ll:samples[hit].ll,
                   stopsLeft:plan.stops, alt:plan.alt});
@@ -5388,7 +5410,7 @@ function itineraryTable(it, reserve){
       <p style="margin-top:0;color:var(--ink2)">${it.real
         ? 'Built around the chargers found along the route.'
         : 'Charge levels assume you find a charger near each point below. Verify each one before setting off — the app can do that for you with the charger search on.'}
-        Every stop is sized to arrive at the next one with your ${fmt(reserve)}% floor intact, plus ${fmt(marginPct())} points of safety margin.</p>
+        Every stop is sized to reach the next one with your ${fmt(reserve)}% floor intact, plus ${fmt(marginPct())} points of safety margin. The last one is sized for the charge you asked to arrive with.</p>
       ${journeyView(it, reserve)}
       <details style="margin-top:16px"><summary>The same thing as a table</summary>
         <div style="overflow-x:auto;padding-top:8px"><table style="min-width:640px"><thead><tr>
@@ -5469,6 +5491,10 @@ function chargeAdvice(sim, cfg, m, reserve){
 
 function render(o){
   const {sim,cal,cfg,samples,marks,reserve,stops,srcNote,alias,legs,reserveHit,emptyHit,itinerary}=o;
+  /* The floor is what the chart draws and what the stops are spaced by; this is
+     what the driver asked to have left at the door, and the two are only the
+     same number when they have not been told apart. */
+  const wantEnd = Math.max(reserve, o.arriveWith==null ? reserve : o.arriveWith);
   const end=sim.endPct;
   const short = end<reserve;
   /* sim.endPct is the drive with no charging in it. That is the right number
@@ -5496,7 +5522,7 @@ function render(o){
   const headMean=marks.reduce((a,m)=>a+m.wind*Math.cos(rad(m.wdir-samples[m.i].brg)),0)/marks.length*3.6;
 
   const lede = (!stops.length && short && planWorks)
-    ? `You need <strong>${nStops} charging stop${nStops===1?'':'s'}</strong> to hold your ${fmt(reserve)}% floor — with ${nStops===1?'it':'them'} you arrive at <strong>${fmt(arriveWith)}%</strong>.${reserveHit?` Without charging you would cross that floor at ${fmt(reserveHit.km)} km${reserveHit.place?`, near ${reserveHit.place.split(' — ')[0]}`:''}.`:''}`
+    ? `You need <strong>${nStops} charging stop${nStops===1?'':'s'}</strong> to stay above your ${fmt(reserve)}% floor${wantEnd>reserve?` and arrive on ${fmt(wantEnd)}%`:''} — with ${nStops===1?'it':'them'} you arrive at <strong>${fmt(arriveWith)}%</strong>.${reserveHit?` Without charging you would cross that floor at ${fmt(reserveHit.km)} km${reserveHit.place?`, near ${reserveHit.place.split(' — ')[0]}`:''}.`:''}`
     : (!stops.length && short)
     ? `You run out before you arrive — down to <strong>${fmt(end)}%</strong>, past your ${fmt(reserve)}% floor.${reserveHit?` You cross that floor at <strong>${fmt(reserveHit.km)} km</strong>${reserveHit.place?`, near ${reserveHit.place.split(' — ')[0]}`:''}.`:''}`
     : stops.length
@@ -5597,10 +5623,10 @@ function render(o){
     <div class="lede">${lede}</div><div class="sub">${sub}</div>
     <div class="kpis">
       <div class="kpi"><div class="v">${fmt(arriveLow)}–${fmt(arriveWith)}%</div><div class="l">${planWorks?`on arrival, after ${nStops} stop${nStops===1?'':'s'}`:'charge on arrival'}</div>
-        <span class="state ${arriveLow<reserve-0.5?'stop':arriveLow<reserve+4?'warn':'ok'}">${
-          arriveLow<reserve-0.5 ? 'could dip below your floor'
-          : arriveLow<reserve+4 ? 'holds your floor, with nothing spare'
-          : 'holds your floor even if the estimate is off'}</span></div>
+        <span class="state ${arriveLow<wantEnd-0.5?'stop':arriveLow<wantEnd+4?'warn':'ok'}">${
+          arriveLow<wantEnd-0.5 ? `short of the ${fmt(wantEnd)}% you asked to arrive with`
+          : arriveLow<wantEnd+4 ? `makes your ${fmt(wantEnd)}%, with nothing spare`
+          : `makes your ${fmt(wantEnd)}% even if the estimate is off`}</span></div>
       ${planWorks ? `
       <div class="kpi"><div class="v">${hhmm(doorToDoor*60)}</div><div class="l">door to door</div>
         <span class="state ok">what it really takes</span></div>
@@ -5790,6 +5816,9 @@ async function plan(e){
       regen:clamp((num('regeneff')||0.25)*ST.regen,0.05,0.9), regenKW:num('regenkw'),dckw:num('dckw'),
       trafficRatio:1.15, trafficWhy:''};        // settled once the route is in
     const startPct=num('soc0'), reserve=num('reserve');
+    /* The floor is a minimum, so arriving on less than it is not a thing that
+       can be asked for — a lower number here means the floor. */
+    const arriveWith=Math.max(reserve, clamp(num('arrive')||reserve, 2, 95));
 
     let departAt=new Date();
     const dtxt=$('depart').value.trim();
@@ -5898,13 +5927,13 @@ async function plan(e){
         stops=await planStops(sim, samples, reserve, ocm, cfg, (what,radius,n)=>{
           steps[steps.length-1].msg=`Scanning the corridor for ${what} — ${n} search${n===1?'':'es'} at ${radius} km, in parallel`;
           paint();
-        });
+        }, arriveWith);
       }catch(err){ srcNote='Charger lookup failed — '+err.message; }
       done();
     }
 
-    const itinerary = await buildItinerary(sim, samples, cfg, reserve, startPct, stops);
-    render({sim,cal,cfg,samples,marks,reserve,stops,srcNote,alias,legs,reserveHit,emptyHit,itinerary});
+    const itinerary = await buildItinerary(sim, samples, cfg, reserve, startPct, stops, arriveWith);
+    render({sim,cal,cfg,samples,marks,reserve,arriveWith,stops,srcNote,alias,legs,reserveHit,emptyHit,itinerary});
     const fineBtn=$('btn-fine');
     if(fineBtn) fineBtn.addEventListener('click',()=>{
       $('sampling').value='250'; sampNote();
@@ -5977,6 +6006,24 @@ function sohNote(){
     ? `Treated as a new pack — the full ${fmt(num('cap'),1)} kWh. Only true for a car in its first year or so.`
     : `${fmt(v)}% of the pack left, so ${fmt(usable,1)} kWh instead of ${fmt(num('cap'),1)}. Most EVs lose a few percent in the first couple of years and then settle; if you do not know yours, 90–95% at three years is a fair guess.`;
 }
+/* The one field on this screen that had no note, and the only one that could
+   be read two ways. Both were true until a tester read it the second way. */
+function reserveNote(){
+  const n=$('reserve-note'); if(!n) return;
+  const floor=num('reserve'), want=Math.max(floor, clamp(num('arrive')||floor,2,95));
+  const r=$('arrive_r'); if(r && +r.value<floor){ r.value=floor; $('arrive').value=floor; }
+  n.innerHTML = want>floor
+    ? `The car never drops below <strong>${fmt(floor)}%</strong> anywhere on the drive, and the last
+       stop is sized so you reach the destination on <strong>${fmt(want)}%</strong>. Only the final leg
+       pays for that — where chargers are thin it can still cost one more stop, but never the
+       one-per-leg it costs to raise the floor instead.`
+    : `<strong>${fmt(floor)}%</strong> is a floor for the whole drive, not just the end — the car is
+       never planned below it. Raise <em>arrive with</em> if what you want is charge left in the
+       pack at the door; the floor decides where you stop, that decides how full the last one is.`;
+}
+$('reserve').addEventListener('input', reserveNote);
+$('arrive').addEventListener('input', reserveNote);
+
 function marginNote(){
   const v=marginPct();
   $('margin-note').innerHTML = v===0
@@ -6588,7 +6635,7 @@ $('t_add').addEventListener('click',async()=>{
   seg.style.setProperty('--i', String(Math.max(0, bs.findIndex(b=>b.dataset.v===gSrcMode))));
   applyCar();
   relearn(); renderTrips(); sampNote(); fitAnchor(); markReference();
-  departBounds(); departNote(); acNote(); sohNote(); marginNote();
+  departBounds(); departNote(); acNote(); sohNote(); marginNote(); reserveNote();
   askAboutLastDrive();
   attachPlaces('from','ac-from','from');
   attachPlaces('to','ac-to','to');
@@ -6742,7 +6789,7 @@ function pair(numId){
   });
   r.value=n.value; fill();
 }
-pair('soc0'); pair('reserve'); pair('acpct'); pair('margin');
+pair('soc0'); pair('reserve'); pair('arrive'); pair('acpct'); pair('margin');
 
 /* ---- accordions ------------------------------------------------ */
 document.querySelectorAll('.acc > button').forEach(b=>{
