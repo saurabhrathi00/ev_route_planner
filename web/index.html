@@ -4659,11 +4659,17 @@ async function planStops(sim, samples, reserve, ocm, cfg, onStat){
      and a driver deciding whether the extra stop is worth it should be told
      what it buys rather than made to flip the setting and re-plan. */
   const other = (chosen === byStops) ? byTime : byStops;
-  const altNote = (other && other !== chosen && other.length !== chosen.length)
-    ? { stops: other.length,
+  const same = !other || other === chosen ||
+    (other.length === chosen.length && other.every((c,k)=>c.idx===chosen[k].idx));
+  /* When the two agree there is nothing to offer — and saying nothing is what
+     made the setting look broken, because switching it produced the identical
+     plan with no explanation. On a route where the fewest stops are also the
+     quickest, that is the answer, and it is worth printing. */
+  const altNote = same
+    ? { same: true, stops: chosen.length }
+    : { stops: other.length,
         target: Math.max(...targetsFor(other)),
-        deltaMin: trueMins(other) - trueMins(chosen) }
-    : null;
+        deltaMin: trueMins(other) - trueMins(chosen) };
 
   /* A charger the driver picked but the plan could not use — it did not fall
      inside any leg the car can actually make. Saying so beats the tap having
@@ -5334,7 +5340,11 @@ function itineraryTable(it, reserve){
         </tr></thead><tbody>${body}</tbody></table></div>
       </details>
       ${places?`<h3 style="margin:18px 0 4px;font-size:15px">Where to look</h3>${places}`:''}
-      ${it.alt?`<p class="note" style="border-left-color:var(--charge)">
+      ${it.alt&&it.alt.same?`<p class="note">
+        <strong>Both strategies agree here.</strong> On this route the ${it.alt.stops} stop${it.alt.stops===1?'':'s'} below
+        ${it.alt.stops===1?'is':'are'} both the fewest and the quickest, so least time and fewest stops
+        plan it the same way. Switching the setting will not change this.</p>`:''}
+      ${it.alt&&!it.alt.same?`<p class="note" style="border-left-color:var(--charge)">
         <strong>The other way round:</strong> ${it.alt.stops} stop${it.alt.stops===1?'':'s'} charging to ${fmt(it.alt.target)}% would take
         ${it.alt.deltaMin>0?`<strong>${fmt(Math.abs(it.alt.deltaMin))} min longer</strong>`:`<strong>${fmt(Math.abs(it.alt.deltaMin))} min less</strong>`}.
         ${S.strategy==='stops'
@@ -5976,16 +5986,32 @@ $('style').addEventListener('change',()=>{ refreshReference(); calibrate(); });
     carK=K_DEFAULT;
   }));
 
+/* Changing the strategy with a plan on screen used to change nothing you could
+   see: it set a variable and waited for the next Plan press, so the answer in
+   front of you stayed the one worked out under the old setting and the toggle
+   read as broken. It replans instead. The corridor's chargers are already
+   cached, so this costs no lookups and usually finishes before the finger is
+   off the button. */
+function replanIfShowing(){
+  const out=$('out');
+  if(out && out.innerHTML.trim()) plan({preventDefault(){}});
+}
+
 $('strat-toggle').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
+  if(S.strategy===b.dataset.v) return;
   [...e.currentTarget.children].forEach(c=>c.setAttribute('aria-pressed',c===b));
   S.strategy=b.dataset.v;
+  replanIfShowing();
 });
 
 $('chg-toggle').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
+  const on=b.dataset.v==='1';
+  if(S.chargers===on) return;
   [...e.currentTarget.children].forEach(c=>c.setAttribute('aria-pressed',c===b));
-  S.chargers=b.dataset.v==='1';
+  S.chargers=on;
+  replanIfShowing();                       // same reason as the strategy toggle
 });
 
 /* Current location for the Start field.

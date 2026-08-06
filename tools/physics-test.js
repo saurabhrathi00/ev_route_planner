@@ -351,6 +351,20 @@ async function main() {
       f.length <= t.length, `${f.length} vs ${t.length}`);
     check(`strategy ${reserve}%: least time is not the slower plan`,
       clock(t) <= clock(f) + 0.5, `${clock(t).toFixed(1)} vs ${clock(f).toFixed(1)} min`);
+    /* Whatever the answer is, the card has to account for the setting. When
+       the two plans differ it quotes the other one; when they agree it has to
+       say they agree, because a toggle that silently returns the same plan is
+       indistinguishable from a toggle that does nothing — which is what it
+       looked like from the outside. */
+    const identical = t.length === f.length && t.every((x,k)=>x.i === f[k].i);
+    const note = t[0] && t[0].alt;
+    check(`strategy ${reserve}%: the plan says which case it is`, !!note, 'no note at all');
+    check(`strategy ${reserve}%: agreement is reported as agreement`,
+      !note || !!note.same === identical,
+      `same=${note&&note.same} but plans ${identical?'match':'differ'}`);
+    check(`strategy ${reserve}%: a real alternative is quoted with its cost`,
+      !note || note.same || (note.stops === f.length && Number.isFinite(note.deltaMin)),
+      JSON.stringify(note));
     check(`strategy ${reserve}%: both arrive on the reserve`,
       (!t.length || t[t.length-1].after >= reserve - 1) &&
       (!f.length || f[f.length-1].after >= reserve - 1),
