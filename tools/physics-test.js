@@ -542,6 +542,26 @@ async function main() {
       'the page and the store listing disagree');
   }
 
+  /* "Now" used to blank the departure field. Empty and now mean the same thing
+     to the planner, so nothing computed wrongly — but a button that empties a
+     box reads as a button that failed. Two things have to hold: it writes a
+     stamp, and the input's minimum sits behind the clock, or the value it just
+     wrote is a minute stale by the time the form is submitted and the browser
+     rejects it. */
+  const nowBtn = page.slice(page.indexOf("$('depart-now').addEventListener"),
+                            page.indexOf("$('depart-now').addEventListener") + 400);
+  check('Now fills the field rather than clearing it',
+    /value=localStamp\(new Date\(\)\)/.test(nowBtn) && !/value=''/.test(nowBtn), nowBtn.slice(0,120));
+  check('the minimum leaves the clock some slack',
+    /min=localStamp\(new Date\(now\.getTime\(\)-\d+\*60000\)\)/.test(page),
+    'a stamped now goes invalid within the minute');
+  /* The stamp has to be local wall-clock without a zone, which is the one
+     format datetime-local accepts and the one toISOString does not give. */
+  const stampFn = page.match(/const localStamp = ([\s\S]{0,220}?);\n/);
+  check('the stamp is local, not UTC',
+    !!stampFn && /getFullYear[\s\S]*getHours/.test(stampFn[1]) && !/toISOString/.test(stampFn[1]),
+    stampFn ? stampFn[1].slice(0,90) : 'not found');
+
   /* Where the strategy can be changed, and where it cannot. The toggle sits on
      the Plan screen, so replanning from it lands on someone still filling in
      the form; the switch that acts belongs in the note that has just costed

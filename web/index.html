@@ -5994,13 +5994,20 @@ $('btn-swap').addEventListener('click',()=>{
   .forEach(id=>$(id).addEventListener('change',()=>{ try{calibrate();}catch(e){} }));
 /* datetime-local cannot express its own bounds, so set them from the clock
    and keep them honest about how far the forecast actually reaches. */
+const pad2=n=>String(n).padStart(2,'0');
+/* What a datetime-local input wants: local wall-clock, no zone, to the minute. */
+const localStamp = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
+                      + `T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
 function departBounds(){
-  const pad=n=>String(n).padStart(2,'0');
-  const local=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const now=new Date();
   const max=new Date(now.getTime()+FORECAST_DAYS*864e5);
-  $('depart').min=local(now);
-  $('depart').max=local(max);
+  /* A few minutes of slack below now. Stamping the current time and then
+     validating against a minimum of the current time is a race the clock wins:
+     by the time the form is submitted the value is a minute in the past and
+     the browser refuses it. */
+  $('depart').min=localStamp(new Date(now.getTime()-5*60000));
+  $('depart').max=localStamp(max);
 }
 function departNote(){
   const v=$('depart').value.trim();
@@ -6011,13 +6018,26 @@ function departNote(){
   }
   const d=new Date(v);
   if(isNaN(d)) return;
+  const mins=(d-Date.now())/60000;
+  if(mins<3 && mins>-15){
+    n.textContent='Leaving now, using the conditions forecast for each point as you reach it.';
+    return;
+  }
   const days=(d-Date.now())/864e5;
   n.textContent = days>FORECAST_DAYS
     ? `That is beyond the ${FORECAST_DAYS}-day forecast, so the conditions would be a guess. Pick something sooner.`
     : `Planning for ${d.toLocaleString([], {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}, using the forecast for that hour along the way.`;
 }
 $('depart').addEventListener('change', departNote);
-$('depart-now').addEventListener('click', ()=>{ $('depart').value=''; departNote(); });
+/* It used to empty the box. Empty and now mean the same thing to the planner,
+   so nothing was broken — but pressing a button and watching a field go blank
+   reads as the button having failed. It fills in the time instead, which is
+   what the word says. */
+$('depart-now').addEventListener('click', ()=>{
+  departBounds();                                  // the minimum moves with the clock
+  $('depart').value=localStamp(new Date());
+  departNote();
+});
 
 function sampNote(){
   const step=parseInt($('sampling').value,10);
