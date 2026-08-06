@@ -492,6 +492,42 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
    thousands — escapes the box and paints over anything sitting beside it,
    which is where the toggle button went. Containing it costs nothing: the
    map's controls only ever need to be above the map. */
+/* The card that comes up when a pin is tapped.
+
+   It sits inside .mapbox, which owns a stacking context, so it needs no z-index
+   war with either map's own layers. Bottom-left because Google keeps its
+   controls right and bottom-right and OpenStreetMap keeps its zoom column
+   top-right, and because a card anchored to a corner cannot be pushed off
+   screen by a pin near the edge the way a tethered bubble can. */
+.chgpop{position:absolute;left:10px;bottom:10px;width:min(320px,calc(100% - 20px));
+  background:var(--sheet);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:0 8px 28px rgba(0,0,0,.22);padding:12px 13px 10px;overflow:hidden;
+  animation:popin .16s ease-out}
+@keyframes popin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.chgpop{animation:none}}
+.chgpop .x{position:absolute;top:6px;right:6px;width:26px;height:26px;padding:0;border:0;
+  background:none;color:var(--ink3);font-size:17px;line-height:1;cursor:pointer;border-radius:6px}
+.chgpop .x:hover{background:var(--rule2);color:var(--ink)}
+.chgpop .ttl{font-weight:600;font-size:14px;color:var(--ink);padding-right:24px;line-height:1.3}
+.chgpop .sub{font:11px/1.5 "IBM Plex Mono",monospace;color:var(--ink3);margin-top:2px}
+.chgpop .st{margin-top:7px;font-size:12.5px;font-weight:600}
+.chgpop .st.ok{color:var(--ok)} .chgpop .st.dim{color:var(--ink3)} .chgpop .st.warn{color:var(--warn)}
+.chgpop .guns{list-style:none;margin:7px 0 0;padding:0;font-size:12px}
+.chgpop .guns li{display:flex;justify-content:space-between;gap:10px;padding:3px 0;
+  border-top:1px solid var(--rule2);color:var(--ink2)}
+.chgpop .guns li b{font-weight:600;white-space:nowrap}
+.chgpop .guns li b.ok{color:var(--ok)} .chgpop .guns li b.dim{color:var(--ink3)}
+.chgpop .acts{display:flex;gap:8px;margin-top:10px}
+.chgpop .acts button,.chgpop .acts a{flex:1;justify-content:center}
+.chgpop .age{font:10px/1.4 "IBM Plex Mono",monospace;color:var(--ink3);margin-top:7px}
+/* How long is left before it goes. A bar rather than a number because it is
+   read out of the corner of the eye, and it stops when a finger is on the card
+   so the button is never pulled out from under one. */
+.chgpop .bar{position:absolute;left:0;bottom:0;height:2.5px;background:var(--charge);
+  width:100%;transform-origin:left;animation:popbar var(--pop) linear forwards}
+@keyframes popbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.chgpop.hold .bar{animation-play-state:paused}
+
 .mapbox{width:100%;height:340px;background:var(--paper);position:relative;z-index:0}
 .mapbox svg.routeshape{display:block;width:100%;height:340px}
 .osm{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;background:var(--paper)}
@@ -2250,7 +2286,8 @@ function osmMap(box, path, stops, opts){
       const [x,y]=pt(s.loc);
       const title=`Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`
                 + (s.via?' · off the route':'');
-      return boltPin(x, y, 10, '#B87613').replace('</g>', `<title>${title}</title></g>`);
+      return boltPin(x, y, 10, '#B87613', `class="osm-cand" data-stop="${s.n-1}"`)
+             .replace('</g>', `<title>${esc(title)}</title></g>`);
     }).join('');
 
     /* Candidates go on underneath the chosen stops and smaller, so the plan
@@ -2260,7 +2297,7 @@ function osmMap(box, path, stops, opts){
     const cand=(o.candidates||[]).map((c,i)=>{
       const [x,y]=pt(c.loc);
       return boltPin(x, y, 7, chgColour(c), `class="osm-cand" data-cand="${i}"`)
-             .replace('</g>', `<title>${candTitle(c)}</title></g>`);
+             .replace('</g>', `<title>${esc(candTitle(c))}</title></g>`);
     }).join('');
 
     const route = path.length
@@ -2281,9 +2318,14 @@ function osmMap(box, path, stops, opts){
      candidate pins have to opt back in — see .osm-cand in the stylesheet. */
   if(o.onPick){
     ov.addEventListener('click',e=>{
-      const c=e.target.closest('[data-cand]'); if(!c) return;
+      const t=e.target.closest('[data-cand],[data-stop]'); if(!t) return;
       e.preventDefault(); e.stopPropagation();
-      o.onPick(o.candidates[+c.dataset.cand], +c.dataset.cand);
+      if(t.dataset.stop!=null){
+        const s=(stops||[])[+t.dataset.stop];
+        if(s && s.obj) showChgPop(s.obj, true, s);
+        return;
+      }
+      o.onPick(o.candidates[+t.dataset.cand], +t.dataset.cand);
     });
   }
 
@@ -2375,6 +2417,15 @@ function boltPin(x, y, r, fill, extra){
     + ` transform="translate(${(x-12*s).toFixed(2)} ${(y-12*s).toFixed(2)}) scale(${s.toFixed(4)})"/>`
     + `</g>`;
 }
+
+/* Names, addresses and operators arrive from Open Charge Map, OpenStreetMap
+   and Google, and the first two are edited by whoever cares to. A station
+   called <img src=x onerror=...> is a perfectly ordinary thing to type into a
+   community database, and every one of those strings was going into innerHTML
+   as written. Nothing has gone wrong yet, which is not a reason. */
+const esc = v => String(v==null?'':v)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 /* The same pins again at legend size. Drawn from BOLT_D rather than described
    in words, so the key cannot drift from the map it explains. */
@@ -2771,7 +2822,7 @@ function stopsFromItinerary(it){
      "you will need to charge about here" — have only the route point. */
   return ((it&&it.rows)||[]).filter(r=>r.stop && (r.chg||r.ll))
     .map((r,i)=>({loc:r.chg||r.ll, via:r.chg?r.ll:null,
-                  name:r.toName, km:r.toKm, target:r.target, n:i+1}));
+                  name:r.toName, km:r.toKm, target:r.target, n:i+1, obj:r.obj}));
 }
 /* PlugShare has the best community charger data there is and no API we can
    reach — but we can hand the user straight to it. /map is in their iOS
@@ -2795,9 +2846,97 @@ let MAP_LAST=null;
 
 /* Tapping a candidate pin is the same decision as pressing "Stop here
    instead" in the list below, so it runs through the same door. */
+/* Tapping a pin used to replan on the spot. It is one tap either way, but the
+   first one was a decision made blind: nothing on the map said how fast that
+   charger was, whether a gun was free, or how far off the road it sat, and the
+   plan had already changed by the time any of it could be read. The card says
+   those things first and keeps the replan behind a button.
+
+   It clears itself after eight seconds because it covers part of the map and a
+   driver who has finished with it should not have to dismiss it. The countdown
+   stops while a finger or a cursor is on the card — a control that disappears
+   as it is reached for is worse than one that never appeared. */
+const POP_MS = 8000;
+let POP_T = null;
+
+function hideChgPop(){
+  clearTimeout(POP_T); POP_T = null;
+  const p = $('chgpop'); if(p) p.remove();
+}
+
+const agoText = t => {
+  if(!t) return '';
+  const m = Math.round((Date.now()-t)/60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago`
+       : `${Math.round(m/60)} hour${Math.round(m/60)===1?'':'s'} ago`;
+};
+
+function gunRows(c){
+  const g = c.guns||[];
+  if(!g.length) return `<p class="age">This site does not report its guns individually.</p>`;
+  return `<ul class="guns">${g.map(x=>{
+    const label = [x.plug, x.kw?fmt(x.kw)+' kW':null].filter(Boolean).join(' · ');
+    const state = x.free==null ? `<b class="dim">${x.count} gun${x.count===1?'':'s'}</b>`
+                : x.free>0     ? `<b class="ok">${x.free} of ${x.count} free</b>`
+                :                `<b class="dim">all ${x.count} busy</b>`;
+    return `<li><span>${esc(label)}</span>${state}</li>`;
+  }).join('')}</ul>`;
+}
+
+function showChgPop(c, chosen, stop){
+  hideChgPop();
+  const box = $('mapbox'); if(!box || !c) return;
+
+  const sub = [c.kw?fmt(c.kw)+' kW':null, c.dc?'DC':null,
+               c.rating?'★ '+c.rating.toFixed(1)+(c.votes?` (${c.votes})`:''):null,
+               c.detour!=null?fmt(c.detour,1)+' km off route':null].filter(Boolean).join(' · ');
+  const st = c.working===false ? ['warn','Reported out of order']
+           : c.free>0          ? ['ok',  `${fmt(c.free)} of ${fmt(c.points)} guns free`]
+           : c.free===0        ? ['dim', 'Every gun busy']
+           :                     ['dim', 'Nobody reports this one'];
+
+  const p = document.createElement('div');
+  p.className = 'chgpop';
+  p.style.setProperty('--pop', POP_MS+'ms');
+  p.innerHTML = `
+    <button class="x" type="button" aria-label="Close">×</button>
+    <div class="ttl">${stop?`Stop ${stop.n} · `:''}${esc(c.name||'Charging station')}</div>
+    ${sub?`<div class="sub">${esc(sub)}</div>`:''}
+    ${stop?`<div class="sub">charge to ${fmt(stop.target)}% here</div>`:''}
+    <div class="st ${st[0]}">${st[1]}</div>
+    ${gunRows(c)}
+    ${c.free!=null&&c.asOf?`<p class="age">Counts as reported ${agoText(c.asOf)}.</p>`:''}
+    <div class="acts">
+      <button class="go" type="button">${
+        PREFERRED.has(chgKey(c)) ? 'Undo — back to the best one'
+        : stop ? 'Keep this stop' : 'Plan around this one'}</button>
+      ${c.url?`<a class="ghost" href="${esc(c.url)}" target="_blank" rel="noopener">Open</a>`:''}
+    </div>
+    <i class="bar"></i>`;
+  box.appendChild(p);
+
+  const arm = () => { clearTimeout(POP_T); POP_T = setTimeout(hideChgPop, POP_MS); };
+  arm();
+  /* Pointer events cover mouse, pen and touch alike; focusin keeps it up for
+     anyone arriving by keyboard, who cannot hover at all. */
+  const hold = () => { p.classList.add('hold'); clearTimeout(POP_T); POP_T = null; };
+  const rel  = () => { p.classList.remove('hold'); arm(); };
+  p.addEventListener('pointerenter', hold);
+  p.addEventListener('pointerdown',  hold);
+  p.addEventListener('focusin',      hold);
+  p.addEventListener('pointerleave', rel);
+  p.addEventListener('focusout',     rel);
+
+  p.querySelector('.x').addEventListener('click', hideChgPop);
+  p.querySelector('.go').addEventListener('click', ()=>{
+    hideChgPop();
+    chooseCharger(chgKey(c), c.name);
+  });
+}
+
 function onCandPick(c){
   if(!c || !c.loc) return;
-  chooseCharger(chgKey(c), c.name);
+  showChgPop(c, PREFERRED.has(chgKey(c)));
 }
 function mapFallback(why){
   const box=$('mapbox'); if(!box||!MAP_LAST) return;
@@ -2822,6 +2961,7 @@ async function mountMap(samples, it, cands){
   const stops=stopsFromItinerary(it);
   const candidates=cands||[];
   MAP_LAST={path, stops, candidates};
+  hideChgPop();                       // a card about the last plan's chargers
   const kb=$('map-key'); if(kb) kb.innerHTML=mapKeyHTML();
   const key=gmapKey();
   const fallback=(why)=>mapFallback(why);
@@ -2870,10 +3010,13 @@ async function mountMap(samples, it, cands){
         strokeColor:'#B87613', strokeOpacity:0, zIndex:2,
         icons:[{icon:{path:'M 0,-1 0,1', strokeOpacity:.85, strokeWeight:2.5, scale:2},
                 offset:'0', repeat:'9px'}]});
-      new google.maps.Marker({position:s.loc, map, zIndex:3,
+      const sm=new google.maps.Marker({position:s.loc, map, zIndex:3,
         title:`Stop ${s.n} — ${s.name} · charge to ${fmt(s.target)}%`+(s.via?' · off the route':''),
         icon:{url:boltMarkerUrl('#B87613', 34),
               scaledSize:new google.maps.Size(34,34), anchor:new google.maps.Point(17,17)}});
+      /* The pin the plan is about was the one pin that did nothing when
+         tapped. It has the most to say. */
+      if(s.obj) sm.addListener('click', ()=>showChgPop(s.obj, true, s));
     });
     SRC_USED.map='Google Maps JavaScript API';
     const row=$('src-map'); if(row) row.textContent=SRC_USED.map;
@@ -3730,6 +3873,13 @@ async function chargersOCM(center, km, key){
       kw:Math.max(0,...conns.map(c=>c.PowerKW||0)),
       points:p.NumberOfPoints||conns.reduce((a,c)=>a+(c.Quantity||1),0)||1,
       plugs:[...new Set(conns.map(c=>c.ConnectionType&&c.ConnectionType.Title).filter(Boolean))],
+      /* Open Charge Map describes the hardware but never who is plugged into
+         it, so these carry no availability — free stays null and the card says
+         so rather than showing an empty count as an empty bay. */
+      guns:conns.filter(c=>(c.PowerKW||0)>=25
+                        || /ccs|chademo|combo|tesla/i.test((c.ConnectionType&&c.ConnectionType.Title)||''))
+                .map(c=>({ plug:(c.ConnectionType&&c.ConnectionType.Title)||'DC',
+                           kw:c.PowerKW||0, count:c.Quantity||1, free:null })),
       dc:isDC(conns),
       working:!p.StatusType||p.StatusType.IsOperational!==false,
       membership:!!(p.UsageType&&p.UsageType.IsMembershipRequired),
@@ -3859,6 +4009,12 @@ async function chargersGoogle(center, km, key){
       dc: kw>=25 || types.some(t=>/CCS|CHADEMO|TESLA/i.test(t)),
       rating:p.rating, votes:p.userRatingCount||0,
       free: hasFree?free:null,
+      /* Kept group by group as well as summed. "Two free" is worth less to a
+         driver than which two: a CHAdeMO gun free at a site whose only CCS
+         gun is busy is no use to almost any car sold here. */
+      guns: gun.map(a=>({ plug: PLUG[a.type]||String(a.type||'').replace('EV_CONNECTOR_TYPE_',''),
+                          kw: a.maxChargeRateKw||0, count: a.count||1,
+                          free: a.availableCount!=null ? a.availableCount : null })),
       openNow: p.currentOpeningHours ? p.currentOpeningHours.openNow : undefined,
       working:true, membership:false, verified:null,
       url:p.googleMapsUri, src:'google'
@@ -3877,6 +4033,10 @@ function mergeChargers(lists){
     hit.srcs.push(c.src);
     if(c.rating!=null && hit.rating==null){ hit.rating=c.rating; hit.votes=c.votes; }
     if(c.free!=null && hit.free==null) hit.free=c.free;
+    /* A set that knows which guns are busy beats a longer one that does not. */
+    const knows = g => (g||[]).some(x=>x.free!=null);
+    if((c.guns||[]).length && (!(hit.guns||[]).length || (knows(c.guns) && !knows(hit.guns))))
+      hit.guns=c.guns;
     if(c.verified && !hit.verified) hit.verified=c.verified;
     if(c.openNow!==undefined && hit.openNow===undefined) hit.openNow=c.openNow;
     hit.kw=Math.max(hit.kw||0, c.kw||0);
@@ -4100,10 +4260,16 @@ const reviveChargers = list => (list||[]).map(c =>
 
 async function chargersCached(centre, radiusKm, ocm, key){
   const disk = await sget('chg:'+key);
-  if(disk && disk.t && Date.now()-disk.t < CHG_TTL) return reviveChargers(disk.v);
+  /* Stamped with when it was read, because the card shows a free-gun count and
+     six hours is a long time in the life of one. Locations keep for the whole
+     TTL quite happily; a count does not, and the honest fix while it is cached
+     that long is to say out loud how old it is. */
+  if(disk && disk.t && Date.now()-disk.t < CHG_TTL)
+    return reviveChargers(disk.v).map(c=>c?{...c, asOf:disk.t}:c);
   const fresh = await findChargers(centre, radiusKm, ocm);
   sset('chg:'+key, {t:Date.now(), v:fresh});             // not awaited: it is a cache
-  return fresh;
+  const now = Date.now();
+  return fresh.map(c=>c?{...c, asOf:now}:c);
 }
 
 /* Drop stored circles that have gone stale, and keep the newest CHG_KEEP of
@@ -4639,10 +4805,12 @@ function chargerLine(c,j,lead){
   const stars = c.rating!=null && c.votes
     ? `<span class="stars">${'★'.repeat(Math.round(c.rating))}</span> ${fmt(c.rating,1)} from ${fmt(c.votes)} reviews`
     : null;
-  const bits=[stars, c.operator, c.kw?`${fmt(c.kw)} kW`:null,
+  /* operator, plug names and access all come from the same editable sources
+     as the title, so they are escaped on the way in rather than trusted. */
+  const bits=[stars, esc(c.operator), c.kw?`${fmt(c.kw)} kW`:null,
               c.points>1?`${c.points} bays`:'1 bay',
-              c.plugs&&c.plugs.length?c.plugs.slice(0,3).join(' / '):null,
-              c.access].filter(Boolean);
+              c.plugs&&c.plugs.length?esc(c.plugs.slice(0,3).join(' / ')):null,
+              esc(c.access)].filter(Boolean);
   /* The chosen one gets an "unpin" rather than nothing, so a driver who
      forced a stop can see that they did and put it back. */
   const key=chgKey(c);
@@ -4654,7 +4822,7 @@ function chargerLine(c,j,lead){
 
   return `<div class="charger${c.picked?' is-picked':''}"${lead?' style="border-top:0"':''}>
     <span class="rank">${c.picked?'★':lead?'▶':j+1}</span><span style="flex:1">
-    <span class="n">${c.name}</span>${c.addr?`<br><span class="d">${c.addr}</span>`:''}<br>${badge}
+    <span class="n">${esc(c.name)}</span>${c.addr?`<br><span class="d">${esc(c.addr)}</span>`:''}<br>${badge}
     <span class="d">${bits.join(' · ')} · ${fmt(c.detour,1)} km off route</span><br>
     ${chargerLinks(c)}
     ${choose}</span></div>`;
@@ -4680,7 +4848,8 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
        charger. Anything a driver looks at or drives to uses `chg`. */
     real.forEach(r=> stops.push({i:r.i, arrive:r.arrive, target:r.target,
                                  name:r.best.name, ll:samples[r.i].ll,
-                                 chg:r.best.loc, detour:r.detour, kw:r.best.kw}));
+                                 chg:r.best.loc, detour:r.detour, kw:r.best.kw,
+                                 obj:r.best}));
   }else{
     let offset=0, prev=-1;
     for(let guard=0; guard<8; guard++){
@@ -4711,7 +4880,7 @@ async function buildItinerary(sim, samples, cfg, reserve, startPct, realStops){
       toName:st.name, toKm:samples[st.i].s/1000, arrive,
       target:st.target, addKWh:(st.target-arrive)/100*cfg.cap,
       addMins:chargeCurveMinutes(arrive, st.target, cfg.cap, plugPower(st.kw, cfg.dckw)),
-      kw:st.kw, ll:st.ll, chg:st.chg, detour:st.detour, stop:true});
+      kw:st.kw, ll:st.ll, chg:st.chg, detour:st.detour, obj:st.obj, stop:true});
     offset += st.target-arrive;
     fromIdx=st.i; fromName=st.name; leave=st.target;
   });
@@ -5054,10 +5223,10 @@ function itineraryTable(it, reserve){
   const gm=ll=>`https://www.google.com/maps/search/EV+charging+station/@${ll.lat.toFixed(5)},${ll.lng.toFixed(5)},12z`;
   const body=it.rows.map(r=>`<tr${r.stop?'':' style="background:rgba(46,107,79,.08)"'}>
     <td>${r.leg}</td>
-    <td style="text-align:left">${r.fromName}<br><span style="color:var(--ink3);font-size:11.5px">${fmt(r.fromKm)} km</span></td>
+    <td style="text-align:left">${esc(r.fromName)}<br><span style="color:var(--ink3);font-size:11.5px">${fmt(r.fromKm)} km</span></td>
     <td>${fmt(r.leave)}%</td>
     <td>${fmt(r.driveKm)} km<br><span style="color:var(--ink3);font-size:11.5px">${hhmm(r.driveMins*60)}</span></td>
-    <td style="text-align:left">${r.stop?'':'<strong>'}${r.toName}${r.stop?'':'</strong>'}<br><span style="color:var(--ink3);font-size:11.5px">${fmt(r.toKm)} km</span></td>
+    <td style="text-align:left">${r.stop?'':'<strong>'}${esc(r.toName)}${r.stop?'':'</strong>'}<br><span style="color:var(--ink3);font-size:11.5px">${fmt(r.toKm)} km</span></td>
     <td style="font-weight:600">${fmt(r.arrive)}%</td>
     <td>${r.target!=null?`<strong>${fmt(r.target)}%</strong>`:'—'}</td>
     <td>${r.target!=null?fmt(r.addKWh,1):'—'}</td>
@@ -5065,7 +5234,7 @@ function itineraryTable(it, reserve){
 
   const places=it.rows.filter(r=>r.stop).map(r=>`<div class="charger">
       <span class="rank">${r.leg}</span><span style="flex:1">
-      <span class="n">${r.toName}</span><br>
+      <span class="n">${esc(r.toName)}</span><br>
       <span class="d">${fmt(r.toKm)} km in · arrive ${fmt(r.arrive)}% · charge to ${fmt(r.target)}%
         ${r.detour!=null?` · ${fmt(r.detour,1)} km off route`:''} · ${(r.chg||r.ll).lat.toFixed(4)}, ${(r.chg||r.ll).lng.toFixed(4)}</span><br>
       <a href="${gm(r.chg||r.ll)}" target="_blank" rel="noopener">Google Maps</a>
@@ -5247,7 +5416,7 @@ function render(o){
           </div>`;
         const moved = s.movedBack>0;
         return `<div class="stop-card">
-        <h3>Stop ${i+1} · ${s.best.name}, ${fmt(s.km)} km in</h3>
+        <h3>Stop ${i+1} · ${esc(s.best.name)}, ${fmt(s.km)} km in</h3>
         <p class="why">
           ${moved ? `Best option in the ${fmt(s.best.searchedKm||120)} km before you hit ${fmt(reserve)}% at ${fmt(s.hitKm)} km — <strong>${fmt(s.hitKm-s.km)} km earlier</strong>, where you arrive with charge in hand.`
                   : `Right about where you come down to your ${fmt(reserve)}% floor.`}
@@ -6150,7 +6319,7 @@ function paintCarSources(){
         : '<span class="pill old">estimated</span>';
       const mine=key===$('carpick').value;
       return `<tr${mine?' data-here style="background:var(--charge-soft)"':''}>
-        <td style="text-align:left">${c.name}</td>
+        <td style="text-align:left">${esc(c.name)}</td>
         <td>${fmt(c.cap,1)}</td>
         <td>${fmt(c.kerb)}</td>
         <td class="mono">${k.toFixed(2)}</td>

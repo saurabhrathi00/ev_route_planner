@@ -396,6 +396,28 @@ async function main() {
   check('the car caps what a fast post gives',
     Math.abs(fast - env.chargeCurveMinutes(30, 80, 52, 70)) < 0.01, 'car limit not applied');
 
+  /* What the card on the map says, without a browser to click in. Names come
+     from databases anyone can edit, so the escaping is the part worth pinning
+     down: it is the only thing standing between a station title and innerHTML. */
+  const evalIn = c => vm.runInContext(c, env);
+  console.log('\n  the charger card');
+  console.log('  ' + '-'.repeat(55));
+  const nasty = evalIn('esc(`<img src=x onerror=alert(1)>`)');
+  console.log(`  a station named <img ...> renders as ${nasty}`);
+  check('a charger name cannot carry markup', !/[<>]/.test(nasty), nasty);
+  check('an empty name stays empty', evalIn('esc(null)') === '', 'null leaked');
+
+  const rows = evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:2,free:1},'
+                 + '{plug:"CHAdeMO",kw:50,count:1,free:0}]})');
+  console.log('  ' + rows.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+  check('a free gun reads as free', /1 of 2 free/.test(rows), rows);
+  check('a busy gun reads as busy', /all 1 busy/.test(rows), rows);
+  check('a site that reports nothing says so',
+    /does not report/.test(evalIn('gunRows({})')), 'silent');
+  check('a gun with no count is not called free',
+    /<b class="dim">2 guns<\/b>/.test(evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:2,free:null}]})')),
+    evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:2,free:null}]})'));
+
   /* The taper is the whole reason the two strategies can differ, so if it ever
      flattens the choice becomes cosmetic. The last tenth of a pack must cost
      appreciably more than the first. */
