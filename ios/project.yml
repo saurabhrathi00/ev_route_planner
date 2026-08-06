@@ -34,6 +34,11 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIRequiresFullScreen: false
         UIViewControllerBasedStatusBarAppearance: true
+        # Every upload otherwise stops to ask whether the app uses encryption.
+        # It does not use any of its own; HTTPS is exempt, which is what this
+        # answers. Declaring it here means the question is never asked and the
+        # answer cannot drift from build to build.
+        ITSAppUsesNonExemptEncryption: false
         NSLocationWhenInUseUsageDescription: >-
           Used only when you tap the crosshair in the Start field, to fill in
           where you are setting off from. Your location is never sent to us —
