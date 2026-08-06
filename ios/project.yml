@@ -23,8 +23,13 @@ targets:
         CFBundleShortVersionString: "2.7"
         CFBundleVersion: "1"
         UILaunchScreen: {}     # iOS 14+ : a plain background, no storyboard file needed
+        # An app that does not require full screen may be put in Split View on
+        # iPad, and iOS insists such an app accept every orientation — the build
+        # warns about it and App Store validation has been known to refuse it.
+        # Upside-down costs nothing here: the page is a scrolling document.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         UIRequiresFullScreen: false
