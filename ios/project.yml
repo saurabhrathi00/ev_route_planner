@@ -14,12 +14,13 @@ targets:
     sources:
       - path: RouteSection
       - path: Resources          # flat copy, so Bundle.main.url(forResource:"index") finds it
+      - path: Assets.xcassets    # the app icon; App Store Connect rejects a build without one
     info:
       path: RouteSection/Info.plist
       properties:
         CFBundleDisplayName: EVRoute
         CFBundleName: EVRoute
-        CFBundleShortVersionString: "1.0"
+        CFBundleShortVersionString: "2.7"
         CFBundleVersion: "1"
         UILaunchScreen: {}     # iOS 14+ : a plain background, no storyboard file needed
         UISupportedInterfaceOrientations:
@@ -35,8 +36,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.routesection.evplanner
-        MARKETING_VERSION: "1.0"
+        # The marketing version follows the product, so a bug reported against
+        # 2.7 means the same thing on both stores. The build number is App Store
+        # Connect's own counter and starts at 1 — it has never seen this app.
+        MARKETING_VERSION: "2.7"
         CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"     # iPhone and iPad
         SWIFT_VERSION: "5.0"
         CODE_SIGN_STYLE: Automatic

@@ -11,11 +11,13 @@
 		6966564A24D4357BE9EAA364 /* GeolocationBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A98BC7D0A01D18EEA9FF9EDF /* GeolocationBridge.swift */; };
 		6D73B371B32144AB3A28F260 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BC03B9D2CC8F7C51B5AB96 /* AppDelegate.swift */; };
 		7BE6F2F992E7498C4A6E0458 /* WebHostViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFE242EBFCE4AB19F48F0BF5 /* WebHostViewController.swift */; };
+		8517D5D161201B112A400D07 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A5DDD7269E8CB8E06C47ADCC /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		6DFB902F83529D148E1B12C8 /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
 		7B60A53AE3DE9605A82F0996 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		A5DDD7269E8CB8E06C47ADCC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A98BC7D0A01D18EEA9FF9EDF /* GeolocationBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeolocationBridge.swift; sourceTree = "<group>"; };
 		BDDAA500FDEF1C41D7C33DC5 /* EVRoutePlanner.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EVRoutePlanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1BC03B9D2CC8F7C51B5AB96 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -37,6 +39,7 @@
 		9576FEE600CABB7508C83175 = {
 			isa = PBXGroup;
 			children = (
+				A5DDD7269E8CB8E06C47ADCC /* Assets.xcassets */,
 				D1CC550C0651C40CE86E3B16 /* Resources */,
 				6F2444625C687CCF0CE44060 /* RouteSection */,
 				A7C05667D654701F3A1936EE /* Products */,
@@ -118,6 +121,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8517D5D161201B112A400D07 /* Assets.xcassets in Resources */,
 				207AE8BF51D004479675DF34 /* index.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -152,7 +156,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.routesection.evplanner;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -230,7 +234,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.routesection.evplanner;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
