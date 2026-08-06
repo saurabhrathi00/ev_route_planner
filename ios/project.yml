@@ -20,7 +20,7 @@ targets:
       properties:
         CFBundleDisplayName: EVRoute
         CFBundleName: EVRoute
-        CFBundleShortVersionString: "2.9"
+        CFBundleShortVersionString: "3.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}     # iOS 14+ : a plain background, no storyboard file needed
         # Kept at all four even though the Split View rule that forced it was an
@@ -49,7 +49,7 @@ targets:
         # The marketing version follows the product, so a bug reported against
         # 2.7 means the same thing on both stores. The build number is App Store
         # Connect's own counter and starts at 1 — it has never seen this app.
-        MARKETING_VERSION: "2.9"
+        MARKETING_VERSION: "3.0"
         CURRENT_PROJECT_VERSION: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # iPhone only for the first release. iPad is not dropped work so much as

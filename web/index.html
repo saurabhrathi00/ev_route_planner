@@ -196,6 +196,26 @@ a{color:var(--charge)}
 
 /* A heading for the folded group, so it reads as one thing set aside rather
    than as four panels that happen to be shut. */
+/* Saved plans. Three targets in a row and only one of them is the big one, so
+   the row is a grid rather than three buttons fighting over the width. */
+.histrow{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:stretch;
+  border-top:1px solid var(--rule2)}
+.histrow:first-child{border-top:0}
+.hopen{text-align:left;background:none;border:0;padding:11px 4px;cursor:pointer;
+  min-width:0;border-radius:var(--r-s);transition:background var(--t1)}
+.hopen:hover{background:var(--rule2)}
+.hwhere{display:block;font:600 14px "Public Sans",sans-serif;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hwhere em{font-style:normal;color:var(--ink3);padding:0 3px}
+.hmeta{display:block;font:11px/1.5 "IBM Plex Mono",monospace;color:var(--ink3);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hagain,.hdel{flex:none;width:34px;border:0;background:none;cursor:pointer;
+  color:var(--ink3);font-size:16px;line-height:1;border-radius:var(--r-s);
+  transition:background var(--t1),color var(--t1)}
+.hagain:hover{background:var(--rule2);color:var(--charge)}
+.hdel:hover{background:var(--rule2);color:var(--stop)}
+.hagain:focus-visible,.hdel:focus-visible,.hopen:focus-visible{outline:2px solid var(--brand-green);outline-offset:-2px}
+
 .subhead{display:flex;align-items:baseline;gap:10px;margin:26px 2px 12px}
 .subhead b{font:600 13px "Public Sans",sans-serif;color:var(--ink2)}
 .subhead span{font:500 10px "IBM Plex Mono",monospace;letter-spacing:.12em;
@@ -589,6 +609,11 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
   border:1px solid var(--rule)}
 .chgpop .pips i.on{background:var(--ok);border-color:var(--ok)}
 .chgpop .pips i.unk{background:transparent;border-style:dashed;border-color:var(--ink3)}
+.chgpop .pips i.dead{background:transparent;border-color:var(--stop);position:relative}
+.chgpop .pips i.dead::after{content:"";position:absolute;left:-1px;right:-1px;top:4px;height:1.5px;
+  background:var(--stop);transform:rotate(-45deg)}
+.chgpop .acts .recheck{font-size:15px;line-height:1;cursor:pointer}
+.chgpop .acts .recheck:disabled{opacity:.5;cursor:progress}
 
 .chgpop .age{font:10px/1.5 "IBM Plex Mono",monospace;color:var(--ink3);margin:9px 0 0}
 .chgpop .acts{display:flex;gap:8px;margin-top:12px}
@@ -1504,6 +1529,21 @@ details[open] summary::before{transform:rotate(90deg)}
           <p class="hint" id="samp-note"></p>
         </div>
       </section>
+
+      <!-- Plans already made. Opening one costs nothing: no route lookup, no
+           terrain sweep, no charger searches — it is redrawn from what was
+           saved. "Plan it again" is the other door, for when what you want is
+           today's chargers rather than that day's answer. -->
+      <section class="card reveal" id="hist-card" style="--i:6" hidden>
+        <div class="head"><h2>Plans you have made</h2>
+          <span class="tag" id="hist-count"></span></div>
+        <div class="body">
+          <div id="hist-list"></div>
+          <div class="cta" style="margin-top:14px">
+            <button class="ghost" type="button" id="hist-clear">Delete all</button>
+          </div>
+        </div>
+      </section>
     </section>
 
     <!-- ============ 2. CAR ============ -->
@@ -2185,6 +2225,79 @@ const STORE = (function(){
 })();
 async function sget(k){ try{ const r=await STORE.get(k); return r?JSON.parse(r.value):null; }catch(e){ return null; } }
 async function sset(k,v){ try{ await STORE.set(k,JSON.stringify(v)); }catch(e){} }
+
+/* ---------- saved plans ----------
+
+   A plan costs a route lookup, a terrain sweep, a weather call and up to seven
+   charger searches. Opening one you already made should cost none of them, and
+   before this it cost all of them — the only way back to a result was to run
+   the whole thing again.
+
+   What is kept is exactly what render() needs and nothing else. Rounded on the
+   way in, because five decimal places of latitude is a metre and the traces are
+   drawn at screen resolution: a 500 km plan is about 24 KB that way against 96
+   raw. Ten of them sit alongside the charger cache without crowding it.
+
+   Deliberately not kept: anything fetched fresh is better fetched fresh. A
+   saved plan is a record of what the app said at the time, and it says so. */
+const PLAN_KEEP = 10;
+let PLANS = [];
+
+const r5 = n => Math.round(n*1e5)/1e5;
+const r2 = n => Math.round(n*100)/100;
+
+function packPlan(o, meta){
+  const { sim, samples, marks } = o;
+  return {
+    at: Date.now(),
+    from: meta.from, to: meta.to, car: meta.car,
+    km: Math.round(sim.dist), stops: meta.stops, endPct: r2(meta.endPct),
+    /* the inputs, so "plan it again" can put the sheet back as it was */
+    form: meta.form,
+    d: {
+      s: samples.map(x=>[x.s, r5(x.ll.lat), r5(x.ll.lng)]),
+      soc: sim.socTrace.map(r2),
+      t: sim.timeTrace.map(Math.round),
+      sm: sim.sm.map(Math.round),
+      m: marks.map(x=>[x.i, r2(x.temp), r2(x.wind), Math.round(x.wdir), r2(x.rain),
+                       x.eta ? x.eta.getTime() : null]),
+      sim: { gain:sim.gain, loss:sim.loss, secs:sim.secs, kWh:r2(sim.kWh), used:r2(sim.used),
+             endPct:r2(sim.endPct), dist:r2(sim.dist), perKm:Math.round(sim.perKm),
+             ledger:sim.ledger, mass:sim.mass },
+      cfg: o.cfg, cal: o.cal, reserve: o.reserve, arriveWith: o.arriveWith,
+      legs: o.legs, srcNote: o.srcNote, alias: o.alias,
+      itinerary: o.itinerary, stopsRaw: (o.stops||[]).map(x=>({...x, list:undefined})),
+      reserveHit: o.reserveHit, emptyHit: o.emptyHit,
+    },
+  };
+}
+
+/* The other direction: back into the shape render() was written against. */
+function unpackPlan(p){
+  const d = p.d;
+  const samples = d.s.map(x=>({ s:x[0], ll:{lat:x[1], lng:x[2]} }));
+  const marks = d.m.map(x=>({ i:x[0], ll:samples[x[0]] ? samples[x[0]].ll : null,
+                              temp:x[1], wind:x[2], wdir:x[3], rain:x[4],
+                              eta:x[5]!=null ? new Date(x[5]) : null }));
+  const sim = { ...d.sim, socTrace:d.soc, timeTrace:d.t, sm:d.sm };
+  return { sim, samples, marks, cfg:d.cfg, cal:d.cal, reserve:d.reserve,
+           arriveWith:d.arriveWith, legs:d.legs, srcNote:d.srcNote, alias:d.alias,
+           itinerary:d.itinerary, stops:d.stopsRaw,
+           reserveHit:d.reserveHit, emptyHit:d.emptyHit };
+}
+
+async function loadPlans(){ PLANS = (await sget('plans')) || []; }
+async function savePlans(){
+  await sset('plans', PLANS);
+  /* sset swallows a full store, so check it landed rather than assume. If it
+     did not, the oldest plan goes and we try once more — the charger cache is
+     the other tenant here and it is allowed to be large. */
+  const back = await sget('plans');
+  if((!back || back.length !== PLANS.length) && PLANS.length > 1){
+    PLANS = PLANS.slice(0, PLANS.length - 1);
+    await sset('plans', PLANS);
+  }
+}
 
 /* ---------- status ---------- */
 let steps=[];
@@ -3032,8 +3145,13 @@ function gunRows(c){
        different from a site reporting none free, which is the distinction that
        actually decides whether you pull in. */
     const n = Math.max(1, Math.min(8, x.count||1));
+    const dead = Math.min(n, x.dead||0);
+    /* Dead guns are drawn last and struck through, because "3 guns, one free"
+       and "3 guns, one free and one broken" are different odds on arrival. */
     const pips = Array.from({length:n}, (_,i)=>
-      x.free==null ? '<i class="unk"></i>' : `<i class="${i < x.free ? 'on' : ''}"></i>`).join('');
+      i >= n - dead   ? '<i class="dead"></i>'
+      : x.free == null ? '<i class="unk"></i>'
+      :                  `<i class="${i < x.free ? 'on' : ''}"></i>`).join('');
     return `<li>
       <span class="gn">${esc(x.plug||'DC')}</span>
       ${x.kw?`<span class="gk">${fmt(x.kw)} kW</span>`:''}
@@ -3066,11 +3184,15 @@ function chgPopHTML(c, stop){
     </div>
     <span class="st ${st[0]}">${st[1]}</span>
     ${gunRows(c)}
-    ${c.free!=null&&c.asOf?`<p class="age">as reported ${agoText(c.asOf)}</p>`:''}
+    ${c.free!=null?`<p class="age">${c.liveAt
+        ? `the network last said so ${agoText(c.liveAt)}`
+        : c.asOf ? `as reported ${agoText(c.asOf)}` : ''}</p>`:''}
     <div class="acts">
       <button class="go" type="button">${
         PREFERRED.has(chgKey(c)) ? 'Undo — back to the best one'
         : stop ? 'Keep this stop' : 'Plan around this one'}</button>
+      ${c.pid?`<button class="open recheck" type="button" title="Ask the network what is free right now"
+        aria-label="Check now">⟳</button>`:''}
       ${c.url?`<a class="open" href="${esc(c.url)}" target="_blank" rel="noopener"
         aria-label="Open in maps">↗</a>`:''}
     </div>
@@ -3088,7 +3210,6 @@ function showChgPop(c, chosen, stop){
   POP_EL = p;
 
   const arm = () => { clearTimeout(POP_T); POP_T = setTimeout(hideChgPop, POP_MS); };
-  arm();
   /* Pointer events cover mouse, pen and touch alike; focusin keeps it up for
      anyone arriving by keyboard, who cannot hover at all. */
   const hold = () => { p.classList.add('hold'); clearTimeout(POP_T); POP_T = null; };
@@ -3098,12 +3219,40 @@ function showChgPop(c, chosen, stop){
   p.addEventListener('focusin',      hold);
   p.addEventListener('pointerleave', rel);
   p.addEventListener('focusout',     rel);
+  arm();
 
-  p.querySelector('.x').addEventListener('click', hideChgPop);
-  p.querySelector('.go').addEventListener('click', ()=>{
-    hideChgPop();
-    chooseCharger(chgKey(c), c.name);
-  });
+  /* Re-checking replaces the card's markup, which throws away the listeners
+     with it — so binding them is a function rather than a run of statements. */
+  function wire(){
+    p.querySelector('.x').addEventListener('click', hideChgPop);
+    p.querySelector('.go').addEventListener('click', ()=>{
+      hideChgPop();
+      chooseCharger(chgKey(c), c.name);
+    });
+
+    const recheck = p.querySelector('.recheck');
+    if(!recheck) return;
+    recheck.addEventListener('click', async ()=>{
+      hold();                                   // it must not time out mid-answer
+      recheck.disabled = true; recheck.textContent = '…';
+      try{
+        const fresh = await recheckCharger(c);
+        Object.assign(c, fresh, { asOf: Date.now() });
+        p.innerHTML = chgPopHTML(c, stop);
+        wire();
+        const note = document.createElement('p');
+        note.className = 'age'; note.textContent = 'just checked';
+        p.querySelector('.acts').before(note);
+      }catch(e){
+        recheck.disabled = false; recheck.textContent = '⟳';
+        const msg = document.createElement('p');
+        msg.className = 'age'; msg.style.color = 'var(--warn)';
+        msg.textContent = humanErr(e);
+        p.querySelector('.acts').before(msg);
+      }
+    });
+  }
+  wire();
 }
 
 function onCandPick(c){
@@ -4133,7 +4282,10 @@ async function chargersGoogle(center, km, key){
     headers:{
       'Content-Type':'application/json',
       'X-Goog-Api-Key':key,
-      'X-Goog-FieldMask':'places.displayName,places.location,places.rating,places.userRatingCount,'
+      /* places.id costs nothing extra — it is an Essentials field, and without
+         it a single charger can never be asked about again without sweeping
+         the whole corridor a second time. */
+      'X-Goog-FieldMask':'places.id,places.displayName,places.location,places.rating,places.userRatingCount,'
         +'places.formattedAddress,places.googleMapsUri,places.evChargeOptions,places.currentOpeningHours.openNow'
     },
     body:JSON.stringify({
@@ -4155,8 +4307,24 @@ async function chargersGoogle(center, km, key){
     throw new Error(why);
   }
   const j=await r.json();
-  return (j.places||[]).map(p=>{
-    const ev=p.evChargeOptions||{}, agg=ev.connectorAggregation||[];
+  return (j.places||[]).map(p=>({ ...readEV(p.evChargeOptions),
+      name:(p.displayName&&p.displayName.text)||'Charging station',
+      loc:{lat:p.location.latitude, lng:p.location.longitude},
+      addr:p.formattedAddress, operator:null,
+      rating:p.rating, votes:p.userRatingCount||0,
+      pid: p.id || null,
+      openNow: p.currentOpeningHours ? p.currentOpeningHours.openNow : undefined,
+      working:true, membership:false, verified:null,
+      url:p.googleMapsUri, src:'google' }));
+}
+
+/* The charging half of a Google place, read the same way wherever it arrives —
+   from a corridor sweep, or from asking about one site again later. Written
+   twice at first, and the second copy immediately disagreed with the first
+   about whether an out-of-service gun counts. */
+function readEV(evOpts){
+  {
+    const ev=evOpts||{}, agg=ev.connectorAggregation||[];
     const kw=Math.max(0,...agg.map(a=>a.maxChargeRateKw||0));
     /* Google reports availability per connector group, and a site's groups are
        not interchangeable. Summed across all of them, a station with both DC
@@ -4166,32 +4334,52 @@ async function chargersGoogle(center, km, key){
     const isDCplug = a => /CCS|CHADEMO|TESLA/i.test(a.type||'')
                        || (a.maxChargeRateKw||0) >= 25;
     const dcAgg=agg.filter(isDCplug), gun=dcAgg.length?dcAgg:agg;
+    /* A gun out of service is not a gun. Counting only what is available
+       missed that a two-gun site with one dead is a one-gun site. */
+    const dead=gun.reduce((a,c)=>a+(c.outOfServiceCount||0),0);
     const free=gun.reduce((a,c)=>a+(c.availableCount!=null?c.availableCount:0),0);
     const hasFree=gun.some(c=>c.availableCount!=null);
+    /* Google says when it last heard from the network. That is the age that
+       matters — our own cache may be minutes old and carrying a count from
+       this morning. */
+    const stamp=gun.map(c=>c.availabilityLastUpdateTime).filter(Boolean).sort().pop();
     const types=[...new Set(agg.map(a=>a.type).filter(Boolean))];
     return {
-      name:(p.displayName&&p.displayName.text)||'Charging station',
-      loc:{lat:p.location.latitude, lng:p.location.longitude},
-      addr:p.formattedAddress, operator:null, kw,
+      kw,
       /* Bays, for the same reason: connectorCount is every socket on the site,
          AC included, and it decides how likely you are to find one free. */
       points:(dcAgg.length?dcAgg.reduce((a,c)=>a+(c.count||0),0):0)
              ||ev.connectorCount||agg.reduce((a,c)=>a+(c.count||0),0)||1,
       plugs:types.map(t=>PLUG[t]||t.replace('EV_CONNECTOR_TYPE_','')),
       dc: kw>=25 || types.some(t=>/CCS|CHADEMO|TESLA/i.test(t)),
-      rating:p.rating, votes:p.userRatingCount||0,
       free: hasFree?free:null,
+      dead: dead || 0,
+      liveAt: stamp ? Date.parse(stamp) : null,
       /* Kept group by group as well as summed. "Two free" is worth less to a
          driver than which two: a CHAdeMO gun free at a site whose only CCS
          gun is busy is no use to almost any car sold here. */
       guns: gun.map(a=>({ plug: PLUG[a.type]||String(a.type||'').replace('EV_CONNECTOR_TYPE_',''),
                           kw: a.maxChargeRateKw||0, count: a.count||1,
+                          dead: a.outOfServiceCount||0,
                           free: a.availableCount!=null ? a.availableCount : null })),
-      openNow: p.currentOpeningHours ? p.currentOpeningHours.openNow : undefined,
-      working:true, membership:false, verified:null,
-      url:p.googleMapsUri, src:'google'
     };
-  });
+  }
+}
+
+/* One charger, asked about again — the "check now" behind the card.
+   A corridor sweep is twenty results across fifty kilometres; this is one
+   place by id, which is why the id is worth keeping. It answers what is true
+   now rather than what was true when the plan was made. */
+async function recheckCharger(c){
+  const key=gmapKey();
+  if(!key || !useGoogleChargers()) throw new Error('Live counts come from Google, which is switched off in Settings.');
+  if(!c.pid) throw new Error('This one was not found through Google, so there is nothing to ask.');
+  const r=await chgFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(c.pid)}`, {
+    headers:{'X-Goog-Api-Key':key, 'X-Goog-FieldMask':'evChargeOptions'}
+  }, 9000);
+  if(!r.ok) throw new Error(humanErr(new Error('HTTP '+r.status)));
+  const j=await r.json();
+  return readEV(j.evChargeOptions);
 }
 
 /* The same charger appears in more than one source with different detail.
@@ -4204,7 +4392,8 @@ function mergeChargers(lists){
     if(!hit){ out.push({...c, srcs:[c.src]}); return; }
     hit.srcs.push(c.src);
     if(c.rating!=null && hit.rating==null){ hit.rating=c.rating; hit.votes=c.votes; }
-    if(c.free!=null && hit.free==null) hit.free=c.free;
+    if(c.free!=null && hit.free==null){ hit.free=c.free; hit.liveAt=c.liveAt; hit.dead=c.dead; }
+    if(!hit.pid && c.pid) hit.pid=c.pid;
     /* A set that knows which guns are busy beats a longer one that does not. */
     const knows = g => (g||[]).some(x=>x.free!=null);
     if((c.guns||[]).length && (!(hit.guns||[]).length || (knows(c.guns) && !knows(hit.guns))))
@@ -5745,7 +5934,7 @@ function render(o){
     <div class="body">
       <table><thead><tr><th>Point</th><th>Time there</th><th>Temp</th><th>Wind</th><th>Rain</th></tr></thead><tbody>
       ${marks.map(m=>`<tr><td>${fmt(samples[m.i].s/1000)} km</td>
-        <td>${m.eta.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
+        <td>${m.eta ? m.eta.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
         <td>${fmt(m.temp,1)} °C</td><td>${fmt(m.wind*3.6)} km/h from ${fmt(m.wdir)}°</td>
         <td>${m.rain>0.05?fmt(m.rain,1)+' mm':'—'}</td></tr>`).join('')}</tbody></table>
       <p class="note">Model: calibrated on trips averaging ${fmt(cal.vA)} and ${fmt(cal.vB)} km/h${cal.assumed?' (assumed — enter real driving times)':''}, drivetrain ${fmt(cal.eta*100,1)}%, regen ${fmt(cfg.regen*100)}%, ${fmt(sim.mass)} kg on board, road-load scale ${fmt(cal.C,3)}${S.learn!==1?`, trip-log correction ×${fmt(S.learn,3)}`:''}. Driving style ${STYLES[cfg.styleKey].label.toLowerCase()}, so up to ${fmt(cfg.vhwy)} km/h on highways and ${fmt(cfg.vroad)} on other roads, with ${fmt(cfg.regen*100)}% regen recovery. Traffic ×${fmt(cfg.trafficRatio,2)} (${cfg.trafficWhy}). Terrain read every ${cfg.step>=1000?fmt(cfg.step/1000,0)+' km':fmt(cfg.step)+' m'}${cfg.step>=500?', so short climb-and-drop bumps inside that span are averaged out and the climbing total reads low':''}.</p>
@@ -5962,7 +6151,28 @@ async function plan(e){
 
     SRC_USED.ran = true;          // Settings may now name what was reached
     const itinerary = await buildItinerary(sim, samples, cfg, reserve, startPct, stops, arriveWith);
-    render({sim,cal,cfg,samples,marks,reserve,arriveWith,stops,srcNote,alias,legs,reserveHit,emptyHit,itinerary});
+    const payload = {sim,cal,cfg,samples,marks,reserve,arriveWith,stops,srcNote,alias,legs,reserveHit,emptyHit,itinerary};
+    render(payload);
+
+    /* Kept after the plan is drawn, not before: a plan that threw is not a plan
+       anyone wants back. */
+    try{
+      const fields = {};
+      ['soc0','reserve','arrive','margin','style','acpct','soh','people','bags','depart',
+       'sampling','traffic','cap','kerb','cdA','dckw'].forEach(id=>{
+        const e=$(id); if(e) fields[id]=e.value;
+      });
+      PLANS.unshift(packPlan(payload, {
+        from: $('from').value.trim(), to: $('to').value.trim(),
+        car: ($('carpick').selectedOptions[0]||{}).textContent || '',
+        stops: (itinerary && itinerary.stopCount) || 0,
+        endPct: itinerary && itinerary.rows.length
+                ? itinerary.rows[itinerary.rows.length-1].arrive : sim.endPct,
+        form: { fields, from:S.from, to:S.to, car:$('carpick').value },
+      }));
+      PLANS = PLANS.slice(0, PLAN_KEEP);
+      await savePlans(); renderPlans();
+    }catch(err){ /* a plan that cannot be saved is still a plan */ }
     const fineBtn=$('btn-fine');
     if(fineBtn) fineBtn.addEventListener('click',()=>{
       $('sampling').value='250'; sampNote();
@@ -6113,6 +6323,80 @@ $('depart-now').addEventListener('click', ()=>{
   departBounds();                                  // the minimum moves with the clock
   $('depart').value=localStamp(new Date());
   departNote();
+});
+
+/* ---- saved plans, on screen ---- */
+function planRow(p, i){
+  const when = new Date(p.at);
+  const dstr = when.toLocaleDateString([], {day:'numeric', month:'short'})
+             + ' · ' + when.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  return `<div class="histrow" data-i="${i}">
+    <button type="button" class="hopen" data-i="${i}">
+      <span class="hwhere">${esc(p.from)} <em>→</em> ${esc(p.to)}</span>
+      <span class="hmeta">${dstr} · ${esc(p.car||'')} · ${fmt(p.km)} km ·
+        ${p.stops} stop${p.stops===1?'':'s'} · arrive ${fmt(p.endPct)}%</span>
+    </button>
+    <button type="button" class="hagain" data-i="${i}" title="Plan it again with today's chargers">↻</button>
+    <button type="button" class="hdel" data-i="${i}" title="Delete this plan" aria-label="Delete">×</button>
+  </div>`;
+}
+
+function renderPlans(){
+  const card=$('hist-card'), list=$('hist-list'), count=$('hist-count');
+  if(!card) return;
+  card.hidden = PLANS.length === 0;
+  if(!PLANS.length) return;
+  count.textContent = `${PLANS.length} saved`;
+  list.innerHTML = PLANS.map(planRow).join('');
+}
+
+/* Opening one draws it from what was saved. Nothing is fetched, so this works
+   with the phone in flight mode — which is worth having on a drive. */
+function openSavedPlan(i){
+  const p = PLANS[i]; if(!p) return;
+  const o = unpackPlan(p);
+  SCRUB = null;                       // the scrubber is rebuilt by render, not stored
+  render(o);
+  if(window.UI){ UI.afterRender(); UI.go('result'); }
+  const out=$('out');
+  if(out) out.insertAdjacentHTML('afterbegin',
+    `<p class="note" style="border-left-color:var(--charge);margin:0 0 14px">
+      Saved ${esc(new Date(p.at).toLocaleString([], {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}.
+      Charger availability and the weather are as they were then — press
+      <strong>↻</strong> next to it on the plan list to work it out again with today's.</p>`);
+  mountMap(o.samples, o.itinerary, []);
+}
+
+/* And the other door: put the sheet back the way it was and run it for real. */
+function replanSaved(i){
+  const p = PLANS[i]; if(!p || !p.form) return;
+  Object.entries(p.form.fields||{}).forEach(([id,v])=>{ const e=$(id); if(e) e.value=v; });
+  S.from = p.form.from || null; S.to = p.form.to || null;
+  $('from').value = p.from; $('to').value = p.to;
+  syncClear('from'); syncClear('to');
+  if(p.form.car){ $('carpick').value = p.form.car; applyCar(); }
+  if(window.UI) UI.go('plan');
+  plan({preventDefault(){}});
+}
+
+document.addEventListener('click', async e=>{
+  const b = e.target.closest('#hist-list button, #hist-clear'); if(!b) return;
+  e.preventDefault();
+  if(b.id === 'hist-clear'){
+    if(!PLANS.length) return;
+    /* No dialog for one plan; a confirm for the lot, because it cannot be undone. */
+    if(!confirm(`Delete all ${PLANS.length} saved plans?`)) return;
+    PLANS = []; await savePlans(); renderPlans();
+    if(window.UI) UI.toast('Saved plans deleted');
+    return;
+  }
+  const i = +b.dataset.i;
+  if(b.classList.contains('hdel')){
+    PLANS.splice(i,1); await savePlans(); renderPlans();
+    if(window.UI) UI.toast('Plan deleted');
+  }
+  else if(b.classList.contains('hagain')) replanSaved(i);
+  else if(b.classList.contains('hopen'))  openSavedPlan(i);
 });
 
 function sampNote(){
@@ -6679,6 +6963,7 @@ $('t_add').addEventListener('click',async()=>{
   bs.forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===gSrcMode)));
   seg.style.setProperty('--i', String(Math.max(0, bs.findIndex(b=>b.dataset.v===gSrcMode))));
   applyCar();
+  await loadPlans(); renderPlans();
   relearn(); renderTrips(); sampNote(); fitAnchor(); markReference();
   departBounds(); departNote(); acNote(); sohNote(); marginNote(); reserveNote();
   askAboutLastDrive();

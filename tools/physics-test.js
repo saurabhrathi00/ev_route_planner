@@ -472,6 +472,69 @@ async function main() {
   check('unknown availability is drawn differently from none free',
     (unknown.match(/class="unk"/g)||[]).length === 2 && pips(unknown) === 0, unknown);
 
+  /* One reader for the charging half of a Google place, whether it arrives in a
+     corridor sweep or in a check-now on a single site. It was written twice at
+     first and the copies disagreed within the hour about out-of-service guns. */
+  const EV = { connectorCount: 5, connectorAggregation: [
+    { type:'EV_CONNECTOR_TYPE_CCS_COMBO_2', count:3, availableCount:1, outOfServiceCount:1,
+      maxChargeRateKw:60, availabilityLastUpdateTime:'2026-08-06T09:00:00Z' },
+    { type:'EV_CONNECTOR_TYPE_TYPE_2', count:2, availableCount:2, maxChargeRateKw:7.4 }]};
+  const ev = evalIn('readEV(' + JSON.stringify(EV) + ')');
+  console.log(`  mixed site read as ${ev.points} DC bays, ${ev.free} free, ${ev.dead} out of service`);
+  check('the AC sockets stay out of the bay count', ev.points === 3, `${ev.points}`);
+  check('the AC sockets stay out of the free count', ev.free === 1, `${ev.free}`);
+  check('an out-of-service gun is counted', ev.dead === 1, `${ev.dead}`);
+  check('the site still reads as DC', ev.dc === true, `${ev.dc}`);
+  /* Google's own timestamp, not ours. A cache entry can be a minute old and
+     carry a count the network last refreshed this morning. */
+  check("google's availability timestamp is kept",
+    ev.liveAt === Date.parse('2026-08-06T09:00:00Z'), `${ev.liveAt}`);
+
+  const dead = evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:3,free:1,dead:1}]})');
+  check('a broken gun is drawn apart from a busy one',
+    (dead.match(/class="dead"/g)||[]).length === 1 && (dead.match(/<i class="on">/g)||[]).length === 1,
+    dead);
+
+  /* A saved plan has to come back in the shape render() was written against,
+     and it has to fit in a store the charger cache already lives in. Both are
+     asserted, because the failure here is a plan that saves cleanly and opens
+     broken a week later, on a phone that is nowhere near a charger. */
+  console.log('\n  saved plans');
+  console.log('  ' + '-'.repeat(55));
+  env.PACK_IN = { sim: gsim, samples: gs, marks: weatherFor(gs, 24, 0), cfg: gcfg,
+                  cal: {eta:0.774, C:0.99, learn:1}, reserve: 20, arriveWith: 20,
+                  legs: [], srcNote: '', alias: null,
+                  itinerary: {rows:[], stopCount:0}, stops: [],
+                  reserveHit: null, emptyHit: null };
+  const packed = evalIn('packPlan(PACK_IN, {from:"Delhi", to:"Manali", car:"Curvv",'
+                      + ' stops:2, endPct:41, form:{}})');
+  const kb = JSON.stringify(packed).length / 1024;
+  console.log(`  a ${Math.round(gsim.dist)} km plan packs to ${kb.toFixed(1)} KB`
+            + ` — ten of them ${(kb*10/1024).toFixed(2)} MB`);
+  check('a saved plan stays small enough to keep ten of',
+    kb * 10 < 1024, `${(kb*10/1024).toFixed(2)} MB for ten`);
+
+  env.PACKED = packed;
+  const back = evalIn('unpackPlan(PACKED)');
+  const NEEDS = ['sim','samples','marks','cfg','cal','reserve','arriveWith','legs',
+                 'srcNote','alias','itinerary','stops','reserveHit','emptyHit'];
+  const missing = NEEDS.filter(k => !(k in back));
+  check('everything render reads survives the round trip', missing.length === 0,
+    'missing ' + missing.join(', '));
+  check('the route comes back whole',
+    back.samples.length === gs.length && typeof back.samples[0].ll.lat === 'number',
+    `${back.samples.length} of ${gs.length}`);
+  check('the traces come back whole',
+    back.sim.socTrace.length === gs.length && back.sim.sm.length === gs.length
+    && back.sim.timeTrace.length === gs.length, 'a trace changed length');
+
+  /* Rounding is the price of the size, so it is worth knowing what it costs. */
+  const socErr = Math.max(...gsim.socTrace.map((v,i)=>Math.abs(v - back.sim.socTrace[i])));
+  const posErr = Math.max(...gs.map((x,i)=>Math.abs(x.ll.lat - back.samples[i].ll.lat))) * 111000;
+  console.log(`  rounding costs ${socErr.toFixed(3)} points of charge and ${posErr.toFixed(1)} m of position`);
+  check('rounding does not move the charge curve', socErr < 0.01, `${socErr}`);
+  check('rounding does not move the road', posErr < 1, `${posErr} m`);
+
   /* And the card's life on the map, which is where the first version failed:
      it rendered correctly and then could never be got rid of. Opening, closing
      and re-opening are three things a specimen of the markup cannot check. */
