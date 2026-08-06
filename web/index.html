@@ -1445,20 +1445,6 @@ details[open] summary::before{transform:rotate(90deg)}
         </div>
       </section>
 
-      <!-- Plans already made. Opening one costs nothing: no route lookup, no
-           terrain sweep, no charger searches — it is redrawn from what was
-           saved. "Plan it again" is the other door, for when what you want is
-           today's chargers rather than that day's answer. -->
-      <section class="card reveal" id="hist-card" style="--i:6" hidden>
-        <div class="head"><h2>Plans you have made</h2>
-          <span class="tag" id="hist-count"></span></div>
-        <div class="body">
-          <div id="hist-list"></div>
-          <div class="cta" style="margin-top:14px">
-            <button class="ghost" type="button" id="hist-clear">Delete all</button>
-          </div>
-        </div>
-      </section>
 
       <section class="card reveal" style="--i:2">
         <div class="head"><span class="num">2</span><h2>The drive</h2><span class="tag">conditions</span></div>
@@ -1685,6 +1671,43 @@ details[open] summary::before{transform:rotate(90deg)}
     </section>
 
     <!-- ============ 4. LOG ============ -->
+    <!-- ============ PLANS ============ -->
+    <section class="view" id="v-plans">
+      <div class="view-head reveal" style="--i:0">
+        <h1>Plans you have <em>made</em></h1>
+        <p>Ten of them, kept on this phone. Opening one fetches nothing — it is drawn
+          from what was saved, so it works with no signal, which is the state a phone is
+          often in on the drive the plan was for. The chargers and the weather are as they
+          were then; <strong>↻</strong> works it out again with today's.</p>
+      </div>
+      <!-- Plans already made. Opening one costs nothing: no route lookup, no
+           terrain sweep, no charger searches — it is redrawn from what was
+           saved. "Plan it again" is the other door, for when what you want is
+           today's chargers rather than that day's answer. -->
+      <section class="card reveal" id="hist-card" style="--i:6" hidden>
+        <div class="head"><h2>Plans you have made</h2>
+          <span class="tag" id="hist-count"></span></div>
+        <div class="body">
+          <div id="hist-list"></div>
+          <div class="cta" style="margin-top:14px">
+            <button class="ghost" type="button" id="hist-clear">Delete all</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card reveal" id="hist-empty" style="--i:2" hidden>
+        <div class="body">
+          <div class="empty">
+            <svg viewBox="0 0 24 24"><path d="M4 6.5h11M4 12h11M4 17.5h7"/><path d="M18.5 5v7"/><path d="M16 9.5l2.5 2.5L21 9.5"/></svg>
+            <h3>Nothing saved yet</h3>
+            <p>Every plan you make is kept here, so you can open it again without
+              waiting for the route, the terrain and the chargers a second time.</p>
+            <div class="cta"><button class="ghost" type="button" data-go="plan">Plan a drive</button></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
     <section class="view" id="v-log">
       <div class="view-head reveal" style="--i:0">
         <h1>Trip <em>log</em></h1>
@@ -1895,6 +1918,8 @@ details[open] summary::before{transform:rotate(90deg)}
       <svg viewBox="0 0 24 24"><path d="M5 16.5h14M4 16.5v2.5h3v-2.5M17 16.5V19h3v-2.5"/><path d="M4.5 16.5 6 9.5h12l1.5 7"/><circle cx="7.5" cy="13" r=".8"/><circle cx="16.5" cy="13" r=".8"/></svg>Car</button>
     <button type="button" data-go="result" role="tab" aria-selected="false">
       <svg viewBox="0 0 24 24"><path d="M3 17c3.5-9 6.5 1.5 9-4.5S17.5 8 21 5"/><path d="M3 21h18"/></svg>Result<span class="dot"></span></button>
+    <button type="button" data-go="plans" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M4 6.5h11M4 12h11M4 17.5h7"/><path d="M18.5 5v7"/><path d="M16 9.5l2.5 2.5L21 9.5"/></svg>Plans</button>
     <button type="button" data-go="log" role="tab" aria-selected="false">
       <svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5z"/><path d="M8.5 9h7M8.5 12.5h7M8.5 16h4"/></svg>Log</button>
     <button type="button" data-go="settings" role="tab" aria-selected="false">
@@ -2268,7 +2293,12 @@ function packPlan(o, meta){
       fromName: o.fromName, toName: o.toName,
       cfg: o.cfg, cal: o.cal, reserve: o.reserve, arriveWith: o.arriveWith,
       legs: o.legs, srcNote: o.srcNote, alias: o.alias,
-      itinerary: o.itinerary, stopsRaw: (o.stops||[]).map(x=>({...x, list:undefined})),
+      /* The alternatives under each stop are kept. Dropping them saved four
+         kilobytes and cost the whole result page: render reads s.list.length,
+         so every saved plan with a stop in it threw on being opened, and the
+         row looked dead. Four backups is all the card shows anyway. */
+      itinerary: o.itinerary,
+      stopsRaw: (o.stops||[]).map(x=>({...x, list:(x.list||[]).slice(0,4)})),
       reserveHit: o.reserveHit, emptyHit: o.emptyHit,
     },
   };
@@ -5830,7 +5860,7 @@ function render(o){
           <div class="kpi"><div class="v">${fmt(s.after)}%</div><div class="l">arrive with</div></div>
         </div>
         ${chargerLine(s.best,0,true)}
-        ${s.list.length>1?`<details><summary>${s.list.length-1} backup${s.list.length===2?'':'s'} nearby</summary><div style="padding-top:6px">${s.list.slice(1).map((c,j)=>chargerLine(c,j+1)).join('')}</div></details>`:''}
+        ${(s.list||[]).length>1?`<details><summary>${s.list.length-1} backup${s.list.length===2?'':'s'} nearby</summary><div style="padding-top:6px">${s.list.slice(1).map((c,j)=>chargerLine(c,j+1)).join('')}</div></details>`:''}
       </div>`;
       }).join('')
     + `<p class="note">${srcNote} Chargers are ranked on the odds of being usable when you arrive, not on raw power: recent confirmation counts most, then how many bays there are, then output. A detour costs charge both ways and is subtracted before working out what you need. DC is strongly preferred and the search only falls back to AC when a stretch has nothing else. No source knows whether a bay is free right now — on a remote stretch, ring ahead.</p></div></section>`;
@@ -6359,11 +6389,14 @@ function planRow(p, i){
 }
 
 function renderPlans(){
-  const card=$('hist-card'), list=$('hist-list'), count=$('hist-count');
+  const card=$('hist-card'), list=$('hist-list'), count=$('hist-count'), none=$('hist-empty');
   if(!card) return;
+  /* A tab you can always reach needs something to say when it is empty, which
+     a card that simply hides does not. */
   card.hidden = PLANS.length === 0;
+  if(none) none.hidden = PLANS.length > 0;
   if(!PLANS.length) return;
-  count.textContent = `${PLANS.length} saved`;
+  count.textContent = `${PLANS.length} of ${PLAN_KEEP}`;
   list.innerHTML = PLANS.map(planRow).join('');
 }
 
@@ -7010,7 +7043,7 @@ const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)');
    browser's own history — and therefore the Android hardware back
    button, which MainActivity wires to WebView.goBack() — moves
    between them without any extra bookkeeping. */
-const TABS = ['plan','car','result','log','settings'];
+const TABS = ['plan','car','result','plans','log','settings'];
 let current = 'plan';
 let planned = false;
 

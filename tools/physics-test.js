@@ -559,6 +559,45 @@ async function main() {
   check('and it names its own endpoints', /Delhi to Manali/.test(drew),
     (drew.match(/<div class="sub">[^<]{0,60}/) || ['nothing'])[0]);
 
+  /* With a stop in it, which is the only kind of plan anyone saves. The check
+     above passed on a plan with no stops at all, which is how it certified a
+     build where every real saved plan threw the moment it was opened — the
+     charger cards read s.list, and packing had dropped it to save four
+     kilobytes. An empty fixture is not a small test, it is a different one. */
+  const chg = (name) => ({ name, loc: gs[150].ll, kw:60, points:2, dc:true, plugs:['CCS2'],
+    working:true, membership:false, verified:new Date(), src:'google', url:'x',
+    rating:4.2, votes:60, free:1, conf:8, ageDays:3, pid:'p1',
+    guns:[{plug:'CCS2', kw:60, count:2, free:1, dead:0}], detour:1.2, detourPct:0.4, idx:150 });
+  const best = chg('Statiq'), alt1 = chg('Tata Power'), alt2 = chg('Zeon');
+  env.PACK_IN.stops = [{ i:150, km:150, list:[best, alt1, alt2], best, arrive:60, target:90,
+    need:30, detourPct:0.4, kWh:15, movedBack:0, radius:45, mode:'dc', hitKm:150,
+    calls:3, minutes:20, after:45, kw:60, alt:null }];
+  env.PACK_IN.itinerary = { stopCount:1, totalMins:260, real:true, rows:[
+    { leg:1, fromName:'Delhi', fromKm:0, leave:100, driveKm:150, driveMins:120,
+      toName:'Statiq', toKm:150, arrive:60, target:90, addKWh:15, addMins:20, kw:60,
+      ll:gs[150].ll, chg:best.loc, detour:1.2, obj:best, stop:true },
+    { leg:2, fromName:'Statiq', fromKm:150, leave:90, driveKm:150, driveMins:120,
+      toName:'Manali', toKm:300, arrive:45 }]};
+  env.PACKED3 = evalIn('packPlan(PACK_IN, {from:"Delhi", to:"Manali", car:"Curvv",'
+                     + ' stops:1, endPct:45, form:{}})');
+  let drew3 = '', threw3 = null;
+  try {
+    vm.runInContext('BACK3 = unpackPlan(PACKED3); render(BACK3);', env);
+    drew3 = evalIn("$('out').innerHTML");
+  } catch (e) { threw3 = e.message; }
+  check('a saved plan with a charging stop opens', !threw3, threw3 || '');
+  check('the stop it chose is still named', /Statiq/.test(drew3), 'the stop is gone');
+  check('and the alternatives came back with it', /backup/.test(drew3), 'no backups kept');
+
+  /* The tab list and the views have to agree, or a tab switches to nothing. */
+  const src = fs.readFileSync(SRC, 'utf8');
+  const tabs = (src.match(/const TABS = \[([^\]]+)\]/)||[])[1] || '';
+  const names = tabs.split(',').map(t => t.trim().replace(/'/g, '')).filter(Boolean);
+  const noView = names.filter(n => !src.includes(`id="v-${n}"`));
+  console.log(`  tabs: ${names.join(', ')}`);
+  check('every tab has a view behind it', noView.length === 0, noView.join(','));
+  check('saved plans have a tab of their own', names.includes('plans'), tabs);
+
   /* And the card's life on the map, which is where the first version failed:
      it rendered correctly and then could never be got rid of. Opening, closing
      and re-opening are three things a specimen of the markup cannot check. */
