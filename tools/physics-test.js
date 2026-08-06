@@ -29,23 +29,58 @@ const SRC = process.env.EVROUTE_SRC || path.join(__dirname, '..', 'web', 'index.
 
 /* ---- the stub DOM ------------------------------------------------------ */
 const FIELDS = {};                       // id -> value, set per scenario
-function makeEl(id) {
+/* A stub with just enough tree in it to be wrong about.
+
+   It used to answer appendChild with nothing and querySelectorAll with an
+   empty list, which meant no test could tell a card that had been added from
+   one that had not — and that is exactly the bug that shipped: the popup was
+   created with a class and looked up by id, so it was never found and never
+   removed, and taps stacked cards on top of each other. Children are real
+   here now, remove detaches, and querySelectorAll understands a class
+   selector. Nothing more; this is not a browser. */
+function makeEl(id, tag) {
   const el = {
-    id,
+    id, tag: tag || 'div', parentNode: null, className: '',
     style: { setProperty(){}, cssText:'' },
-    classList: { add(){}, remove(){}, toggle(){}, contains(){ return false; } },
     dataset: {},
     children: [], hidden: false, disabled: false, textContent: '', innerHTML: '',
     get value() { return FIELDS[id] !== undefined ? String(FIELDS[id]) : ''; },
     set value(v) { FIELDS[id] = v; },
-    addEventListener(){}, removeEventListener(){}, appendChild(){}, remove(){},
-    querySelector(){ return makeEl('q'); }, querySelectorAll(){ return []; },
+    addEventListener(){}, removeEventListener(){},
+    appendChild(c){ if(c){ c.parentNode = this; this.children.push(c); } return c; },
+    remove(){
+      const p = this.parentNode;
+      if(!p) return;
+      const i = p.children.indexOf(this);
+      if(i >= 0) p.children.splice(i, 1);
+      this.parentNode = null;
+    },
+    querySelector(sel){ return this.querySelectorAll(sel)[0] || makeEl('q'); },
+    querySelectorAll(sel){
+      const want = String(sel||'').replace(/^\./, '');
+      const hit = [];
+      const walk = n => n.children.forEach(c => {
+        if(String(c.className||'').split(/\s+/).includes(want)) hit.push(c);
+        walk(c);
+      });
+      walk(this);
+      return hit;
+    },
     closest(){ return null; }, getBoundingClientRect(){ return {width:0,height:0,left:0,top:0}; },
     setAttribute(){}, getAttribute(){ return null; }, focus(){}, blur(){},
     scrollTo(){}, scrollIntoView(){}, insertAdjacentHTML(){}, cloneNode(){ return makeEl(id); },
   };
+  /* classList over the same string the selector reads, so the two agree. */
+  el.classList = {
+    add(...v){ const s = new Set(String(el.className).split(/\s+/).filter(Boolean));
+               v.forEach(x=>s.add(x)); el.className = [...s].join(' '); },
+    remove(...v){ const s = new Set(String(el.className).split(/\s+/).filter(Boolean));
+               v.forEach(x=>s.delete(x)); el.className = [...s].join(' '); },
+    toggle(){}, contains(v){ return String(el.className).split(/\s+/).includes(v); },
+  };
   return el;
 }
+
 const EL = new Proxy({}, { get: (t, k) => (t[k] || (t[k] = makeEl(String(k)))) });
 
 function loadEngine() {
@@ -57,7 +92,7 @@ function loadEngine() {
   const document = {
     getElementById: id => EL[id],
     querySelector: () => makeEl('q'), querySelectorAll: () => [],
-    addEventListener(){}, createElement: () => makeEl('new'),
+    addEventListener(){}, createElement: t => makeEl('new', t),
     documentElement: makeEl('html'), head: makeEl('head'), body: makeEl('body'),
   };
   const sandbox = {
@@ -422,6 +457,25 @@ async function main() {
   const unknown = evalIn('gunRows({guns:[{plug:"CCS2",kw:60,count:2,free:null}]})');
   check('unknown availability is drawn differently from none free',
     (unknown.match(/class="unk"/g)||[]).length === 2 && pips(unknown) === 0, unknown);
+
+  /* And the card's life on the map, which is where the first version failed:
+     it rendered correctly and then could never be got rid of. Opening, closing
+     and re-opening are three things a specimen of the markup cannot check. */
+  const mapbox = vm.runInContext("$('mapbox')", env);
+  const SITE1 = { name:'A', loc:{lat:28.6,lng:77.2}, kw:60, dc:true, free:1, points:2,
+                  guns:[{plug:'CCS2',kw:60,count:2,free:1}] };
+  const cards = () => mapbox.querySelectorAll('.chgpop').length;
+
+  env.showChgPop(SITE1);
+  check('tapping a pin puts one card on the map', cards() === 1, `${cards()} cards`);
+  env.showChgPop({...SITE1, name:'B', loc:{lat:29.1,lng:77.4}});
+  check('tapping a second pin replaces it rather than stacking', cards() === 1, `${cards()} cards`);
+  env.hideChgPop();
+  check('closing the card removes it', cards() === 0, `${cards()} left`);
+  env.showChgPop(SITE1); env.hideChgPop(); env.showChgPop(SITE1);
+  check('it can be opened again after closing', cards() === 1, `${cards()} cards`);
+  env.hideChgPop();
+  console.log(`  open, replace, close, reopen — ${cards()} left on the map`);
 
   /* The taper is the whole reason the two strategies can differ, so if it ever
      flattens the choice becomes cosmetic. The last tenth of a pack must cost

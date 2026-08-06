@@ -2909,11 +2909,18 @@ let MAP_LAST=null;
    stops while a finger or a cursor is on the card — a control that disappears
    as it is reached for is worse than one that never appeared. */
 const POP_MS = 8000;
-let POP_T = null;
+let POP_T = null, POP_EL = null;
 
 function hideChgPop(){
   clearTimeout(POP_T); POP_T = null;
-  const p = $('chgpop'); if(p) p.remove();
+  /* Held by reference. It was looked up by id, and the card is built with
+     createElement and given a class — so the lookup found nothing, the close
+     button did nothing, the countdown did nothing, and every tap stacked
+     another card on the pile. The sweep clears any pile an older build left. */
+  if(POP_EL){ POP_EL.remove(); POP_EL = null; }
+  const box = $('mapbox');
+  if(box && box.querySelectorAll)
+    box.querySelectorAll('.chgpop').forEach(n => n.remove());
 }
 
 const agoText = t => {
@@ -2985,6 +2992,7 @@ function showChgPop(c, chosen, stop){
   p.style.setProperty('--pop', POP_MS+'ms');
   p.innerHTML = chgPopHTML(c, stop);
   box.appendChild(p);
+  POP_EL = p;
 
   const arm = () => { clearTimeout(POP_T); POP_T = setTimeout(hideChgPop, POP_MS); };
   arm();
