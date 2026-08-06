@@ -176,6 +176,32 @@ a{color:var(--charge)}
 .panel > .head{display:flex;align-items:center;gap:12px;padding:15px 18px 13px}
 .panel > .head h2{font-size:16px}
 .panel > .head .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-left:auto}
+/* A panel whose head is the control that opens it. The results page had eleven
+   of these open at once, every one of them ending in a table, and the plan —
+   the thing anyone came for — was six panels down. The five that answer "why"
+   rather than "what" fold away, and open with the same head they had before. */
+.panel > details > summary.head{display:flex;align-items:center;gap:12px;padding:15px 18px 13px;
+  cursor:pointer;list-style:none;transition:background var(--t1)}
+.panel > details > summary.head::-webkit-details-marker{display:none}
+.panel > details > summary.head:hover{background:var(--rule2)}
+.panel > details > summary.head h2{font-size:16px}
+.panel > details > summary.head .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-left:auto}
+.panel > details > summary.head::after{content:"";flex:none;width:7px;height:7px;
+  border-right:2px solid var(--ink3);border-bottom:2px solid var(--ink3);
+  transform:rotate(45deg) translate(-2px,-2px);transition:transform var(--t2) var(--e-out)}
+.panel > details[open] > summary.head::after{transform:rotate(-135deg) translate(-1px,-1px)}
+.panel > details > summary.head:focus-visible{outline:2px solid var(--brand-green);outline-offset:-2px}
+@media (prefers-reduced-motion:reduce){.panel > details > summary.head::after{transition:none}}
+
+/* A heading for the folded group, so it reads as one thing set aside rather
+   than as four panels that happen to be shut. */
+.subhead{display:flex;align-items:baseline;gap:10px;margin:26px 2px 12px}
+.subhead b{font:600 13px "Public Sans",sans-serif;color:var(--ink2)}
+.subhead span{font:500 10px "IBM Plex Mono",monospace;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink3)}
+.subhead::after{content:"";flex:1;height:1px;background:var(--rule)}
+
 .panel .body{padding:0 18px 18px}
 .panel .body > :first-child{margin-top:0}
 
@@ -437,6 +463,17 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
 .kpi .v{font-family:"IBM Plex Mono",monospace;font-size:23px;font-weight:500;letter-spacing:-.03em}
 .kpi .l{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);
   font-family:"IBM Plex Mono",monospace;margin-top:3px}
+/* Nine tiles at once is a wall, and the answer to "will I get there" was the
+   ninth of them. Four carry the verdict; the rest are the numbers behind it. */
+.kpimore{margin-top:1px}
+.kpimore > summary{list-style:none;cursor:pointer;padding:9px 2px 0;
+  font:500 10px "IBM Plex Mono",monospace;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink3)}
+.kpimore > summary::-webkit-details-marker{display:none}
+.kpimore > summary::before{content:"+ ";font-weight:600}
+.kpimore[open] > summary::before{content:"– "}
+.kpimore > summary:hover{color:var(--ink2)}
+.kpimore .kpis{margin-top:10px}
 
 /* jump chips built from the rendered panels */
 .jump{display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -5544,19 +5581,27 @@ function render(o){
           arriveLow<reserve-0.5 ? 'could dip below your floor'
           : arriveLow<reserve+4 ? 'holds your floor, with nothing spare'
           : 'holds your floor even if the estimate is off'}</span></div>
-      ${planWorks?`<div class="kpi"><div class="v">${fmt(end)}%</div><div class="l">if you never charged</div></div>`:''}
-      <div class="kpi"><div class="v">${fmt(sim.used,1)}%</div><div class="l">charge used</div></div>
-      <div class="kpi"><div class="v">${fmt(sim.kWh,1)}</div><div class="l">kWh</div></div>
-      <div class="kpi"><div class="v">${fmt(sim.perKm)}</div><div class="l">Wh per km</div></div>
-      <div class="kpi"><div class="v">${hhmm(sim.secs)}</div><div class="l">driving</div></div>
       ${planWorks ? `
-      <div class="kpi"><div class="v">${hhmm(stoppedMins*60)}</div><div class="l">charging &amp; stops</div>
-        <span class="state warn">${nStops} stop${nStops===1?'':'s'}</span></div>
       <div class="kpi"><div class="v">${hhmm(doorToDoor*60)}</div><div class="l">door to door</div>
-        <span class="state ok">what it really takes</span></div>` : ''}
-      <div class="kpi"><div class="v">${fmt(sim.dist)}</div><div class="l">km</div></div>
+        <span class="state ok">what it really takes</span></div>
+      <div class="kpi"><div class="v">${hhmm(stoppedMins*60)}</div><div class="l">charging &amp; stops</div>
+        <span class="state warn">${nStops} stop${nStops===1?'':'s'}</span></div>` : ''}
+      <div class="kpi"><div class="v">${fmt(sim.used,1)}%</div><div class="l">charge used</div></div>
     </div>
+    <details class="kpimore">
+      <summary>the numbers behind it</summary>
+      <div class="kpis">
+        ${planWorks?`<div class="kpi"><div class="v">${fmt(end)}%</div><div class="l">if you never charged</div></div>`:''}
+        <div class="kpi"><div class="v">${fmt(sim.kWh,1)}</div><div class="l">kWh</div></div>
+        <div class="kpi"><div class="v">${fmt(sim.perKm)}</div><div class="l">Wh per km</div></div>
+        <div class="kpi"><div class="v">${hhmm(sim.secs)}</div><div class="l">driving</div></div>
+        <div class="kpi"><div class="v">${fmt(sim.dist)}</div><div class="l">km</div></div>
+      </div>
+    </details>
   </div>
+  ${itinerary && itinerary.stopCount ? itineraryTable(itinerary, reserve) : ''}
+  ${runDown}
+  ${stopHtml}
   <section class="panel">
     <div class="head"><h2>The map</h2><span class="tag" id="map-tag">${useGoogle()?'google maps':'openstreetmap'}</span></div>
     <div class="mapwrap" id="mapwrap">
@@ -5599,8 +5644,9 @@ function render(o){
     <div class="cta"><button class="ghost" type="button" data-go="log">Open the trip log</button></div>
   </div>` }
   ${SCRUB ? scrubPanel(reserve, (itinerary&&itinerary.stopCount)||0) : ''}
-  <section class="panel">
-    <div class="head"><h2>The road, in section</h2><span class="tag">terrain vs charge</span></div>
+  <div class="subhead"><b>Why it comes out that way</b><span>the working</span></div>
+  <section class="panel"><details open>
+    <summary class="head"><h2>The road, in section</h2><span class="tag">terrain vs charge</span></summary>
     <div class="chartwrap" id="chartwrap">${sectionChart(sim,samples,reserve,stops)}</div>
     <div class="chartnote">swipe the chart sideways for the rest of the route →</div>
     <div class="legend">
@@ -5608,23 +5654,20 @@ function render(o){
       <span><i style="border-color:var(--charge)"></i>charge remaining (%, right)</span>
       <span><i style="border-color:var(--warn);border-top-style:dashed"></i>your ${fmt(reserve)}% floor</span>
     </div>
-  </section>
-  ${itinerary && itinerary.stopCount ? itineraryTable(itinerary, reserve) : ''}
-  ${runDown}
-  ${stopHtml}
+  </details></section>
   ${routeFactors(sim, cfg, marks, samples, headMean)}
-  <section class="panel">
-    <div class="head"><h2>Energy ledger</h2><span class="tag">${fmt(sim.kWh,1)} kWh total</span></div>
+  <section class="panel"><details>
+    <summary class="head"><h2>Energy ledger</h2><span class="tag">${fmt(sim.kWh,1)} kWh total</span></summary>
     <div class="body">${ledgerTable(sim)}
       <p class="note">Regen is set to ${fmt(cfg.regen*100)}% recovery — of the energy a descent offers, that fraction reaches the battery and the rest goes to heat and friction brakes. Regen returns energy only where gravity beats drag — below roughly a 1.5% downgrade at 60 km/h a descent still costs charge. It is capped at ${fmt(cfg.regenKW)} kW, tapers off above 92% charge because a full pack cannot accept it, and fades below about 15 km/h. On this route it recovered ${fmt(Math.abs(sim.ledger.regen),2)} kWh of the ${fmt(sim.loss)} m of descent.</p>
       <p class="note">Climbing is the line you can't negotiate: ${fmt(sim.gain)} m of lift with ${fmt(sim.mass)} kg on board costs ${fmt(sim.ledger.climb,2)} kWh however you drive it. Descents give ${fmt(Math.abs(sim.ledger.regen),2)} kWh back.</p></div>
-  </section>
-  <section class="panel">
-    <div class="head"><h2>Stretch by stretch</h2><span class="tag">where it gets expensive</span></div>
+  </details></section>
+  <section class="panel"><details>
+    <summary class="head"><h2>Stretch by stretch</h2><span class="tag">where it gets expensive</span></summary>
     <div class="body">${splitTable(sim,samples)}</div>
-  </section>
-  <section class="panel">
-    <div class="head"><h2>Conditions used</h2><span class="tag">${marks.length} points along the route</span></div>
+  </details></section>
+  <section class="panel"><details>
+    <summary class="head"><h2>Conditions used</h2><span class="tag">${marks.length} points along the route</span></summary>
     <div class="body">
       <table><thead><tr><th>Point</th><th>Time there</th><th>Temp</th><th>Wind</th><th>Rain</th></tr></thead><tbody>
       ${marks.map(m=>`<tr><td>${fmt(samples[m.i].s/1000)} km</td>
@@ -5642,7 +5685,7 @@ function render(o){
         <div class="src"><b>Weather</b><span>Open-Meteo forecast</span></div>
       </div>
     </div>
-  </section>`;
+  </details></section>`;
   if(window.UI) UI.afterRender();
   /* drop the edge fade once there is nothing further to scroll to */
   const cw=$('chartwrap');

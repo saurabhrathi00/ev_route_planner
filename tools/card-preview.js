@@ -37,6 +37,11 @@ const tokens = [':root{', ':root[data-theme=dark]{', '@media (prefers-color-sche
   .map(block).join('\n');
 const cardCSS = css.slice(css.indexOf('/* The card that comes up when a pin is tapped.'),
                           css.indexOf('.mapbox{width:100%'));
+/* The panel chrome, so the running order below is shown in the real thing
+   rather than in an impression of it. */
+const chrome =
+  css.slice(css.indexOf('.panel{background:'), css.indexOf('.panel .body > :first-child'))
+  + css.slice(css.indexOf('.kpis{display:flex'), css.indexOf('/* jump chips built'));
 
 const env = loadEngine();
 const card = (c, stop) => vm.runInContext(
@@ -113,6 +118,7 @@ figcaption span{display:block;color:var(--ink2);font-size:13px;margin-top:3px;ma
 .rule{height:1px;background:var(--rule);margin:52px 0 0}
 .keybox{margin-top:34px;background:var(--sheet);border:1px solid var(--rule);
   border-radius:var(--r-l);padding:6px 4px 10px;max-width:420px}
+${chrome}
 ${cardCSS}
 /* Frozen for the page: a countdown that empties while you read is the one
    behaviour a specimen sheet should not reproduce. */
@@ -126,6 +132,26 @@ ${cardCSS}
   text-transform:uppercase;color:var(--ink3);margin:10px 0 3px}
 .mapkey .kn{margin:8px 0 0;padding-left:2px;color:var(--ink3);line-height:1.5}
 .mapkey .kn strong{color:var(--ink2)}
+.h2{font:600 20px/1.2 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.02em;margin:0 0 8px}
+.orders{display:grid;gap:26px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:26px}
+.ohead{font:500 10px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.16em;
+  text-transform:uppercase;margin:0 0 10px}
+.ohead.was{color:var(--stop)} .ohead.is{color:var(--ok)}
+.order{list-style:none;counter-reset:o;margin:0;padding:0;font-size:13.5px}
+.order li{counter-increment:o;display:flex;gap:10px;align-items:baseline;
+  padding:7px 11px;border-left:2px solid var(--rule);color:var(--ink2);background:var(--sheet)}
+.order li::before{content:counter(o);font:500 10px "IBM Plex Mono",ui-monospace,monospace;
+  color:var(--ink3);min-width:14px;font-variant-numeric:tabular-nums}
+.order li.hit{border-left-color:var(--brand-green);color:var(--ink);font-weight:600}
+.order li.fold{color:var(--ink3)}
+.order li.fold::after{content:"folded";margin-left:auto;font:500 9px "IBM Plex Mono",ui-monospace,monospace;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+.order li.warnrow{border-left-color:var(--warn)}
+.order li.grp{counter-increment:none;border-left:0;background:none;color:var(--ink3);
+  font:500 10px "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;
+  padding:14px 0 5px}
+.order li.grp::before{content:""}
+.demo{margin-top:16px;max-width:520px}
 .foot{margin-top:22px;color:var(--ink3);font-size:12.5px;max-width:62ch}
 .foot code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;color:var(--ink2)}
 </style>
@@ -148,6 +174,58 @@ ${cardCSS}
   <div class="rule"></div>
   <p class="eyebrow" style="margin-top:34px">and under the map</p>
   <div class="keybox"><div class="mapkey">${keyHTML}</div></div>
+
+  <div class="rule"></div>
+  <p class="eyebrow" style="margin-top:34px">the results page</p>
+  <h2 class="h2">What comes in what order</h2>
+  <p class="lede">Eleven panels used to open at once, every one of them ending in a table,
+  with the plan itself six down. The four that answer <em>why</em> rather than <em>what</em>
+  fold away now, and the plan comes before the map.</p>
+  <div class="orders">
+    <div>
+      <p class="ohead was">before</p>
+      <ol class="order was">
+        <li>verdict — nine numbers</li><li>the map</li>
+        <li class="warnrow">this is physics, not experience</li>
+        <li>drive it — the scrubber</li><li>the road, in section</li>
+        <li class="hit">the whole drive — the plan</li>
+        <li>where to plug in</li><li>what moved the needle</li>
+        <li>energy ledger</li><li>stretch by stretch</li><li>conditions used</li>
+      </ol>
+    </div>
+    <div>
+      <p class="ohead is">after</p>
+      <ol class="order">
+        <li>verdict — four numbers, five folded</li>
+        <li class="hit">the whole drive — the plan</li>
+        <li>where to plug in</li><li>the map</li>
+        <li class="warnrow">this is physics, not experience</li>
+        <li>drive it — the scrubber</li>
+        <li class="grp">why it comes out that way</li>
+        <li>the road, in section</li><li>what moved the needle</li>
+        <li class="fold">energy ledger</li><li class="fold">stretch by stretch</li>
+        <li class="fold">conditions used</li>
+      </ol>
+    </div>
+  </div>
+
+  <p class="eyebrow" style="margin-top:38px">and the panels themselves</p>
+  <div class="demo">
+    <div class="subhead"><b>Why it comes out that way</b><span>the working</span></div>
+    <section class="panel"><details open>
+      <summary class="head"><h2>The road, in section</h2><span class="tag">terrain vs charge</span></summary>
+      <div class="body"><p style="color:var(--ink2);font-size:13.5px;margin:0">
+        Open by default — the chart is the one piece of working worth seeing unasked.</p></div>
+    </details></section>
+    <section class="panel"><details>
+      <summary class="head"><h2>Energy ledger</h2><span class="tag">14.2 kWh total</span></summary>
+      <div class="body"></div>
+    </details></section>
+    <section class="panel"><details>
+      <summary class="head"><h2>Stretch by stretch</h2><span class="tag">where it gets expensive</span></summary>
+      <div class="body"></div>
+    </details></section>
+  </div>
 
   <p class="foot">Typefaces are the system stack here — the app loads Public Sans,
   Bricolage Grotesque and IBM Plex Mono from a font CDN, which a published page cannot
