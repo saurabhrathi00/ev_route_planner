@@ -23,10 +23,10 @@ targets:
         CFBundleShortVersionString: "2.7"
         CFBundleVersion: "1"
         UILaunchScreen: {}     # iOS 14+ : a plain background, no storyboard file needed
-        # An app that does not require full screen may be put in Split View on
-        # iPad, and iOS insists such an app accept every orientation — the build
-        # warns about it and App Store validation has been known to refuse it.
-        # Upside-down costs nothing here: the page is a scrolling document.
+        # Kept at all four even though the Split View rule that forced it was an
+        # iPad one: on iPhone iOS ignores upside-down anyway, and leaving them
+        # in place means iPad support can come back without this coming back
+        # with it.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -52,7 +52,13 @@ targets:
         MARKETING_VERSION: "2.7"
         CURRENT_PROJECT_VERSION: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        TARGETED_DEVICE_FAMILY: "1,2"     # iPhone and iPad
+        # iPhone only for the first release. iPad is not dropped work so much as
+        # deferred: declaring it means a second set of App Store screenshots and
+        # a second device for review to find fault on, before anyone has said
+        # the iPhone build is any good. Adding a device family later is routine;
+        # taking one away after people have installed it is not, which is why
+        # this is the moment to decide. It still runs on an iPad, at iPhone size.
+        TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "5.0"
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: NO
