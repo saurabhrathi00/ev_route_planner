@@ -535,6 +535,30 @@ async function main() {
   check('rounding does not move the charge curve', socErr < 0.01, `${socErr}`);
   check('rounding does not move the road', posErr < 1, `${posErr} m`);
 
+  /* The round trip above proved the data survives. It did not prove the data is
+     enough — render also read S.from and S.to, the boxes at the top of the
+     screen, which are empty when a saved plan is opened on a fresh start. So it
+     threw, inside an async click handler that swallowed it, and the row looked
+     dead. Rendering it here is the only check that would have caught that. */
+  env.PACK_IN.fromName = 'Delhi';
+  env.PACK_IN.toName   = 'Manali';
+  env.PACK_IN.marks    = env.PACK_IN.marks.map(m => ({...m, eta: new Date()}));
+  env.PACK_IN.cfg      = {...gcfg, trafficWhy: 'test'};
+  env.PACK_IN.cal      = {eta:0.774, C:0.99, learn:1, vA:60, vB:60};
+  env.PACK_IN.legs     = [{a:0, b:gs.length-1}];
+  env.PACK_IN.itinerary= {rows:[], stopCount:0, totalMins:120, real:true};
+  env.PACKED2 = evalIn('packPlan(PACK_IN, {from:"Delhi", to:"Manali", car:"Curvv",'
+                     + ' stops:0, endPct:40, form:{}})');
+  vm.runInContext('S.from = null; S.to = null;', env);      // as on a cold start
+  let drew = '', threw = null;
+  try {
+    vm.runInContext('BACK2 = unpackPlan(PACKED2); render(BACK2);', env);
+    drew = evalIn("$('out').innerHTML");
+  } catch (e) { threw = e.message; }
+  check('a saved plan renders with no form filled in', !threw, threw || '');
+  check('and it names its own endpoints', /Delhi to Manali/.test(drew),
+    (drew.match(/<div class="sub">[^<]{0,60}/) || ['nothing'])[0]);
+
   /* And the card's life on the map, which is where the first version failed:
      it rendered correctly and then could never be got rid of. Opening, closing
      and re-opening are three things a specimen of the markup cannot check. */

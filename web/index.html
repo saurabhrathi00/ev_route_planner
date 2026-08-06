@@ -2265,6 +2265,7 @@ function packPlan(o, meta){
       sim: { gain:sim.gain, loss:sim.loss, secs:sim.secs, kWh:r2(sim.kWh), used:r2(sim.used),
              endPct:r2(sim.endPct), dist:r2(sim.dist), perKm:Math.round(sim.perKm),
              ledger:sim.ledger, mass:sim.mass },
+      fromName: o.fromName, toName: o.toName,
       cfg: o.cfg, cal: o.cal, reserve: o.reserve, arriveWith: o.arriveWith,
       legs: o.legs, srcNote: o.srcNote, alias: o.alias,
       itinerary: o.itinerary, stopsRaw: (o.stops||[]).map(x=>({...x, list:undefined})),
@@ -2281,7 +2282,8 @@ function unpackPlan(p){
                               temp:x[1], wind:x[2], wdir:x[3], rain:x[4],
                               eta:x[5]!=null ? new Date(x[5]) : null }));
   const sim = { ...d.sim, socTrace:d.soc, timeTrace:d.t, sm:d.sm };
-  return { sim, samples, marks, cfg:d.cfg, cal:d.cal, reserve:d.reserve,
+  return { fromName:d.fromName || p.from, toName:d.toName || p.to,
+           sim, samples, marks, cfg:d.cfg, cal:d.cal, reserve:d.reserve,
            arriveWith:d.arriveWith, legs:d.legs, srcNote:d.srcNote, alias:d.alias,
            itinerary:d.itinerary, stops:d.stopsRaw,
            reserveHit:d.reserveHit, emptyHit:d.emptyHit };
@@ -5750,7 +5752,14 @@ function render(o){
     : end<reserve+8 ? `You can make it — arriving at <strong>${fmt(end)}%</strong>, close to your ${fmt(reserve)}% floor.`
     : `You'll get there with <strong>${fmt(end)}%</strong> left. No charging stop needed.`;
 
-  const sub=`${S.from.name.split(',')[0]} to ${S.to.name.split(',')[0]}, ${fmt(sim.dist)} km with ${fmt(sim.gain)} m of climbing and ${fmt(sim.loss)} m of descent. `
+  /* Where this plan went, from the plan — not from the boxes at the top of the
+     screen. They are the same thing while a plan is being made and nothing at
+     all when a saved one is opened, which is how opening one threw and left the
+     tap looking dead. */
+  const endName = who => (who && who.name ? who.name.split(',')[0] : '');
+  const fromName = o.fromName || endName(S.from) || 'the start';
+  const toName   = o.toName   || endName(S.to)   || 'the destination';
+  const sub=`${fromName} to ${toName}, ${fmt(sim.dist)} km with ${fmt(sim.gain)} m of climbing and ${fmt(sim.loss)} m of descent. `
     +(cfg.soh<99?`Pack treated as ${fmt(cfg.soh)}% healthy, so ${fmt(cfg.cap,1)} kWh usable. `:'')
     +`Air around ${fmt(avgT)} °C, `
     +(Math.abs(headMean)<3?'wind barely a factor.':headMean>0?`a headwind averaging ${fmt(headMean)} km/h.`:`a tailwind averaging ${fmt(-headMean)} km/h.`)
@@ -6152,7 +6161,9 @@ async function plan(e){
 
     SRC_USED.ran = true;          // Settings may now name what was reached
     const itinerary = await buildItinerary(sim, samples, cfg, reserve, startPct, stops, arriveWith);
-    const payload = {sim,cal,cfg,samples,marks,reserve,arriveWith,stops,srcNote,alias,legs,reserveHit,emptyHit,itinerary};
+    const payload = {sim,cal,cfg,samples,marks,reserve,arriveWith,stops,srcNote,alias,legs,reserveHit,emptyHit,itinerary,
+                     fromName:(S.from&&S.from.name||'').split(',')[0],
+                     toName:(S.to&&S.to.name||'').split(',')[0]};
     render(payload);
 
     /* Kept after the plan is drawn, not before: a plan that threw is not a plan
@@ -6163,15 +6174,20 @@ async function plan(e){
        'sampling','traffic','cap','kerb','cdA','dckw'].forEach(id=>{
         const e=$(id); if(e) fields[id]=e.value;
       });
-      PLANS.unshift(packPlan(payload, {
+      const entry = packPlan(payload, {
         from: $('from').value.trim(), to: $('to').value.trim(),
         car: ($('carpick').selectedOptions[0]||{}).textContent || '',
         stops: (itinerary && itinerary.stopCount) || 0,
         endPct: itinerary && itinerary.rows.length
                 ? itinerary.rows[itinerary.rows.length-1].arrive : sim.endPct,
         form: { fields, from:S.from, to:S.to, car:$('carpick').value },
-      }));
-      PLANS = PLANS.slice(0, PLAN_KEEP);
+      });
+      /* The same drive planned again is the same row, brought up to date.
+         Otherwise pressing ↻ left the old answer sitting underneath the new
+         one, identical but for a timestamp, and ten of those is a list of
+         one journey. */
+      const same = x => x.from === entry.from && x.to === entry.to && x.car === entry.car;
+      PLANS = [entry, ...PLANS.filter(x => !same(x))].slice(0, PLAN_KEEP);
       await savePlans(); renderPlans();
     }catch(err){ /* a plan that cannot be saved is still a plan */ }
     const fineBtn=$('btn-fine');
