@@ -23,16 +23,22 @@
    ============================================================ */
 :root{
   --paper:#F1F4F2; --sheet:#FFFFFF; --raise:#FFFFFF;
-  --ink:#15201C; --ink2:#5C6B65; --ink3:#909C96;
+  /* ink3 carries most of the small print on the page — the mono captions, the
+     kpi labels, the tags, the inactive tabs. It was #909C96, which is 2.84:1 on
+     white: below even the 3:1 allowed for large text, at 10 and 11 pixels. */
+  --ink:#15201C; --ink2:#5C6B65; --ink3:#66726C;
   --rule:#DDE4E0; --rule2:#E9EEEB;
   --terrain:#9AA391; --terrain-dk:#6E7868;
   --charge:#1C5C86; --charge-soft:#E8F1F7;
-  --warn:#B87613; --stop:#9E2F28; --ok:#2E6B4F;
+  --warn:#9C6006; --stop:#9E2F28; --ok:#2E6B4F;
   --grid:rgba(20,32,28,.035);
   --shadow-1:0 1px 2px rgba(20,40,32,.05), 0 1px 3px rgba(20,40,32,.04);
   --shadow-2:0 2px 8px -2px rgba(20,40,32,.09), 0 12px 26px -18px rgba(20,40,32,.30);
   --shadow-3:0 10px 24px -10px rgba(20,40,32,.14), 0 34px 60px -40px rgba(20,40,32,.42);
-  --brand-green:#3EA845; --brand-blue:#2C7FC4;
+  /* White on #3EA845 was 3.05:1 — and that pair is the Plan button and the
+     numbered chip on every card head, which is as central as a control gets.
+     Deeper by a third, same hue: 4.6:1, and the page still reads green. */
+  --brand-green:#1D8724; --brand-blue:#26699F;
   --r-s:8px; --r-m:12px; --r-l:18px; --r-xl:26px;
   --e-out:cubic-bezier(.22,.85,.24,1);
   --e-spring:cubic-bezier(.34,1.4,.5,1);
@@ -41,7 +47,7 @@
 }
 :root[data-theme=dark]{
   --paper:#0F1413; --sheet:#171D1B; --raise:#1E2523;
-  --ink:#E7EDE8; --ink2:#9DA9A3; --ink3:#6C7973;
+  --ink:#E7EDE8; --ink2:#9DA9A3; --ink3:#798680;
   --rule:#2C3532; --rule2:#222A27;
   --terrain:#7F8C7C; --terrain-dk:#A9B7A4;
   --charge:#6DB4E4; --charge-soft:#13242E;
@@ -56,7 +62,7 @@
 @media (prefers-color-scheme:dark){
   :root:not([data-theme=light]){
     --paper:#0F1413; --sheet:#171D1B; --raise:#1E2523;
-    --ink:#E7EDE8; --ink2:#9DA9A3; --ink3:#6C7973;
+    --ink:#E7EDE8; --ink2:#9DA9A3; --ink3:#798680;
     --rule:#2C3532; --rule2:#222A27;
     --terrain:#7F8C7C; --terrain-dk:#A9B7A4;
     --charge:#6DB4E4; --charge-soft:#13242E;
@@ -209,9 +215,11 @@ a{color:var(--charge)}
 .hwhere em{font-style:normal;color:var(--ink3);padding:0 3px}
 .hmeta{display:block;font:11px/1.5 "IBM Plex Mono",monospace;color:var(--ink3);margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hagain,.hdel{flex:none;width:34px;border:0;background:none;cursor:pointer;
-  color:var(--ink3);font-size:16px;line-height:1;border-radius:var(--r-s);
+.hagain,.hdel{flex:none;width:34px;min-height:44px;border:0;background:none;cursor:pointer;
+  color:var(--ink3);font-size:16px;line-height:1;border-radius:var(--r-s);position:relative;
   transition:background var(--t1),color var(--t1)}
+.hagain::after,.hdel::after{content:"";position:absolute;left:50%;top:50%;
+  width:44px;height:44px;transform:translate(-50%,-50%)}
 .hagain:hover{background:var(--rule2);color:var(--charge)}
 .hdel:hover{background:var(--rule2);color:var(--stop)}
 .hagain:focus-visible,.hdel:focus-visible,.hopen:focus-visible{outline:2px solid var(--brand-green);outline-offset:-2px}
@@ -245,7 +253,7 @@ select{
   background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238C948E' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 11px center;background-size:16px;
 }
-input:focus,select:focus{outline:0;border-color:var(--brand-green);box-shadow:0 0 0 3px rgba(62,168,69,.18)}
+input:focus,select:focus{outline:0;border-color:var(--brand-green);box-shadow:0 0 0 3px rgba(29,135,36,.20)}
 input:focus,select:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-green) 18%,transparent)}
 button:focus-visible,[role=tab]:focus-visible{outline:2px solid var(--charge);outline-offset:2px}
 input::placeholder{color:var(--ink3)}
@@ -582,7 +590,9 @@ input.has-two{padding-right:124px}         /* clear + pin + crosshair */
 .chgpop .ttl{font:600 14.5px/1.3 "Public Sans",sans-serif;color:var(--ink);
   overflow-wrap:anywhere}
 .chgpop .sub{font:11px/1.5 "IBM Plex Mono",monospace;color:var(--ink3);margin-top:3px}
-.chgpop .x{flex:none;width:26px;height:26px;margin:-3px -3px 0 0;padding:0;border:0;background:none;
+.chgpop .x::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:44px;
+  transform:translate(-50%,-50%)}
+.chgpop .x{position:relative;flex:none;width:26px;height:26px;margin:-3px -3px 0 0;padding:0;border:0;background:none;
   color:var(--ink3);font-size:18px;line-height:1;cursor:pointer;border-radius:var(--r-s);
   transition:background var(--t1),color var(--t1)}
 .chgpop .x:hover{background:var(--rule2);color:var(--ink)}
@@ -1073,9 +1083,21 @@ details[open] summary::before{transform:rotate(90deg)}
 .src span{font-size:13.5px}
 .trip-row{display:grid;grid-template-columns:1fr auto auto auto auto;gap:10px;align-items:center;
   padding:10px 0;border-bottom:1px solid var(--rule2);font-size:13px}
+/* A tap target reaches out past what it draws.
+
+   The delete crosses, the re-plan arrow and the card's close were 26 to 34
+   pixels — small enough to look right and too small to hit on a phone at arm's
+   length in a car park. The mark stays the size it was; the area that answers
+   a finger is 44, which is the size a finger actually is. */
+.hit44{position:relative}
+.hit44::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:44px;
+  transform:translate(-50%,-50%)}
+
 .tdel{width:28px;height:28px;border:0;background:none;cursor:pointer;color:var(--ink3);
-  font-size:16px;line-height:1;border-radius:var(--r-s);
+  font-size:16px;line-height:1;border-radius:var(--r-s);position:relative;
   transition:background var(--t1),color var(--t1)}
+.tdel::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:44px;
+  transform:translate(-50%,-50%)}
 .tdel:hover{background:var(--rule2);color:var(--stop)}
 .tdel:focus-visible{outline:2px solid var(--brand-green);outline-offset:-2px}
 .err-box{border:1px solid var(--stop);border-left:5px solid var(--stop);background:var(--sheet);
@@ -1502,13 +1524,13 @@ details[open] summary::before{transform:rotate(90deg)}
               </select>
             </label>
             <label class="f"><span>Charging strategy</span>
-              <div class="seg" id="strat-toggle" style="--n:2;--i:0">
+              <div class="seg" role="group" aria-label="Charging strategy" id="strat-toggle" style="--n:2;--i:0">
                 <button type="button" data-v="time" aria-pressed="true">Least time</button>
                 <button type="button" data-v="stops" aria-pressed="false">Fewest stops</button>
               </div>
             </label>
             <label class="f"><span>Chargers</span>
-              <div class="seg" id="chg-toggle" style="--n:2;--i:1">
+              <div class="seg" role="group" aria-label="Charger search" id="chg-toggle" style="--n:2;--i:1">
                 <button type="button" data-v="1" aria-pressed="false">Find them</button>
                 <button type="button" data-v="0" aria-pressed="true">Skip</button>
               </div>
@@ -1775,7 +1797,7 @@ details[open] summary::before{transform:rotate(90deg)}
               Show the intro again</button>
           </div>
           <label class="f"><span>Theme</span>
-            <div class="seg" id="theme-toggle" style="--n:3;--i:0">
+            <div class="seg" role="group" aria-label="Theme" id="theme-toggle" style="--n:3;--i:0">
               <button type="button" data-v="auto" aria-pressed="true">Auto</button>
               <button type="button" data-v="light" aria-pressed="false">Light</button>
               <button type="button" data-v="dark" aria-pressed="false">Dark</button>
@@ -1785,10 +1807,10 @@ details[open] summary::before{transform:rotate(90deg)}
       </section>
 
       <section class="card reveal" style="--i:2">
-        <div class="head"><h2>Where data comes from</h2><span class="tag">google or free</span></div>
+        <div class="head"><h2>Data sources</h2><span class="tag">google or free</span></div>
         <div class="body">
           <label class="f"><span>Best available data</span>
-            <div class="seg" id="gsrc-toggle" style="--n:2;--i:0">
+            <div class="seg" role="group" aria-label="Best available data" id="gsrc-toggle" style="--n:2;--i:0">
               <button type="button" data-v="all" aria-pressed="true">On</button>
               <button type="button" data-v="free" aria-pressed="false">Off</button>
             </div>
@@ -1832,7 +1854,9 @@ details[open] summary::before{transform:rotate(90deg)}
       </section>
 
 
-      <div class="reveal" style="--i:3">
+      <section class="card reveal" style="--i:3">
+        <div class="head"><h2>Under the bonnet</h2><span class="tag">where the figures come from</span></div>
+        <div class="body">
         <div class="acc" data-open="false" id="acc-cars">
           <button type="button">Where each car's figures come from
             <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -1872,8 +1896,9 @@ details[open] summary::before{transform:rotate(90deg)}
             <div id="calout" class="note"></div>
           </div></div></div>
         </div>
-      </div>
-    
+        </div>
+      </section>
+
       <!-- This card used to name five services and a build number, all of them
            typed in by hand. The build said 2026-08-01 r22 — five days and nine
            releases out of date, in a scheme nothing else uses. Worse, the
@@ -1887,7 +1912,7 @@ details[open] summary::before{transform:rotate(90deg)}
            resolved to is filled in below after a plan runs, and says "not used
            yet" until then. -->
       <section class="card reveal" style="--i:4">
-        <div class="head"><h2>Where the data comes from</h2><span class="tag">no accounts, no card</span></div>
+        <div class="head"><h2>What this build reached</h2><span class="tag">no accounts, no card</span></div>
         <div class="body">
           <div class="sources">
             <div class="src"><b>Places</b><span id="ss-places">not used yet</span></div>
@@ -6294,7 +6319,8 @@ function renderTrips(){
     return `<div class="trip-row"><span>${new Date(t.at).toLocaleDateString()} · ${fmt(t.d,0)} km${t.h?` · +${fmt(t.h)} m`:''}</span>
       <span class="mono">pred ${fmt(t.pred,1)}%</span><span class="mono">real ${fmt(t.actual,1)}%</span>
       <span class="mono" style="color:${Math.abs(err)<6?'var(--ok)':'var(--warn)'}">${err>0?'+':''}${fmt(err,1)}%</span>
-      <button type="button" class="tdel" data-i="${i}" title="Delete this trip" aria-label="Delete">×</button></div>`;
+      <button type="button" class="tdel" data-i="${i}" title="Delete this trip"
+        aria-label="Delete the ${fmt(t.d,0)} km drive logged on ${new Date(t.at).toLocaleDateString()}">×</button></div>`;
   }).join('');
   $('t_list').innerHTML=rs+`<div class="cta" style="margin-top:12px">
       <button class="ghost" type="button" id="t_clear">Delete all</button></div>`
@@ -6426,8 +6452,11 @@ function planRow(p, i){
       <span class="hmeta">${dstr} · ${esc(p.car||'')} · ${fmt(p.km)} km ·
         ${p.stops} stop${p.stops===1?'':'s'} · arrive ${fmt(p.endPct)}%</span>
     </button>
-    <button type="button" class="hagain" data-i="${i}" title="Plan it again with today's chargers">↻</button>
-    <button type="button" class="hdel" data-i="${i}" title="Delete this plan" aria-label="Delete">×</button>
+    <button type="button" class="hagain" data-i="${i}"
+      title="Plan it again with today's chargers"
+      aria-label="Plan ${esc(p.from)} to ${esc(p.to)} again with today's chargers">↻</button>
+    <button type="button" class="hdel" data-i="${i}" title="Delete this plan"
+      aria-label="Delete the plan from ${esc(p.from)} to ${esc(p.to)}">×</button>
   </div>`;
 }
 

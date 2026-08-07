@@ -603,6 +603,55 @@ async function main() {
 
   const src = fs.readFileSync(SRC, 'utf8');
 
+  /* Contrast, computed from the stylesheet rather than eyeballed.
+
+     ink3 carries most of the small print — mono captions, kpi labels, tags,
+     inactive tabs — and was 2.84:1 on white, under even the 3:1 allowed for
+     large text, at ten and eleven pixels. White on the brand green was 3.05,
+     and that pair is the Plan button and the numbered chip on every card head.
+     Neither was visible to anyone reading the code; both are arithmetic. */
+  console.log('\n  contrast');
+  console.log('  ' + '-'.repeat(55));
+  const lum = h => {
+    const c = [1,3,5].map(i => parseInt(h.substr(i,2),16)/255)
+      .map(x => x <= 0.03928 ? x/12.92 : Math.pow((x+0.055)/1.055, 2.4));
+    return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2];
+  };
+  const contrast = (a,b) => { const x = lum(a), y = lum(b);
+    return (Math.max(x,y)+0.05) / (Math.min(x,y)+0.05); };
+
+  const themeBlock = (start) => {
+    const i = src.indexOf(start); const j = src.indexOf('}', i);
+    const out = {};
+    for (const m of src.slice(i, j).matchAll(/--([a-z0-9-]+):\s*(#[0-9A-Fa-f]{6})/g))
+      out[m[1]] = m[2];
+    return out;
+  };
+  const themes = { light: themeBlock(':root{'), dark: themeBlock(':root[data-theme=dark]{') };
+
+  /* Small print is small print in both themes, so 4.5 applies to all of it. */
+  for (const [name, t] of Object.entries(themes)) {
+    for (const ground of ['sheet','paper']) {
+      for (const fg of ['ink','ink2','ink3']) {
+        const r = contrast(t[fg], t[ground]);
+        check(`${name}: ${fg} on ${ground} is readable`, r >= 4.5,
+          `${t[fg]} on ${t[ground]} is ${r.toFixed(2)}:1`);
+      }
+    }
+    const warn = contrast(t.warn, t.sheet);
+    check(`${name}: a warning is readable`, warn >= 4.5,
+      `${t.warn} is ${warn.toFixed(2)}:1`);
+  }
+
+  /* The filled buttons: white on green in light, near-black on green in dark. */
+  const btnLight = contrast('#FFFFFF', themes.light['brand-green']);
+  const btnDark  = contrast('#08120E', themes.dark['brand-green']);
+  console.log(`  the Plan button reads ${btnLight.toFixed(2)}:1 light, ${btnDark.toFixed(2)}:1 dark`);
+  check('the Plan button carries its label in light', btnLight >= 4.5, `${btnLight.toFixed(2)}`);
+  check('the Plan button carries its label in dark',  btnDark  >= 4.5, `${btnDark.toFixed(2)}`);
+  const hover = contrast('#FFFFFF', themes.light['brand-blue']);
+  check('and still does when hovered', hover >= 4.5, `${hover.toFixed(2)}`);
+
   /* The sheet has to survive being killed. It did not: whatever car you chose,
      the app came back a Tata Curvv with factory figures — which is a strange
      thing for an app whose whole premise is that it knows your car. Hand-edited
@@ -650,6 +699,32 @@ async function main() {
   check('the floor default is 15', num('reserve') === '15', num('reserve'));
   check('the arrival default is 35', num('arrive') === '35', num('arrive'));
   check('the margin default is 5', num('margin') === '5', num('margin'));
+
+  /* Two things that are invisible in a screenshot and obvious to a finger or a
+     screen reader. Both were wrong in ways nobody reading the code would see. */
+  const symbolOnly = [...src.matchAll(/<(button|a)\b([^>]*)>([\s\S]*?)<\/\1>/g)]
+    .filter(m => {
+      const text = m[3].replace(/<[^>]+>/g, '').trim();
+      /* A symbol is not a name. Words are — "On" reads fine once the group it
+         sits in has a label, which is the separate check below. */
+      return text && !/[a-z0-9]/i.test(text) && !/aria-label=/.test(m[2]);
+    });
+  check('every icon-only control says what it is',
+    symbolOnly.length === 0,
+    symbolOnly.map(m => m[3].trim()).join(' '));
+
+  /* And a segmented On/Off announces what it is switching. */
+  const segs = [...src.matchAll(/<div class="seg"([^>]*)id="([^"]+)"/g)];
+  const unnamed = segs.filter(m => !/aria-label=/.test(m[1])).map(m => m[2]);
+  check('every segmented control names what it switches', unnamed.length === 0,
+    unnamed.join(', '));
+
+  /* 44 px is roughly a fingertip. The delete crosses drew at 26 to 34, which
+     looks right and misses on a phone, so each grew a reach past its mark. */
+  for (const cls of ['tdel', 'hdel', 'chgpop .x']) {
+    const re = new RegExp(`\\.${cls.replace(' ', '\\s')}::after\\{[^}]*width:44px[^}]*height:44px`);
+    check(`the ${cls.replace('chgpop .x','card close')} reaches a fingertip`, re.test(src), 'still its own size');
+  }
 
   /* The tab list and the views have to agree, or a tab switches to nothing. */
   const tabs = (src.match(/const TABS = \[([^\]]+)\]/)||[])[1] || '';
