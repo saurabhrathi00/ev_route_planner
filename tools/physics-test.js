@@ -98,7 +98,19 @@ function loadEngine() {
   const sandbox = {
     document, console,
     window: { matchMedia: () => ({ matches:false, addEventListener(){} }), addEventListener(){} },
-    localStorage: { getItem: () => null, setItem(){}, removeItem(){}, length:0 },
+    /* A store that remembers. It used to answer null to everything, which made
+       every persistence bug invisible here — including the one where the app
+       forgot which car you drive the moment it was killed. */
+    localStorage: (() => {
+      const m = new Map();
+      return {
+        getItem: k => (m.has(k) ? m.get(k) : null),
+        setItem: (k, v) => { m.set(k, String(v)); },
+        removeItem: k => { m.delete(k); },
+        key: i => [...m.keys()][i],
+        get length(){ return m.size; },
+      };
+    })(),
     navigator: { geolocation: null },
     setTimeout, clearTimeout, setInterval, clearInterval, fetch: () => Promise.reject(new Error('offline')),
     Math, Date, JSON, Promise, Object, Array, String, Number, Boolean, Error, Map, Set, isFinite, parseFloat, parseInt,
@@ -589,8 +601,57 @@ async function main() {
   check('the stop it chose is still named', /Statiq/.test(drew3), 'the stop is gone');
   check('and the alternatives came back with it', /backup/.test(drew3), 'no backups kept');
 
-  /* The tab list and the views have to agree, or a tab switches to nothing. */
   const src = fs.readFileSync(SRC, 'utf8');
+
+  /* The sheet has to survive being killed. It did not: whatever car you chose,
+     the app came back a Tata Curvv with factory figures — which is a strange
+     thing for an app whose whole premise is that it knows your car. Hand-edited
+     specs went with it, and those are the ones nobody wants to type twice. */
+  console.log('\n  the sheet between runs');
+  console.log('  ' + '-'.repeat(55));
+  const field = (id, v) => vm.runInContext(`$('${id}').value = ${JSON.stringify(v)}`, env);
+  const read  = id => vm.runInContext(`$('${id}').value`, env);
+
+  field('carpick','be6'); vm.runInContext('applyCar()', env);
+  field('cap','71.5'); field('carname','BE 6, mine');   // as if edited by hand
+  field('reserve','15'); field('arrive','35'); field('margin','5');
+  await vm.runInContext('saveSheet()', env);
+
+  /* everything back to how a fresh install looks */
+  ['carpick','cap','carname','reserve','arrive','margin'].forEach(id=>field(id,''));
+  field('carpick','curvv55'); vm.runInContext('applyCar()', env);
+  check('the fixture really was reset', read('cap') !== '71.5', read('cap'));
+
+  const found = await vm.runInContext('loadSheet()', env);
+  check('a saved sheet is found on start-up', found === true, `${found}`);
+  check('the car comes back', read('carpick') === 'be6', read('carpick'));
+  check('a hand-edited capacity comes back', read('cap') === '71.5', read('cap'));
+  check('a hand-edited name comes back', read('carname') === 'BE 6, mine', read('carname'));
+  check('the floor and the arrival come back',
+    read('reserve') === '15' && read('arrive') === '35', `${read('reserve')}/${read('arrive')}`);
+  check('and the sliders follow their boxes',
+    read('reserve_r') === '15' && read('arrive_r') === '35',
+    `${read('reserve_r')}/${read('arrive_r')}`);
+
+  /* And that it is called on the way in. The check above passes on a build
+     where loadSheet is perfect and never runs, which is precisely the build
+     that forgets your car — so the wiring is asserted separately from the
+     function, source-level, because start-up is outside the sandbox. */
+  check('the sheet is restored at start-up', /await loadSheet\(\)/.test(src), 'never called');
+  check('and saved when a field changes',
+    /addEventListener\('change', saveSheet\)/.test(src), 'nothing saves it');
+  check('and when the car is changed', /paintCarSources\(\); saveSheet\(\)/.test(src),
+    'the car picker does not save');
+
+  /* The defaults a fresh install starts from, which are not the same question. */
+  const num = id => (src.match(new RegExp(`id="${id}" value="([^"]+)"`)) || [])[1];
+  console.log(`  fresh install starts at floor ${num('reserve')}%,`
+            + ` arrive ${num('arrive')}%, margin ${num('margin')}%`);
+  check('the floor default is 15', num('reserve') === '15', num('reserve'));
+  check('the arrival default is 35', num('arrive') === '35', num('arrive'));
+  check('the margin default is 5', num('margin') === '5', num('margin'));
+
+  /* The tab list and the views have to agree, or a tab switches to nothing. */
   const tabs = (src.match(/const TABS = \[([^\]]+)\]/)||[])[1] || '';
   const names = tabs.split(',').map(t => t.trim().replace(/'/g, '')).filter(Boolean);
   const noView = names.filter(n => !src.includes(`id="v-${n}"`));

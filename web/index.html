@@ -1071,8 +1071,13 @@ details[open] summary::before{transform:rotate(90deg)}
 .src{background:var(--sheet);padding:12px 13px;flex:1 1 170px;min-width:170px}
 .src b{display:block;font:500 10px "IBM Plex Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
 .src span{font-size:13.5px}
-.trip-row{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;
+.trip-row{display:grid;grid-template-columns:1fr auto auto auto auto;gap:10px;align-items:center;
   padding:10px 0;border-bottom:1px solid var(--rule2);font-size:13px}
+.tdel{width:28px;height:28px;border:0;background:none;cursor:pointer;color:var(--ink3);
+  font-size:16px;line-height:1;border-radius:var(--r-s);
+  transition:background var(--t1),color var(--t1)}
+.tdel:hover{background:var(--rule2);color:var(--stop)}
+.tdel:focus-visible{outline:2px solid var(--brand-green);outline-offset:-2px}
 .err-box{border:1px solid var(--stop);border-left:5px solid var(--stop);background:var(--sheet);
   padding:14px 16px;margin-bottom:16px;font-size:14px;border-radius:var(--r-m)}
 .log{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink2);white-space:pre-wrap}
@@ -1458,16 +1463,16 @@ details[open] summary::before{transform:rotate(90deg)}
             </label>
             <label class="f"><span>Safety floor (%)</span>
               <div class="slider">
-                <input type="range" id="reserve_r" min="2" max="60" value="20" aria-label="Safety floor percent">
-                <input type="number" id="reserve" value="20" min="2" max="60">
+                <input type="range" id="reserve_r" min="2" max="60" value="15" aria-label="Safety floor percent">
+                <input type="number" id="reserve" value="15" min="2" max="60">
               </div>
             </label>
           </div>
           <div class="grid" style="margin-top:16px">
             <label class="f"><span>Arrive with (%)</span>
               <div class="slider">
-                <input type="range" id="arrive_r" min="2" max="90" value="20" aria-label="Charge on arrival percent">
-                <input type="number" id="arrive" value="20" min="2" max="90">
+                <input type="range" id="arrive_r" min="2" max="90" value="35" aria-label="Charge on arrival percent">
+                <input type="number" id="arrive" value="35" min="2" max="90">
               </div>
             </label>
           </div>
@@ -1475,9 +1480,9 @@ details[open] summary::before{transform:rotate(90deg)}
           <div class="grid" style="margin-top:16px">
             <label class="f"><span>Safety margin (%)</span>
               <div class="slider">
-                <input type="range" id="margin_r" min="0" max="25" step="1" value="8"
+                <input type="range" id="margin_r" min="0" max="25" step="1" value="5"
                        aria-label="Safety margin percent">
-                <input type="number" id="margin" value="8" min="0" max="25" step="any">
+                <input type="number" id="margin" value="5" min="0" max="25" step="any">
               </div>
               <p class="hint" id="margin-note"></p>
             </label>
@@ -2197,6 +2202,38 @@ function applyCar(){
   $('carname').value=c.name; $('cap').value=c.cap;
   $('kerb').value=c.kerb; $('cdA').value=c.cdA; $('dckw').value=c.dckw;
   carK = c.k || K_DEFAULT;
+}
+
+/* The car, and the sheet around it, kept between runs.
+
+   Nothing was. Kill the app and it came back a Tata Curvv with the factory
+   settings, whatever you had told it — which is a strange thing for an app
+   whose entire premise is that it knows *your* car. Hand-edited figures went
+   with it, and those are the ones nobody wants to type twice.
+
+   The stock specs are saved as well as the key, because a car edited into
+   `custom` has no key to look them up by. */
+const SHEET_FIELDS = ['carname','cap','kerb','cdA','dckw','soc0','reserve','arrive','margin',
+                      'style','acpct','soh','people','bags','sampling','traffic'];
+
+async function saveSheet(){
+  const f = {};
+  SHEET_FIELDS.forEach(id=>{ const e=$(id); if(e) f[id]=e.value; });
+  await sset('sheet', { car:$('carpick').value, carK, f });
+}
+
+async function loadSheet(){
+  const v = await sget('sheet');
+  if(!v) return false;
+  if(v.car){ $('carpick').value = v.car; applyCar(); }   // stock specs first
+  /* then whatever was actually in the boxes, which for a custom car is the
+     only place those numbers exist */
+  Object.entries(v.f||{}).forEach(([id,val])=>{ const e=$(id); if(e && val!=='') e.value=val; });
+  if(typeof v.carK === 'number') carK = v.carK;
+  ['reserve','arrive','margin','soc0','acpct'].forEach(id=>{
+    const r=$(id+'_r'); if(r) r.value=$(id).value;       // sliders follow their box
+  });
+  return true;
 }
 
 function refreshReference(){
@@ -5902,9 +5939,6 @@ function render(o){
       </div>
     </details>
   </div>
-  ${itinerary && itinerary.stopCount ? itineraryTable(itinerary, reserve) : ''}
-  ${runDown}
-  ${stopHtml}
   <section class="panel">
     <div class="head"><h2>The map</h2><span class="tag" id="map-tag">${useGoogle()?'google maps':'openstreetmap'}</span></div>
     <div class="mapwrap" id="mapwrap">
@@ -5933,6 +5967,9 @@ function render(o){
     <div class="legend"><span id="map-note">Loading…</span></div>
     <div class="mapkey" id="map-key"></div>
   </section>
+  ${itinerary && itinerary.stopCount ? itineraryTable(itinerary, reserve) : ''}
+  ${runDown}
+  ${stopHtml}
   ${S.trips.length ? '' : `
   <div class="verdict warn" style="border-left-color:var(--warn)">
     <div class="lede" style="font-size:clamp(17px,3.4vw,21px)">This is physics, not experience</div>
@@ -6249,13 +6286,19 @@ async function plan(e){
    ============================================================ */
 function renderTrips(){
   if(!S.trips.length){ $('t_list').innerHTML='<p class="hint">No trips logged yet.</p>'; return; }
-  const rs=S.trips.slice(-8).reverse().map(t=>{
+  /* Entries carry the index they sit at, because the list is the last eight
+     reversed and a row's position on screen is not its position in the log.
+     Deleting by what you can see would have removed a different drive. */
+  const rs=S.trips.map((t,i)=>({t,i})).slice(-8).reverse().map(({t,i})=>{
     const err=(t.actual/t.pred-1)*100;
     return `<div class="trip-row"><span>${new Date(t.at).toLocaleDateString()} · ${fmt(t.d,0)} km${t.h?` · +${fmt(t.h)} m`:''}</span>
       <span class="mono">pred ${fmt(t.pred,1)}%</span><span class="mono">real ${fmt(t.actual,1)}%</span>
-      <span class="mono" style="color:${Math.abs(err)<6?'var(--ok)':'var(--warn)'}">${err>0?'+':''}${fmt(err,1)}%</span></div>`;
+      <span class="mono" style="color:${Math.abs(err)<6?'var(--ok)':'var(--warn)'}">${err>0?'+':''}${fmt(err,1)}%</span>
+      <button type="button" class="tdel" data-i="${i}" title="Delete this trip" aria-label="Delete">×</button></div>`;
   }).join('');
-  $('t_list').innerHTML=rs+`<p class="note">Correction applied to every prediction: <strong class="mono">×${fmt(S.learn,3)}</strong>. ${S.learn>1.02?'You use more than the physics alone suggests.':S.learn<0.98?'You get more from the battery than the physics alone suggests.':'The model matches your driving closely.'}</p>`;
+  $('t_list').innerHTML=rs+`<div class="cta" style="margin-top:12px">
+      <button class="ghost" type="button" id="t_clear">Delete all</button></div>`
+    +`<p class="note">Correction applied to every prediction: <strong class="mono">×${fmt(S.learn,3)}</strong>. ${S.learn>1.02?'You use more than the physics alone suggests.':S.learn<0.98?'You get more from the battery than the physics alone suggests.':'The model matches your driving closely.'}</p>`;
 }
 function relearn(){
   if(!S.trips.length){ S.learn=1; return; }
@@ -6429,6 +6472,24 @@ function replanSaved(i){
   plan({preventDefault(){}});
 }
 
+/* A logged drive is what the model learns from, so removing one has to
+   re-learn as well as redraw — a wrong entry left in the correction is worse
+   than no entry at all, which is the reason to be able to remove it. */
+document.addEventListener('click', async e=>{
+  const b = e.target.closest('.tdel, #t_clear'); if(!b) return;
+  e.preventDefault();
+  if(b.id === 't_clear'){
+    if(!S.trips.length) return;
+    if(!confirm(`Delete all ${S.trips.length} logged trips? The model goes back to physics alone.`)) return;
+    S.trips = [];
+  }else{
+    S.trips.splice(+b.dataset.i, 1);
+  }
+  await sset('trips', S.trips);
+  relearn(); renderTrips();
+  if(window.UI) UI.toast(b.id === 't_clear' ? 'Trip log cleared' : 'Trip removed');
+});
+
 document.addEventListener('click', async e=>{
   const b = e.target.closest('#hist-list button, #hist-clear'); if(!b) return;
   e.preventDefault();
@@ -6458,7 +6519,11 @@ function sampNote(){
     : `Fine enough to catch individual ghat hairpins. Terrain comes from map tiles, which are priced by the ground the route covers rather than by how closely it is read — so this costs no more network than a coarse setting, only a little more work on the phone.`;
 }
 $('sampling').addEventListener('change',sampNote);
-$('carpick').addEventListener('change',()=>{ applyCar(); refreshReference(); calibrate(); paintCarSources(); });
+$('carpick').addEventListener('change',()=>{ applyCar(); refreshReference(); calibrate(); paintCarSources(); saveSheet(); });
+SHEET_FIELDS.forEach(id=>{
+  const e=$(id); if(!e) return;
+  e.addEventListener('change', saveSheet);
+});
 // the reference trips depend on the car's specs and on how it is driven
 ['cap','kerb','cdA','crr'].forEach(id=>
   $(id).addEventListener('input',()=>{ refreshReference(); calibrate(); }));
@@ -7013,6 +7078,7 @@ $('t_add').addEventListener('click',async()=>{
   bs.forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===gSrcMode)));
   seg.style.setProperty('--i', String(Math.max(0, bs.findIndex(b=>b.dataset.v===gSrcMode))));
   applyCar();
+  await loadSheet();          // the car and the sheet as they were left
   await loadPlans(); renderPlans();
   relearn(); renderTrips(); sampNote(); fitAnchor(); markReference();
   departBounds(); departNote(); acNote(); sohNote(); marginNote(); reserveNote();
