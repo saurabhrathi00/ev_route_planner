@@ -224,6 +224,25 @@ a{color:var(--charge)}
 .hdel:hover{background:var(--rule2);color:var(--stop)}
 .hagain:focus-visible,.hdel:focus-visible,.hopen:focus-visible{outline:2px solid var(--brand-green);outline-offset:-2px}
 
+/* A document rendered inside a card: narrower measure than the app's own
+   prose, because these are read rather than scanned. */
+.doc{font-size:13.5px;line-height:1.65;color:var(--ink2);max-width:64ch}
+.doc h1{display:none}                       /* the accordion already names it */
+.doc h2{font:600 14px/1.3 "Public Sans",sans-serif;color:var(--ink);margin:20px 0 6px}
+.doc h2:first-of-type{margin-top:4px}
+.doc p{margin:0 0 10px}
+.doc strong{color:var(--ink)}
+.doc ul{margin:0 0 10px;padding-left:18px}
+.doc li{margin:3px 0}
+.doc a{color:var(--charge)}
+.doc hr{border:0;border-top:1px solid var(--rule);margin:16px 0}
+.doc em{color:var(--ink3)}
+.doc table{font-size:12.5px;margin:6px 0 12px}
+.doc td,.doc th{padding:6px 8px}
+.docwrap{overflow-x:auto}
+.copyline{margin:18px 0 0;font:11px/1.7 "IBM Plex Mono",monospace;color:var(--ink3)}
+.copyline a{color:var(--ink3)}
+
 .subhead{display:flex;align-items:baseline;gap:10px;margin:26px 2px 12px}
 .subhead b{font:600 13px "Public Sans",sans-serif;color:var(--ink2)}
 .subhead span{font:500 10px "IBM Plex Mono",monospace;letter-spacing:.12em;
@@ -1774,6 +1793,43 @@ details[open] summary::before{transform:rotate(90deg)}
            tester reporting a bug was reporting it against a number that meant
            nothing. Stamped at build time now, from the same version the store
            listing carries. -->
+      <!-- Who made this, and on what terms. The documents live in the repository
+           as markdown and are injected here at build time, so the words on the
+           phone and the words in the file cannot drift apart — and so they can
+           be read on a mountain road with no signal, which is where a question
+           about what the app promised is most likely to occur to someone. -->
+      <section class="card reveal" style="--i:1">
+        <div class="head"><h2>About EVRoute</h2><span class="tag">__BUILD_VER__</span></div>
+        <div class="body">
+          <p style="margin-top:0">A simulation of <em>this</em> drive in <em>your</em> car —
+            the climb, the air you push through, the weather forecast for the hour you will
+            be there — ending in the charge you will have left when you arrive.</p>
+          <p class="note" style="border-left-color:var(--warn)"><strong>Every figure is an
+            estimate.</strong> It has never seen your car, your right foot or the traffic on
+            the day, and charger databases go out of date. Keep the safety margin, and check
+            a charging stop before you depend on it.</p>
+
+          <div class="acc" data-open="false" id="acc-terms" style="margin-top:16px">
+            <button type="button">Terms of use
+              <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+            <div class="panelbody"><div><div class="inner">
+              <div class="doc">__TERMS_HTML__</div>
+            </div></div></div>
+          </div>
+          <div class="acc" data-open="false" id="acc-privacy">
+            <button type="button">Privacy policy
+              <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+            <div class="panelbody"><div><div class="inner">
+              <div class="doc">__PRIVACY_HTML__</div>
+            </div></div></div>
+          </div>
+
+          <p class="copyline">© 2026 Saurabh Rathi · All rights reserved<br>
+            Map data © OpenStreetMap contributors · Charger data from Open Charge Map<br>
+            <a href="mailto:sbh7435@gmail.com">sbh7435@gmail.com</a></p>
+        </div>
+      </section>
+
       <section class="card reveal" style="--i:1">
         <div class="head"><h2>This build</h2><span class="tag" id="s-ver-tag">__BUILD_VER__</span></div>
         <div class="body">

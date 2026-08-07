@@ -726,6 +726,38 @@ async function main() {
     check(`the ${cls.replace('chgpop .x','card close')} reaches a fingertip`, re.test(src), 'still its own size');
   }
 
+  /* Who made this, and on what terms — in the app, not only in the repository.
+     The documents are markdown in git and are rendered into the page at build
+     time, so what a phone shows and what the file says cannot drift. */
+  console.log('\n  about, terms and copyright');
+  console.log('  ' + '-'.repeat(55));
+  for (const t of ['__TERMS_HTML__', '__PRIVACY_HTML__'])
+    check(`the source holds ${t} rather than a copy of the text`, src.includes(t), 'inlined');
+  check('the app names who made it', /© 2026 Saurabh Rathi/.test(src), 'no copyright line');
+  check('and how to reach them', /sbh7435@gmail\.com/.test(src), 'no contact');
+  check('terms and privacy are both reachable in Settings',
+    /id="acc-terms"/.test(src) && /id="acc-privacy"/.test(src), 'one of them is missing');
+  check('the repository states its terms', fs.existsSync(path.join(__dirname,'..','LICENSE')),
+    'no LICENSE');
+
+  const builtApp = path.join(__dirname, '..', 'app', 'src', 'main', 'assets', 'index.html');
+  if (fs.existsSync(builtApp)) {
+    const b = fs.readFileSync(builtApp, 'utf8');
+    check('the built app carries the terms in full',
+      /Terms of Use — EVRoute/.test(b) && /No warranty/i.test(b), 'terms did not render');
+    check('and the privacy policy in full',
+      /Privacy Policy — EVRoute/.test(b), 'privacy did not render');
+    check('with no placeholder left behind',
+      !/__(TERMS|PRIVACY)_HTML__/.test(b), 'unrendered');
+    /* Links to other markdown files are useful in git and dead on a phone. */
+    const about = b.slice(b.indexOf('id="acc-terms"'), b.indexOf('id="acc-privacy"'));
+    check('and no link that goes nowhere on a phone',
+      !/href="[^"]*\.md/.test(about), 'a .md link survived');
+    console.log(`  terms and privacy add ${(
+      (b.match(/<div class="doc">[\s\S]*?<\/div>\s*<\/div>/g)||['']).join('').length/1024
+    ).toFixed(1)} KB to the bundle`);
+  }
+
   /* The tab list and the views have to agree, or a tab switches to nothing. */
   const tabs = (src.match(/const TABS = \[([^\]]+)\]/)||[])[1] || '';
   const names = tabs.split(',').map(t => t.trim().replace(/'/g, '')).filter(Boolean);

@@ -1,4 +1,4 @@
-EVRoute 3.5 (55) — built 2026-08-07
+EVRoute 3.6 (56) — built 2026-08-07
 
-planner sha256   01e26de2b3c81bfd9d478deb7380309f071cab819d1b3d962c442d8964f21e1d
-planner bytes    394112
+planner sha256   0fb004b680f3e1b9bbe93bbd94918bb837dd9ecbad94263629c11c4cc1e5c585
+planner bytes    408183
