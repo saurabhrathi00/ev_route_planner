@@ -1824,6 +1824,16 @@ details[open] summary::before{transform:rotate(90deg)}
             </div></div></div>
           </div>
 
+          <!-- Only the Android build shows ads, and only some regions get a
+               consent choice worth reopening. The shell says which by setting
+               window.__privacyOptions; the button does not exist otherwise,
+               rather than sitting there doing nothing. -->
+          <div class="cta" id="privacy-options" hidden style="margin-top:14px">
+            <a class="ghost" style="text-decoration:none" href="evroute://privacy-options">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8.2v.2"/></svg>
+              Advertising choices</a>
+          </div>
+
           <p class="copyline">© 2026 Saurabh Rathi · All rights reserved<br>
             Map data © OpenStreetMap contributors · Charger data from Open Charge Map<br>
             <a href="mailto:sbh7435@gmail.com">sbh7435@gmail.com</a></p>
@@ -6497,6 +6507,16 @@ $('depart-now').addEventListener('click', ()=>{
   departNote();
 });
 
+/* The Android shell tells the page whether Google's consent platform has a
+   form to reopen — it does in the EEA and the UK, and where American state law
+   gives a right to opt out of sharing. Everywhere else there is nothing to
+   show, so nothing is shown. */
+function paintPrivacyOptions(){
+  const el=$('privacy-options');
+  if(el) el.hidden = !window.__privacyOptions;
+}
+window.addEventListener('privacyoptions', paintPrivacyOptions);
+
 /* ---- saved plans, on screen ---- */
 function planRow(p, i){
   const when = new Date(p.at);
@@ -7164,6 +7184,7 @@ $('t_add').addEventListener('click',async()=>{
   seg.style.setProperty('--i', String(Math.max(0, bs.findIndex(b=>b.dataset.v===gSrcMode))));
   applyCar();
   await loadSheet();          // the car and the sheet as they were left
+  paintPrivacyOptions();
   await loadPlans(); renderPlans();
   relearn(); renderTrips(); sampNote(); fitAnchor(); markReference();
   departBounds(); departNote(); acNote(); sohNote(); marginNote(); reserveNote();

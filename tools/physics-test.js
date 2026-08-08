@@ -758,6 +758,38 @@ async function main() {
     ).toFixed(1)} KB to the bundle`);
   }
 
+  /* Consent before advertising. The app shipped the advertising ID and the
+     Privacy Sandbox permissions and asked nobody — legal in India, not in the
+     EEA, the UK, or a dozen American states. The platform that asks was inside
+     play-services-ads all along and had never been called, so R8 was stripping
+     it as dead code. These are source checks: the Kotlin is outside the
+     sandbox, and the failure they guard is an ad served before the question. */
+  const act = fs.readFileSync(path.join(__dirname, '..', 'app', 'src', 'main',
+    'java', 'com', 'routesection', 'evplanner', 'MainActivity.kt'), 'utf8');
+  check('the consent platform is asked before anything else',
+    /requestConsentInfoUpdate/.test(act), 'no consent request');
+  check('and its form is shown when it is required',
+    /loadAndShowConsentFormIfRequired/.test(act), 'the form is never shown');
+  check('the ads SDK starts only once consent allows it',
+    /if \(!consent\.canRequestAds\(\)\) return/.test(act), 'ads start regardless');
+  /* Counted in the code, not in the prose about the code — the comment above
+     the call names it too, which is the same trap the build-string lint fell
+     into an hour ago. */
+  const actCode = act.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  check('nothing else starts the ads SDK behind its back',
+    (actCode.match(/MobileAds\.initialize/g) || []).length === 1, 'more than one path in');
+  check('the choice can be reopened later',
+    /showPrivacyOptionsForm/.test(act), 'no way back to the form');
+  check('and without opening a JavaScript bridge to do it',
+    !/@JavascriptInterface/.test(act) && /evroute" && url\.host == "privacy-options"/.test(act),
+    'a bridge was added');
+  check('the page only offers the choice where there is one',
+    /window\.__privacyOptions/.test(src) && /id="privacy-options"[^>]*hidden/.test(src),
+    'the button is always there');
+  check('the policy says what the ads collect',
+    /advertising ID/i.test(fs.readFileSync(path.join(__dirname,'..','PRIVACY.md'),'utf8')),
+    'undisclosed');
+
   /* The tab list and the views have to agree, or a tab switches to nothing. */
   const tabs = (src.match(/const TABS = \[([^\]]+)\]/)||[])[1] || '';
   const names = tabs.split(',').map(t => t.trim().replace(/'/g, '')).filter(Boolean);

@@ -30,8 +30,8 @@ android {
         targetSdk = 35
         // Play rejects an upload whose versionCode it has seen before, so this
         // has to go up by at least one for every release you push.
-        versionCode = 56
-        versionName = "3.6"
+        versionCode = 57
+        versionName = "3.7"
     }
 
     signingConfigs {
@@ -97,6 +97,12 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.9.3")
     // banner ad under the planner; ids are set per build type above
     implementation("com.google.android.gms:play-services-ads:23.6.0")
+    /* Google's consent platform. It already arrives inside play-services-ads,
+       and because nothing called it R8 stripped it — naming it here says it is
+       load-bearing, and keeps it that way if the ads SDK ever stops shipping
+       it. Required before a personalised ad may be served in the EEA or the UK,
+       and it carries the opt-out several American states now require. */
+    implementation("com.google.android.ump:user-messaging-platform:3.1.0")
     /* Not used directly — pinned because the ads SDK drags in a fragment
      * version older than 1.3.0, and registerForActivityResult (the location
      * permission prompt) is unsafe on those: FragmentActivity used to skip

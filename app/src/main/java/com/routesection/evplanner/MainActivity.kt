@@ -26,6 +26,10 @@ import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
+import com.google.android.ump.ConsentInformation
+import com.google.android.ump.ConsentRequestParameters
+import com.google.android.ump.UserMessagingPlatform
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The planner itself lives in assets/index.html — the same file that runs in a
@@ -37,6 +41,11 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var web: WebView
     private var ad: AdView? = null
+
+    private lateinit var consent: ConsentInformation
+    private var adSlot: LinearLayout? = null
+    /** MobileAds.initialize is not idempotent in any way worth relying on. */
+    private val adsStarted = AtomicBoolean(false)
 
     /**
      * The WebView asks for location on its own schedule — whenever the user
@@ -60,10 +69,45 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        /* Initialising the ads SDK touches the disk and the network, and doing
-         * it on the main thread stalls the first frame. Nothing below waits on
-         * it — AdView.loadAd queues until initialisation lands. */
-        Thread { MobileAds.initialize(this) }.start()
+        /* Consent before advertising.
+         *
+         * The app asked for none. It shipped the advertising ID and the Privacy
+         * Sandbox permissions — the ads SDK merges them into the manifest — and
+         * then served personalised ads to whoever opened it. In India nobody
+         * stops you. In the EEA and the UK Google requires a certified consent
+         * platform before a personalised ad is served, and in California and a
+         * dozen other American states the law requires an opt-out of sharing
+         * for targeted advertising. Going global without this is not a revenue
+         * question, it is a compliance one.
+         *
+         * The platform that does it was already inside play-services-ads and
+         * had never been called — R8 was stripping it as unused code.
+         *
+         * The order matters: gather consent, then start the SDK, and only then
+         * ask for a banner. Starting the SDK first is what leaks a request
+         * before anyone has agreed to it. */
+        consent = UserMessagingPlatform.getConsentInformation(this)
+        consent.requestConsentInfoUpdate(
+            this,
+            ConsentRequestParameters.Builder().build(),
+            {
+                UserMessagingPlatform.loadAndShowConsentFormIfRequired(this) { formError ->
+                    if (formError != null) Log.w(ADS, "consent form: ${formError.message}")
+                    startAdsIfAllowed()
+                    tellPageAboutPrivacyOptions()
+                }
+            },
+            { requestError ->
+                /* No answer from the consent service — offline, most likely.
+                 * canRequestAds is false until it succeeds, so no ad is
+                 * requested and the app simply carries on without one. */
+                Log.w(ADS, "consent update: ${requestError.message}")
+                startAdsIfAllowed()
+            }
+        )
+        /* A returning reader who already answered does not wait for the network
+         * to say so again. */
+        startAdsIfAllowed()
 
         web = WebView(this).apply {
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f)
@@ -105,6 +149,16 @@ class MainActivity : ComponentActivity() {
                     view: WebView, request: WebResourceRequest
                 ): Boolean {
                     val url = request.url
+                    /* The page needs a way to reopen the consent form, and a
+                     * link is a smaller hole in the wall than a JavaScript
+                     * bridge: nothing is exposed to the page except the ability
+                     * to ask for this one thing. */
+                    if (url.scheme == "evroute" && url.host == "privacy-options") {
+                        UserMessagingPlatform.showPrivacyOptionsForm(this@MainActivity) { e ->
+                            if (e != null) Log.w(ADS, "privacy options: ${e.message}")
+                        }
+                        return true
+                    }
                     // charger entries point at Google Maps or OSM: hand them to the real browser
                     if (url.scheme == "http" || url.scheme == "https") {
                         return try {
@@ -133,7 +187,8 @@ class MainActivity : ComponentActivity() {
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         }
         root.addView(slot)
-        slot.post { attachBanner(slot) }
+        adSlot = slot
+        slot.post { startAdsIfAllowed() }
 
         if (savedInstanceState == null) {
             web.loadUrl("file:///android_asset/index.html")
@@ -166,6 +221,35 @@ class MainActivity : ComponentActivity() {
      * appears. The window width is the same number in every layout this app
      * has, so fall back to it rather than give up.
      */
+    /**
+     * Starts the ads SDK and asks for a banner, but only once consent allows it
+     * and only once. Called from several places — the consent callbacks, the
+     * returning-user path, and the moment the slot is laid out — because
+     * whichever of those happens last is the one that has everything it needs.
+     */
+    private fun startAdsIfAllowed() {
+        if (!consent.canRequestAds()) return
+        val slot = adSlot ?: return
+        if (adsStarted.getAndSet(true)) {
+            if (ad == null) attachBanner(slot)
+            return
+        }
+        /* Initialising touches the disk and the network; on the main thread it
+         * stalls the first frame. Nothing waits on it — loadAd queues. */
+        Thread { MobileAds.initialize(this) }.start()
+        attachBanner(slot)
+    }
+
+    /** Tells the page whether there is a consent choice worth offering. */
+    private fun tellPageAboutPrivacyOptions() {
+        val required = consent.privacyOptionsRequirementStatus ==
+            ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
+        web.evaluateJavascript(
+            "window.__privacyOptions = $required;" +
+                "window.dispatchEvent(new Event('privacyoptions'));", null
+        )
+    }
+
     private fun attachBanner(slot: LinearLayout) {
         val px = if (slot.width > 0) slot.width else resources.displayMetrics.widthPixels
         val widthDp = (px / resources.displayMetrics.density).toInt()

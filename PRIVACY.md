@@ -1,6 +1,6 @@
 # Privacy Policy — EVRoute
 
-**Last updated: 2 August 2026**
+**Last updated: 8 August 2026**
 
 EVRoute ("the app") plans an electric-car journey: how much charge a
 drive will cost, where you drop to your reserve, and where you could charge.
@@ -89,9 +89,25 @@ This is handled by Google, not by us. We never see it, and we cannot connect it
 to your routes, your trips or anything else in the app — the ad and the planner
 do not share data.
 
+The Android build also carries the Privacy Sandbox permissions the ads SDK
+requires — `AD_ID`, and the Topics, Attribution and Ad ID access the Android
+advertising system uses. They arrive with the SDK; the app itself reads none of
+them.
+
+**Your choice about this.** Before any advertisement is requested, the app asks
+through Google's consent platform. Where the law gives you a say — the EEA, the
+UK, and the American states that grant a right to opt out of sharing for
+targeted advertising — you are asked before the first ad, and you can change
+your answer at any time: **Settings → About EVRoute → Advertising choices**. If
+you say no, or if we cannot reach the consent service at all, no advertisement
+is requested.
+
 - How Google uses this data: <https://policies.google.com/technologies/partner-sites>
 - You can reset or delete your advertising ID, and turn off ad personalisation,
   in **Android Settings → Privacy → Ads**
+
+**The iOS build carries no advertising**, no ad SDK, and no advertising
+identifier.
 
 ## Analytics
 
