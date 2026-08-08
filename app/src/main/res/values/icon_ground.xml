@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the panel colour taken out of brand/, so the adaptive icon's
+         background matches the artwork instead of approximating it -->
+    <color name="icon_ground">#FAF8F7</color>
+</resources>
