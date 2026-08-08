@@ -469,6 +469,32 @@ async function main() {
     check('and forty plans cost nothing', r.degraded !== true, JSON.stringify(r).slice(0, 100));
   }
 
+  /* --- the soft cap has to be the one that fires first --- */
+  {
+    /* Shipped at 8000 against a Cloud Console quota of 220, which meant the
+       Worker's cap could never be reached and Google's always was — the hard
+       failure every time, the soft one never. The caps are settable now, and
+       what matters is that a set one is honoured. */
+    const e = { ...env(), BUDGETS: JSON.stringify({ nearby: 2 }) };
+    const h = await (await call(e, 'GET', '/health')).json();
+    check('a cap set in the environment is the cap', h.budget.nearby.cap === 2,
+      `${h.budget.nearby.cap}`);
+    check('and the others keep their defaults', h.budget.route.cap === 300,
+      `${h.budget.route.cap}`);
+
+    await call(e, 'POST', '/nearby', { lat: 10, lng: 10, radiusKm: 40 });
+    await call(e, 'POST', '/nearby', { lat: 20, lng: 20, radiusKm: 40 });
+    const third = await (await call(e, 'POST', '/nearby', { lat: 30, lng: 30, radiusKm: 40 })).json();
+    check('past it, the service degrades rather than errors',
+      third.degraded === true && third.chargers.length === 0, JSON.stringify(third).slice(0, 100));
+
+    /* Nonsense in the variable must not silently mean "no cap at all". */
+    const broken = { ...env(), BUDGETS: 'not json' };
+    const hb = await (await call(broken, 'GET', '/health')).json();
+    check('a malformed budget falls back to the defaults, not to none',
+      hb.budget.nearby.cap === 200, `${hb.budget.nearby.cap}`);
+  }
+
   /* --- the rate limiter counts without recording who --- */
   {
     const e = env();

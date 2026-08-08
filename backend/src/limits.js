@@ -14,9 +14,33 @@
 /** Requests per IP per window. Generous: a 500 km plan is about seven calls. */
 const RATE = { window: 60, max: 40 };
 
-/** Upstream calls per day, per SKU. Below the Cloud Console cap, deliberately —
- *  this should be what stops first, because this one fails soft. */
-const BUDGET = { nearby: 8000, place: 4000, autocomplete: 6000, text: 2000, route: 4000 };
+/* Upstream calls per day, per SKU.
+ *
+ * These have to sit BELOW the daily quota set in Cloud Console, and that is the
+ * whole reason they exist. Both stop the bill; only this one fails softly. Past
+ * the Cloud quota Google returns an error for every call, which the app shows
+ * as a lookup that broke; past this one the Worker keeps serving its cache and
+ * only stops asking Google, which a driver never sees.
+ *
+ * Shipped at 8000 against a Cloud quota of 220 — which meant the soft one could
+ * never fire and the hard one always did, exactly backwards. Overridable from
+ * the environment now, so the two can be kept in step without a deploy each
+ * time the Cloud quota moves. */
+const DEFAULT_BUDGET = { nearby: 200, place: 200, autocomplete: 400, text: 100, route: 300 };
+
+const budgetFor = (env, sku) => {
+  const set = env && env.BUDGETS;
+  if (set) {
+    try {
+      const n = JSON.parse(set)[sku];
+      if (isFinite(n) && n > 0) return n;
+    } catch { /* malformed: fall through to the defaults rather than to no cap */ }
+  }
+  return DEFAULT_BUDGET[sku];
+};
+
+export const budgets = env =>
+  Object.fromEntries(Object.keys(DEFAULT_BUDGET).map(k => [k, budgetFor(env, k)]));
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -50,27 +74,28 @@ export async function rateLimited(kv, ip) {
   return n > RATE.max;
 }
 
-export async function budgetLeft(kv, sku) {
-  const cap = BUDGET[sku];
+export async function budgetLeft(kv, sku, env) {
+  const cap = budgetFor(env, sku);
   if (!cap) return true;
   const n = parseInt(await kv.get(`bg:${today()}:${sku}`) || '0', 10);
   return n < cap;
 }
 
-export async function spend(kv, sku) {
+export async function spend(kv, sku, env) {
   const key = `bg:${today()}:${sku}`;
   const n = parseInt(await kv.get(key) || '0', 10) + 1;
   await kv.put(key, String(n), { expirationTtl: 36 * 3600 });
-  if (n === BUDGET[sku]) console.warn(`budget: ${sku} reached ${n} — serving cache only`);
+  if (n === budgetFor(env, sku)) console.warn(`budget: ${sku} reached ${n} — serving cache only`);
   return n;
 }
 
-export async function spentToday(kv) {
+export async function spentToday(kv, env) {
+  const caps = budgets(env);
   const out = {};
-  for (const sku of Object.keys(BUDGET)) {
+  for (const sku of Object.keys(caps)) {
     out[sku] = {
       spent: parseInt(await kv.get(`bg:${today()}:${sku}`) || '0', 10),
-      cap: BUDGET[sku],
+      cap: caps[sku],
     };
   }
   return out;

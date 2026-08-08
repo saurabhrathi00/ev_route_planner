@@ -43,11 +43,11 @@ async function body(req) {
  * returns null rather than throwing, so every caller has to decide what to do
  * without Google — and every one of them can answer from cache. */
 async function upstream(env, sku, fn) {
-  if (!await L.budgetLeft(env.CACHE, sku)) {
+  if (!await L.budgetLeft(env.CACHE, sku, env)) {
     console.warn(`budget spent: ${sku}`);
     return null;
   }
-  await L.spend(env.CACHE, sku);
+  await L.spend(env.CACHE, sku, env);
   return fn();
 }
 
@@ -76,7 +76,7 @@ const ROUTES = {
        exactly like one that works. */
     attestation: attesting(env) ? 'required' : 'open',
     billing: B.billing(env) ? `on, ${B.freeAllowance(env)} free plans a month` : 'off',
-    budget: await L.spentToday(env.CACHE),
+    budget: await L.spentToday(env.CACHE, env),
   }),
 
   /* A number to answer, good for two minutes and one use. */

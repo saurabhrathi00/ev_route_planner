@@ -161,7 +161,20 @@ key.
 
 - **Rate limit** per IP, in KV, sliding window. Generous enough that a real
   drive never notices, tight enough that a script does.
-- **Daily budget.** A counter per upstream SKU. Past the ceiling the Worker
+- **Daily budget.** A counter per upstream SKU, which must sit **below** the
+  daily quota set in Cloud Console. Both stop the bill; only this one fails
+  softly. Past the Cloud quota Google errors on every call and the app shows a
+  broken lookup; past this one the Worker quietly stops asking Google and keeps
+  serving its cache. Set them together:
+
+      npx wrangler secret put BUDGETS
+      {"nearby":200,"place":200,"autocomplete":400,"text":100,"route":300}
+
+  Defaults are those numbers. They shipped at 8000 against a Cloud quota of 220,
+  which meant the soft cap could never fire and the hard one always did —
+  exactly backwards, and invisible until the day it mattered.
+
+  Past the ceiling the Worker
   serves cache and refuses upstream calls, which fails soft: old chargers rather
   than no app.
 - **Shape checks.** Radius, coordinates and payload sizes are bounded before
