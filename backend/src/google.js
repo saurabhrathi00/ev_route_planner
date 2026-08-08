@@ -166,12 +166,19 @@ export async function autocomplete(key, input, session, bias) {
     body: JSON.stringify(body),
   });
   const j = await unwrap(r, 'autocomplete');
+  /* Split into the bold line and the grey one, because that is how the menu
+     draws it. Returning the joined string alone — which this did first — left
+     the client with nothing to bold and, worse, called the id `id` where the
+     app looks for `placeId`, so a tapped suggestion resolved to nothing. */
   return (j.suggestions || [])
     .filter(s => s.placePrediction)
-    .map(s => ({
-      id: s.placePrediction.placeId,
-      name: s.placePrediction.text ? s.placePrediction.text.text : '',
-    }));
+    .map(s => {
+      const p = s.placePrediction;
+      const f = p.structuredFormat || {};
+      const main = (f.mainText && f.mainText.text) || (p.text && p.text.text) || '';
+      const sec = (f.secondaryText && f.secondaryText.text) || '';
+      return { placeId: p.placeId, main, sec, name: [main, sec].filter(Boolean).join(', ') };
+    });
 }
 
 /* Coordinates only. The caller already has the name — it came back with the

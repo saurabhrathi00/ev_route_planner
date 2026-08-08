@@ -10,6 +10,7 @@ import * as G from './google.js';
 import * as C from './cache.js';
 import * as L from './limits.js';
 import * as T from './trips.js';
+import * as A from './attest.js';
 
 const VERSION = '1.0.0';
 
@@ -49,13 +50,42 @@ async function upstream(env, sku, fn) {
   return fn();
 }
 
+/* Attestation turns itself on when it is configured, and not before.
+ *
+ * The alternative is a flag, and a flag that says "check the caller" while the
+ * credentials to check with are missing is a service that refuses everybody —
+ * or, set the other way by someone in a hurry, one that lets everybody in while
+ * claiming not to. Deriving it from the credentials makes those two states
+ * impossible: with a service account it is enforced, without one it is honestly
+ * reported as open. */
+const attesting = env => !!(env.SERVICE_ACCOUNT && env.SESSION_SECRET);
+
+/* The endpoints that spend money. /health and /config say nothing worth
+   stealing, and the nonce has to be reachable before anyone has a session. */
+const OPEN = new Set(['/health', '/config', '/auth/nonce', '/auth/verify']);
+
 const ROUTES = {
   'GET /health': async (req, env) => json({
     ok: true,
     version: VERSION,
     upstream: env.GOOGLE_KEY ? 'configured' : 'MISSING GOOGLE_KEY',
+    /* Whether the door is locked, in plain sight. Not a secret — a clone finds
+       out by being refused — and the one thing worth being able to check from
+       outside, because an attestation that quietly stopped being enforced looks
+       exactly like one that works. */
+    attestation: attesting(env) ? 'required' : 'open',
     budget: await L.spentToday(env.CACHE),
   }),
+
+  /* A number to answer, good for two minutes and one use. */
+  'GET /auth/nonce': async (req, env) => json(await A.newNonce(env.CACHE)),
+
+  /* Google's statement about which app is running, exchanged for a day pass. */
+  'POST /auth/verify': async (req, env) => {
+    const b = await body(req);
+    if (!attesting(env)) return json({ session: 'open', expiresIn: 86400, attestation: 'open' });
+    return json(await A.verify(env, b.token, b.nonce));
+  },
 
   /* What the client may rely on. The app asks once at start-up so that cache
    * ages and limits live in one place rather than being guessed at twice. */
@@ -218,6 +248,16 @@ export default {
       }
       if (!env.GOOGLE_KEY && url.pathname !== '/health' && url.pathname !== '/config') {
         return json({ error: 'not configured' }, 503);
+      }
+      if (attesting(env) && !OPEN.has(url.pathname)) {
+        const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer /, '');
+        if (!await A.validSession(env.SESSION_SECRET, bearer)) {
+          /* 401 rather than 403: the app's answer is to attest again, and a
+             session that simply aged out overnight is the common case, not an
+             attack. The app falls back to the open charger sources meanwhile,
+             so a driver whose pass expired mid-journey still gets a plan. */
+          return json({ error: 'attest first' }, 401);
+        }
       }
       return await handler(req, env, url);
     } catch (e) {

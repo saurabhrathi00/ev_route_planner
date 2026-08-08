@@ -2153,12 +2153,81 @@ const PROXY_URL = '__PROXY__';
 const PROXY = (!PROXY_URL || PROXY_URL.slice(0,2) === '__') ? '' : PROXY_URL.replace(/\/$/, '');
 const viaProxy = () => PROXY !== '';
 
-async function proxy(path, body, timeoutMs = 12000){
+/* The day pass, and how this app gets one.
+
+   The service will not spend Google's money for anyone who asks — a copy of
+   this app with somebody else's name on it would otherwise run on our quota
+   until the day ran out, and shutting the service down to stop it would stop
+   every real driver too. So it asks who is calling, and the only answer it
+   accepts is one Google signed: this package, this signing certificate,
+   installed by Play, unmodified. A clone carries its own certificate, which is
+   what makes it a different app, and Google will not sign that statement about
+   it.
+
+   None of that can happen in here. The page asks the Android shell, which asks
+   Play Integrity, which answers a nonce this service issued — so a captured
+   token is an answer to a question that has already been asked and closed.
+
+   Every build that is not the Android app — the web build, a page opened off
+   disk — has no shell to ask and gets no pass. That is not a failure: Google
+   lookups simply refuse, and the app falls through to Open Charge Map and
+   OpenStreetMap exactly as it does when Google is switched off. */
+let SESSION = null;
+let ATTESTING = null;               // the in-flight attempt, so ten calls make one
+
+const nativeToken = nonce => new Promise((resolve, reject) => {
+  const shell = window.SafarNative;
+  /* Reached through `window` rather than as a bare name. The shell attaches it
+     to the window object, and outside a browser — the test harness, a bundler —
+     that is not the same thing as a global. */
+  if(!shell || !shell.request) return reject(new Error('no shell'));
+  const id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  const timer = setTimeout(()=>{ delete PENDING[id]; reject(new Error('integrity timed out')); }, 20000);
+  PENDING[id] = (token, err) => { clearTimeout(timer); err ? reject(new Error(err)) : resolve(token); };
+  try{ shell.request(nonce, id); }
+  catch(e){ clearTimeout(timer); delete PENDING[id]; reject(e); }
+});
+const PENDING = {};
+window.__attestDone = (id, token, err) => {
+  const cb = PENDING[id]; if(!cb) return;
+  delete PENDING[id];
+  cb(token, err);
+};
+
+async function attest(){
+  if(ATTESTING) return ATTESTING;
+  ATTESTING = (async()=>{
+    try{
+      const {nonce} = await proxy('/auth/nonce', null, 8000);
+      const token = await nativeToken(nonce);
+      const j = await proxy('/auth/verify', {token, nonce}, 15000);
+      SESSION = j.session || null;
+    }catch(e){
+      SESSION = null;
+      console.warn('attestation:', e.message);
+    }finally{
+      ATTESTING = null;
+    }
+    return SESSION;
+  })();
+  return ATTESTING;
+}
+
+async function proxy(path, body, timeoutMs = 12000, retried = false){
+  const headers = {};
+  if(body) headers['Content-Type'] = 'application/json';
+  if(SESSION) headers['Authorization'] = 'Bearer ' + SESSION;
   const r = await chgFetch(PROXY + path, body ? {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(body),
-  } : {}, timeoutMs);
+    method:'POST', headers, body: JSON.stringify(body),
+  } : {headers}, timeoutMs);
   const j = await r.json().catch(()=>({}));
+  /* A pass lasts a day, so the common way to meet a 401 is to have left the app
+     open overnight rather than to be an impostor. One silent re-attest, once —
+     a second 401 after a fresh pass is a real refusal and is reported. */
+  if(r.status === 401 && !retried && !path.startsWith('/auth')){
+    SESSION = null;
+    if(await attest()) return proxy(path, body, timeoutMs, true);
+  }
   if(!r.ok) throw new Error(j.error || `service returned ${r.status}`);
   return j;
 }
@@ -3031,8 +3100,14 @@ async function routeORS(a,b,key){
    select it now. Asking a driver to choose which of four APIs answer which of
    five questions was a control written from the inside of the code out. */
 let gSrcMode = 'free';
-const useGoogle = () => gSrcMode === 'all' && !!gmapKey();          // routing, search, map
-const useGoogleChargers = () => (gSrcMode==='all' || gSrcMode==='chargers') && !!gmapKey();
+/* "Is Google available at all" — which used to mean "was a key bundled". It
+   still does for the map, whose library runs here and needs its own key. For
+   everything else the key now lives on the service, and the day the Places key
+   stops being bundled this would have switched Google off entirely: no
+   chargers, no live bay counts, on a build that could reach all of it. */
+const googleReachable = () => !!gmapKey() || viaProxy();
+const useGoogle = () => gSrcMode === 'all' && googleReachable();    // routing, search, map
+const useGoogleChargers = () => (gSrcMode==='all' || gSrcMode==='chargers') && googleReachable();
 
 /* What actually answered, for the sources panel at the foot of a plan. */
 /* What each service resolved to on the last plan. The defaults are the free
@@ -3220,7 +3295,10 @@ const newSession = () =>
 async function placesAutocompleteGoogle(text, key, session){
   if(viaProxy()){
     const j = await proxy('/autocomplete', {input:text, sessionToken:session});
-    return (j.places||[]).map(p=>({id:p.id, name:p.name}));
+    if(j.degraded) throw new Error('search is busy');
+    /* Same shape as the direct path below, field for field. The menu bolds
+       `main`, greys `sec`, and looks up `placeId` when one is tapped. */
+    return (j.places||[]).map(p=>({main:p.main, sec:p.sec, placeId:p.placeId, name:p.name}));
   }
   const r = await chgFetch('https://places.googleapis.com/v1/places:autocomplete', {
     method:'POST',
@@ -3260,6 +3338,10 @@ async function placeDetailsGoogle(placeId, key, session){
 async function searchTextGoogle(text, key){
   if(viaProxy()){
     const j = await proxy('/text', {query:text});
+    /* "Busy" and "no such place" are different sentences to whoever typed it,
+       and telling someone their town does not exist because a budget ran out
+       sends them off editing a name that was right all along. */
+    if(j.degraded) throw new Error('search is busy — try again in a moment');
     if(!j.places || !j.places.length) throw new Error(`No place found for "${text}". Try adding the state or country.`);
     return j.places;
   }
@@ -4550,6 +4632,14 @@ const PLUG = {EV_CONNECTOR_TYPE_CCS_COMBO_1:'CCS1', EV_CONNECTOR_TYPE_CCS_COMBO_
 async function chargersGoogle(center, km, key){
   if(viaProxy()){
     const j = await proxy('/nearby', {lat:center.lat, lng:center.lng, radiusKm:km});
+    /* Past its daily budget the service answers with an empty list and says so.
+       That has to be raised as a failure, not returned as an answer: findChargers
+       treats a source that replied with nothing as a source that looked and found
+       nothing, and would then report an empty road instead of falling through to
+       Open Charge Map and OpenStreetMap. Which is exactly what the free sources
+       are there for — this is the same shape as Google being out of quota, and it
+       must behave the same way. */
+    if(j.degraded) throw new Error('charger lookups are out of quota for today');
     /* The service returns chargers already read — same fields, same reader, one
        copy of it — so there is nothing to parse here. */
     return (j.chargers||[]).map(c=>({...c, working:true, membership:false, verified:null}));
@@ -4649,6 +4739,12 @@ function readEV(evOpts){
    now rather than what was true when the plan was made. */
 async function recheckCharger(c){
   if(viaProxy()){
+    /* The Settings switch still means what it says. Behind the proxy it is our
+       service that calls Google rather than the phone, but someone who turned
+       Google off asked not to have Google asked — and a relay does not make
+       that a different request. Without this guard the switch was true of every
+       lookup except this one. */
+    if(!useGoogleChargers()) throw new Error('Live counts come from Google, which is switched off in Settings.');
     if(!c.pid) throw new Error('This one was not found through Google, so there is nothing to ask.');
     return await proxy('/place/' + encodeURIComponent(c.pid));
   }
@@ -7322,6 +7418,10 @@ $('t_add').addEventListener('click',async()=>{
     + 'Charger and map lookups go through a small service of ours that holds the API key and '
     + 'shares its answers between drivers — it stores roads and chargers, never people, and it '
     + 'is not told who is asking.';
+
+  /* Ahead of anything that needs it, and not waited on: a plan that starts
+     before the pass arrives will 401 once and retry itself. */
+  if(viaProxy() && window.SafarNative) attest();
 
   S.share = !!(await sget('share'));
   const shareCard=$('c-share');

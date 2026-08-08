@@ -31,6 +31,9 @@ import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
+import android.webkit.JavascriptInterface
+import com.google.android.play.core.integrity.IntegrityManagerFactory
+import com.google.android.play.core.integrity.IntegrityTokenRequest
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -146,6 +149,19 @@ class MainActivity : ComponentActivity() {
                     askLocation.launch(fine)
                 }
             }
+            /* The one thing the page cannot do for itself.
+             *
+             * Everything else in this app happens in the WebView; this cannot,
+             * because a statement about which app is running has to come from
+             * outside the app. Play Integrity is an Android API, so the page
+             * asks through here and gets an answer back the same way.
+             *
+             * The interface is deliberately one method wide. addJavascriptInterface
+             * exposes whatever it is given to whatever the WebView has loaded,
+             * which is why it has a reputation — here the page is our own file
+             * on disk, and the only thing reachable is "please attest this
+             * nonce", which is useless to anyone who is not us. */
+            addJavascriptInterface(Attest(), "SafarNative")
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(
                     view: WebView, request: WebResourceRequest
@@ -314,6 +330,7 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val ADS = "SafarAds"
+        const val ATTEST = "SafarAttest"
         /** From logcat on the phone you want to test on; debug builds only. */
         const val TEST_DEVICE = ""
     }
@@ -337,5 +354,59 @@ class MainActivity : ComponentActivity() {
         ad?.destroy()
         web.destroy()
         super.onDestroy()
+    }
+
+    /* The bridge, and all of it.
+     *
+     * The page hands over a nonce it was given by our service and gets back
+     * Google's signed statement about this app: package name, signing
+     * certificate, whether Play installed it, whether it has been tampered
+     * with. The service checks that statement with Google before answering
+     * anything that costs money, so a repackaged copy of this app — which by
+     * definition carries a different signing certificate — gets a refusal
+     * instead of our Google quota.
+     *
+     * Failure is reported, not swallowed. The page falls back to the open
+     * charger sources when attestation does not arrive, and it can only do that
+     * if it is told.
+     */
+    private inner class Attest {
+        @JavascriptInterface
+        fun request(nonce: String, callbackId: String) {
+            try {
+                val manager = IntegrityManagerFactory.create(applicationContext)
+                manager.requestIntegrityToken(
+                    IntegrityTokenRequest.builder().setNonce(nonce).build()
+                ).addOnSuccessListener { response ->
+                    reply(callbackId, response.token(), null)
+                }.addOnFailureListener { e ->
+                    /* The error codes worth knowing are transient ones — no
+                     * network, Play Services updating, the per-app rate limit.
+                     * None of them mean "this is a clone", so none of them are
+                     * treated as fatal here; the page simply carries on without
+                     * Google until the next attempt. */
+                    Log.w(ATTEST, "integrity: ${e.message}")
+                    reply(callbackId, null, e.message ?: "integrity unavailable")
+                }
+            } catch (e: Exception) {
+                Log.w(ATTEST, "integrity: ${e.message}")
+                reply(callbackId, null, e.message ?: "integrity unavailable")
+            }
+        }
+
+        private fun reply(callbackId: String, token: String?, error: String?) {
+            val js = "window.__attestDone && window.__attestDone(" +
+                quote(callbackId) + "," + quote(token) + "," + quote(error) + ")"
+            runOnUiThread { web.evaluateJavascript(js, null) }
+        }
+
+        /* JSON string quoting by hand, because the alternative is dragging in a
+         * JSON library to escape three values that this class produced itself.
+         * Google's token is base64 and the ids are ours, but the error message
+         * comes from a Play Services exception and can contain anything. */
+        private fun quote(v: String?): String =
+            if (v == null) "null"
+            else "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", " ").replace("\r", " ") + "\""
     }
 }

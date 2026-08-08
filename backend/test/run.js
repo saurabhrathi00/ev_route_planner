@@ -31,6 +31,9 @@ function kv() {
     async put(k, v, opts = {}) {
       m.set(k, { v, until: opts.expirationTtl ? Date.now() + opts.expirationTtl * 1000 : 0 });
     },
+    async delete(k) {
+      m.delete(k);
+    },
     async list({ prefix = '', limit = 1000 } = {}) {
       return { keys: [...m.keys()].filter(k => k.startsWith(prefix)).slice(0, limit).map(name => ({ name })) };
     },
@@ -62,7 +65,47 @@ const PLACE = (id, free) => ({
   },
 });
 
+/* A 2048-bit key generated once and pinned here. The service-account JWT is
+   signed for real in WebCrypto, so this cannot be a placeholder string. */
+const TEST_KEY = `-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCUhx5/c5EXsPiL
+5m3vPDH/hagxGry5JHptsHeG1bTd2jyBSa1O7iZkhmNlBLi+yuMlr1TPOzqs5RzX
+LaHm3R3rbQxI5ncMIvRlw1fpVt47eonyJPRVfig4fHbdZnrp9dxIZjzR+lCAK5/c
+TU3ECZ7atAzdEEN6bO/iZo07QkQlTJ9gD+9Fp/3tHyr0triApOXVk2PilOK8Htun
+c5E36SrwiUMxDMVosQTUemqP4MsCFaDM9MtvhMz7WVe+S/uM6R835k4rQ7Jpyrpw
+eYkFHPRBj381GldObt5DiB5kBtIgjWOC35P02uy3LUzel2BDabgaDXNqqIYleufw
+wbEgYjIJAgMBAAECggEAPH6wUE78yL5+7VRkcG1/G8kPkTiHp40RBH48oMGIUlgi
+DrK4kQ50urr13t5GdQdj7yRzkZhZNLR4w7fFWqezGQGoYETmNh5ClvQyaUrFZ0po
+xySAFBY3QZKIQ3MLGyHVn/NsUEX45cte6DbgNrmIZyGwn5WRNlsKdZc5bOp3oQzu
+Y53auYT3BhDy7t0FwFkNTzAF5ZYxxtLP2QyZgoBuJ2Um2yh971QOXtgSPmawkaUK
+Ul6Aq+2W2LWgpGV1yle3gfyqUjtyDGBrpgbhXSPPKPNL11KYtnoAJiAMiQ8km/OF
+V1P5IHPNn8Eq/PpRzqLQ/n7rS5xOLX8wee5LlhktFQKBgQDKitMwfisH24vhI9hR
+8T4C/eBDfBZBqhZmf61U9ImOpsaZ/4yDwD5gDatgwAbhnsgLUq5URSs14NWQBbI7
+Kgxd3jTSI6sVyUa3jmeGHflUCGFx3tTRXc356HhNnwmAB1U2THafHx6zczpdx0i4
+TvOXz/JnY67iuoIYvj9R4Ig2wwKBgQC7urKtPA3tKxiT2NRONM1TafYxPEktfDa3
+Rhhm1aYYN/ePUyGz2qn29+hzz78RbNb83A/dwE4S/b0W/JFUSJuxzpS9HKs0hgWq
+VsqncBSm9U2npvs0sqhAZRKIauFH+schV0YSPra/LDH5l13b758vzdAvcKNJiY12
+e9c0dljfQwKBgHc0K0VQDC1Mtk+kFA1uCQwjtNii8EpnO1XJ8Q6d+VN+rkY2U9G6
+1Dsd8G45thMVqzCW0ckBCIRmNerUn2gYwDyCqd2/ZlKlKjyf0Cfr/jDJ2ef1uJUc
+OzzI5/zvC91Q84LIj8voud3thD1rK05mERGZLlZRIb2I/UZoucWLez+XAoGAaDZr
+C+njnT4oRaK/sK51MRIIfiqGQP7MbQ83apa9voILJoAynGINqjDS1L+FxMmTywjq
+seIYNUiwWHtavdwUui8AuL6ad+zSZk4J78szW7+fHSuAFi/7YMv67snOR6P6ORL2
+rhgsYJHLKFAT5Yzu5J2vLTatHpyCcDytKc1s5nsCgYBuo7emm+iWnMwYseoZqwWw
+x8mCbNZ4fkVk5ssQQFPXX9dsniLt6cdkSN1SSwKH+wqxge+Rt66NQ+8Flk9ZiETc
+cAPnl67ptncIT3jIPTGI9nw0ZID0T8QhS7AZhcl7JqoB2jy2eISWDp1ny9xPH3P+
+dbzIfxq71JGK06hAJbEUXA==
+-----END PRIVATE KEY-----`;
+
 const calls = { nearby: 0, place: 0, autocomplete: 0, text: 0, route: 0, resolve: 0 };
+
+/* A service account, shaped like the real thing. The private key is a real
+   generated one — the code signs a JWT with it, so a fake string would fail in
+   WebCrypto rather than in the logic being tested. */
+const SA = { client_email: 'safar@test.iam.gserviceaccount.com', private_key: TEST_KEY };
+
+/* What Google is currently willing to say about the caller. Each test sets this
+   to the verdict it wants to see handled. */
+let verdict = { package: 'com.evroute.app', recognition: 'PLAY_RECOGNIZED', hash: null };
 let nextFree = 1;
 let upstreamStatus = 200;
 
@@ -78,12 +121,26 @@ globalThis.fetch = async (url, init) => {
   }
   if (u.includes(':autocomplete')) {
     calls.autocomplete++;
-    return reply({ suggestions: [{ placePrediction: { placeId: 'x1', text: { text: 'Manali' } } }] });
+    return reply({ suggestions: [{ placePrediction: {
+      placeId: 'x1', text: { text: 'Manali, Himachal Pradesh' },
+      structuredFormat: { mainText: { text: 'Manali' },
+                          secondaryText: { text: 'Himachal Pradesh, India' } },
+    } }] });
   }
   if (u.includes(':searchText')) {
     calls.text++;
     return reply({ places: [{ displayName: { text: 'Manali' },
       location: { latitude: 32.2, longitude: 77.1 }, formattedAddress: 'HP' }] });
+  }
+  if (u.includes('oauth2.googleapis.com/token')) {
+    return reply({ access_token: 'stub-access-token', expires_in: 3600 });
+  }
+  if (u.includes('decodeIntegrityToken')) {
+    return reply({ tokenPayloadExternal: {
+      requestDetails: { requestPackageName: verdict.package, requestHash: verdict.hash },
+      appIntegrity: { appRecognitionVerdict: verdict.recognition, packageName: verdict.package },
+      deviceIntegrity: { deviceRecognitionVerdict: ['MEETS_DEVICE_INTEGRITY'] },
+    } });
   }
   if (u.includes('computeRoutes')) {
     calls.route++;
@@ -115,11 +172,15 @@ globalThis.fetch = async (url, init) => {
 const env = () => ({ GOOGLE_KEY: 'test-key', CACHE: kv(), TRIPS: kv() });
 
 let ip = 0;
-const call = (e, method, path, body) => worker.fetch(new Request(
+const call = (e, method, path, body, session) => worker.fetch(new Request(
   `https://api.test${path}`,
   {
     method,
-    headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': `10.0.0.${++ip % 250}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'CF-Connecting-IP': `10.0.0.${++ip % 250}`,
+      ...(session ? { Authorization: `Bearer ${session}` } : {}),
+    },
     ...(body ? { body: JSON.stringify(body) } : {}),
   },
 ), e);
@@ -252,6 +313,79 @@ async function main() {
     check('and says so when it has nothing cached',
       r2.status === 200 && j2.degraded === true && j2.chargers.length === 0, JSON.stringify(j2));
     console.log('  past budget: cache still served, empty answers flagged degraded');
+  }
+
+  /* --- the search menu gets what it draws with --- */
+  {
+    const e = env();
+    const j = await (await call(e, 'POST', '/autocomplete', { input: 'Manali' })).json();
+    const [first] = j.places;
+    /* `placeId`, not `id`. The app looks up the tapped suggestion by that name,
+       and the first version of this returned `id` — so every suggestion in a
+       proxied build looked fine and resolved to nothing. */
+    check('a suggestion carries the id the app resolves by', first.placeId === 'x1',
+      JSON.stringify(first));
+    check('and is split into the bold line and the grey one',
+      first.main === 'Manali' && /Himachal/.test(first.sec), JSON.stringify(first));
+  }
+
+  /* --- the door, when it is locked --- */
+  {
+    /* A service account and a session secret is what turns attestation on, so
+       this env has both — and a stub Google, because the point being tested is
+       what this service does with a verdict, not that Google can be reached. */
+    const e = { ...env(), SERVICE_ACCOUNT: JSON.stringify(SA), SESSION_SECRET: 'test-secret' };
+
+    const open = await (await call(e, 'GET', '/health')).json();
+    check('health says the door is locked', open.attestation === 'required', open.attestation);
+
+    const cold = await call(e, 'POST', '/nearby', CIRCLE);
+    check('without a pass, nothing that costs money answers', cold.status === 401, `${cold.status}`);
+
+    const { nonce } = await (await call(e, 'GET', '/auth/nonce')).json();
+    check('a nonce is handed out', !!nonce, `${nonce}`);
+
+    verdict = { package: 'com.evroute.app', recognition: 'PLAY_RECOGNIZED', hash: nonce };
+    const ok = await (await call(e, 'POST', '/auth/verify', { token: 't', nonce })).json();
+    check('the real app gets a session', !!ok.session, JSON.stringify(ok));
+
+    const after = await call(e, 'POST', '/nearby', CIRCLE, ok.session);
+    check('and with it, everything opens', after.status === 200, `${after.status}`);
+
+    /* The clone: same package name, its own signing key — which is exactly what
+       Google reports as UNRECOGNIZED_VERSION. */
+    const { nonce: n2 } = await (await call(e, 'GET', '/auth/nonce')).json();
+    verdict = { package: 'com.evroute.app', recognition: 'UNRECOGNIZED_VERSION', hash: n2 };
+    const clone = await call(e, 'POST', '/auth/verify', { token: 't', nonce: n2 });
+    check('a clone is refused', clone.status === 403, `${clone.status}`);
+
+    /* A captured token, sent again. The nonce it answers is gone. */
+    const { nonce: n3 } = await (await call(e, 'GET', '/auth/nonce')).json();
+    verdict = { package: 'com.evroute.app', recognition: 'PLAY_RECOGNIZED', hash: n3 };
+    await call(e, 'POST', '/auth/verify', { token: 't', nonce: n3 });
+    const replay = await call(e, 'POST', '/auth/verify', { token: 't', nonce: n3 });
+    check('a token cannot be replayed', replay.status === 403, `${replay.status}`);
+
+    /* A token for a different question — captured from another handset. */
+    const { nonce: n4 } = await (await call(e, 'GET', '/auth/nonce')).json();
+    verdict = { package: 'com.evroute.app', recognition: 'PLAY_RECOGNIZED', hash: 'somebody-elses' };
+    const wrong = await call(e, 'POST', '/auth/verify', { token: 't', nonce: n4 });
+    check('a token bound to another nonce is refused', wrong.status === 403, `${wrong.status}`);
+
+    /* And a session token somebody wrote themselves. */
+    const forged = await call(e, 'POST', '/nearby', CIRCLE, `${Date.now() + 1e9}.x.notasignature`);
+    check('a made-up session is refused', forged.status === 401, `${forged.status}`);
+
+    console.log('  clone refused, replay refused, forged pass refused');
+  }
+
+  /* --- and when it is not configured, it says so rather than pretending --- */
+  {
+    const e = env();
+    const h = await (await call(e, 'GET', '/health')).json();
+    check('an unconfigured service admits the door is open', h.attestation === 'open', h.attestation);
+    const r = await call(e, 'POST', '/nearby', CIRCLE);
+    check('and still answers, as it did before any of this', r.status === 200, `${r.status}`);
   }
 
   /* --- the rate limiter counts without recording who --- */

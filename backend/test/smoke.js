@@ -55,7 +55,13 @@ const CIRCLE = { lat: 30.7333, lng: 76.7794, radiusKm: 40 };   // Chandigarh, on
     JSON.stringify(dc.filter(c => c.kw < 25).slice(0, 2)));
   check('and the sweep found DC chargers at all', dc.length > 0, `${dc.length} of ${sites.length}`);
   const live = sites.filter(c => c.free != null);
-  check('at least one reports live free bays', live.length > 0,
+  /* Only meaningful on a fresh sweep. A cached circle is six hours old while
+     its bay counts live fifteen minutes, so an hour later the sites come back
+     with `free: null` — not "all busy", but "nobody has asked recently", which
+     is exactly the split this cache was built for. Asserting on a cached answer
+     would be asserting about the time of day. */
+  if (n1.j.cached) console.log(`     (cached circle — bay counts expire separately, ${live.length} still live)`);
+  else check('at least one reports live free bays', live.length > 0,
     `${live.length} of ${sites.length} — Google has no counts for this area if 0`);
   console.log(`     ${sites.length} sites, ${dc.length} DC, ${live.length} with live counts, ${n1.ms} ms`);
 
@@ -86,8 +92,14 @@ const CIRCLE = { lat: 30.7333, lng: 76.7794, radiusKm: 40 };   // Chandigarh, on
   const a = await call('/autocomplete', { input: 'Manali', lat: 28.6, lng: 77.2 });
   check('place search works', a.status === 200 && a.j.places.length > 0,
     JSON.stringify(a.j).slice(0, 160));
+  check('and a suggestion is shaped the way the menu draws it',
+    a.j.places[0] && a.j.places[0].placeId && a.j.places[0].main,
+    JSON.stringify(a.j.places[0]));
   if (a.j.places && a.j.places[0]) {
-    const res = await call('/resolve', { id: a.j.places[0].id });
+    /* placeId, the name the app looks it up by. This said `id` and passed
+       against a service that also said `id` — two halves of one mistake
+       agreeing with each other. */
+    const res = await call('/resolve', { id: a.j.places[0].placeId });
     check('a suggestion resolves to coordinates',
       res.status === 200 && Math.abs(res.j.lat) > 0, JSON.stringify(res.j).slice(0, 120));
   }

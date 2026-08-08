@@ -118,6 +118,17 @@ road is the person who asked about the next.
 Your IP address is visible to Cloudflare while a request is being handled, as it
 is to any website you open — <https://www.cloudflare.com/privacypolicy/>.
 
+**Checking that it is really this app.** Before answering, the service asks
+Google to confirm that the app making the request is the genuine Safar from the
+Play Store and has not been repackaged. This uses the Play Integrity API. What
+it reports is about the *app and the device*, not about you: the package name,
+the signing certificate, whether Play installed it, and whether the device is a
+genuine Android one. No account, no advertising ID, and nothing you have typed
+is involved, and the result is a pass valid for a day which is not tied to any
+identifier of yours. It exists because the service spends real money on every
+Google lookup, and without it a copy of this app under another name would spend
+it — leaving real users without chargers.
+
 ## Sharing your drives (off by default)
 
 The Log screen has a switch marked **Help fix the model**. It is off. Turned on,

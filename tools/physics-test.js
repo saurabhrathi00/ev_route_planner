@@ -861,8 +861,78 @@ async function main() {
     /if \(!debuggable\) return ConsentRequestParameters/.test(actCode),
     'debug geography could ship');
   check('and without opening a JavaScript bridge to do it',
-    !/@JavascriptInterface/.test(act) && /evroute" && url\.host == "privacy-options"/.test(act),
-    'a bridge was added');
+    /evroute" && url\.host == "privacy-options"/.test(act), 'the consent form went through a bridge');
+  /* There is a bridge now, for attestation — a statement about which app is
+     running cannot come from inside the app. It stays one method wide: this
+     used to assert no bridge at all, and the check that replaced it has to be
+     the narrow one, or the next thing added to it goes unnoticed. */
+  const exposed = (actCode.match(/@JavascriptInterface\s+fun\s+(\w+)/g) || [])
+    .map(m => m.split(/\s+/).pop());
+  check('the bridge exposes attestation and nothing else',
+    exposed.length === 1 && exposed[0] === 'request', exposed.join(', ') || 'none');
+  check('and the page is the only thing that can reach it',
+    /addJavascriptInterface\(Attest\(\), "SafarNative"\)/.test(actCode), 'wired differently');
+  /* --- the day pass ------------------------------------------------------
+     Only meaningful against a build that has a backend to attest to; the
+     source has PROXY empty and takes none of these paths. */
+  if (BUILT && /const PROXY_URL = 'https/.test(src)) {
+    console.log('\n  attestation');
+    console.log('  ' + '-'.repeat(55));
+    const seen = [];
+    const realFetch = env.chgFetch;
+    let integrityAsked = 0;
+
+    /* A shell that answers, the way the Android one does — asynchronously, and
+       by calling back into the page. */
+    env.window.SafarNative = { request: (nonce, id) => {
+      integrityAsked++;
+      setTimeout(() => env.window.__attestDone(id, 'google-signed-token-for-' + nonce, null), 0);
+    } };
+
+    let pass = null;
+    env.chgFetch = async (url, init = {}) => {
+      const path = String(url).replace(/^https:\/\/[^/]+/, '');
+      const auth = (init.headers || {}).Authorization || null;
+      seen.push({ path, auth });
+      if (path === '/auth/nonce') return { ok: true, status: 200, json: async () => ({ nonce: 'n-1' }) };
+      if (path === '/auth/verify') { pass = 'session-1'; return { ok: true, status: 200, json: async () => ({ session: pass }) }; }
+      /* The service refuses anything without a pass, which is the whole point. */
+      if (auth !== 'Bearer ' + pass) return { ok: false, status: 401, json: async () => ({ error: 'attest first' }) };
+      return { ok: true, status: 200, json: async () => ({ chargers: [] }) };
+    };
+
+    await env.chargersGoogle({ lat: 28.6, lng: 77.2 }, 40, 'k');
+    const paths = seen.map(x => x.path);
+    check('a refused call attests and comes back',
+      paths.join(' ') === '/nearby /auth/nonce /auth/verify /nearby', paths.join(' '));
+    check('the shell was asked for exactly one token', integrityAsked === 1, `${integrityAsked}`);
+    check('and the retry carried the pass',
+      seen[seen.length - 1].auth === 'Bearer session-1', seen[seen.length - 1].auth);
+    check('the nonce request carried none, because there is nothing to carry yet',
+      seen[1].auth === null, seen[1].auth);
+
+    /* Once held, it is reused rather than re-earned. */
+    seen.length = 0;
+    await env.chargersGoogle({ lat: 28.7, lng: 77.3 }, 40, 'k');
+    check('a second call spends no attestation', seen.length === 1 && seen[0].path === '/nearby',
+      seen.map(x => x.path).join(' '));
+
+    /* A build with no shell — the web build — must fail over to the open
+       sources rather than hang or throw something a driver sees. */
+    delete env.window.SafarNative;
+    env.chgFetch = async (url) => {
+      const path = String(url).replace(/^https:\/\/[^/]+/, '');
+      if (path === '/auth/nonce') return { ok: true, status: 200, json: async () => ({ nonce: 'n-2' }) };
+      return { ok: false, status: 401, json: async () => ({ error: 'attest first' }) };
+    };
+    let refused = null;
+    try { await env.chargersGoogle({ lat: 28.8, lng: 77.4 }, 40, 'k'); }
+    catch (e) { refused = e.message; }
+    check('without a shell, Google refuses rather than hangs', !!refused, 'it answered');
+    console.log(`  no shell: "${refused}" — Open Charge Map and OSM take over`);
+    env.chgFetch = realFetch;
+  }
+
   check('the page only offers the choice where there is one',
     /window\.__privacyOptions/.test(src) && /id="privacy-options"[^>]*hidden/.test(src),
     'the button is always there');

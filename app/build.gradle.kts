@@ -109,6 +109,11 @@ dependencies {
      * super.onRequestPermissionsResult() and hand back invalid request codes.
      * Lint fails the release build on it, correctly. */
     implementation("androidx.fragment:fragment-ktx:1.8.5")
+    /* Play Integrity. This is what makes the backend able to tell this app from
+       a repackaged copy of it: Google signs a statement naming the package and
+       the signing certificate, and the service checks that statement with
+       Google rather than trusting anything the caller says about itself. */
+    implementation("com.google.android.play:integrity:1.4.0")
 }
 
 /* A loud reminder rather than a silent unsigned artifact. */
