@@ -1812,6 +1812,15 @@ details[open] summary::before{transform:rotate(90deg)}
         <div class="head"><h2>History</h2><span class="tag">makes the model yours</span></div>
         <div class="body"><div id="t_list"></div></div>
       </section>
+      <section class="card reveal" style="--i:3" id="c-share" hidden>
+        <div class="head"><h2>Help fix the model</h2><span class="tag">off unless you turn it on</span></div>
+        <div class="body">
+          <p class="hint" style="margin-top:0">The physics behind every estimate is anchored on two drives taken from a magazine range test. Real drives are what would replace them — many cars, many roads, winter and summer.</p>
+          <label class="row"><input type="checkbox" id="t_share">
+            <span>Send my logged drives anonymously</span></label>
+          <p class="note">Sent: the car, distance, climb, temperature, and the two percentages — predicted and actual. <strong>Not sent:</strong> where you started, where you went, when you drove, or anything that identifies you or this phone. Turning it off stops it; nothing already sent can be traced back to be removed, because nothing sent carries a name.</p>
+        </div>
+      </section>
     </section>
 
     <!-- ============ 5. SETTINGS ============ -->
@@ -2108,7 +2117,7 @@ const fmt = (n,d=0) => (isFinite(n)?n:0).toLocaleString(undefined,{minimumFracti
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const BUNDLED_OCM = atob('NDE5NTY3MzEtNDBiNS00OTM5LTg0ZjktNWIwZWZiYTVlOWIw');
-const S = { from:null, to:null, chargers:false, strategy:'time', learn:1, trips:[] };
+const S = { from:null, to:null, chargers:false, strategy:'time', learn:1, trips:[], share:false };
 const ocmKey = ()=> ($('ocm').value.trim() || BUNDLED_OCM);
 /* One source: whatever tools/build.sh baked in. The build replaces the
    placeholder, so if it never ran, treat that as absent rather than sending
@@ -2123,6 +2132,31 @@ const bundledGKey = ()=>{
   return (!v || v.slice(0,2)==='__') ? '' : v;
 };
 const gmapKey = bundledGKey;
+
+/* The backend, when there is one.
+
+   `backend/` holds a Cloudflare Worker that keeps the key and shares the
+   charger cache between drivers. Set this to its URL and every Places and
+   Routes call goes through it instead of straight to Google; leave it empty and
+   the app behaves exactly as it does today. That is deliberate — the Worker can
+   sit finished and undeployed without this file having to care.
+
+   The map is the exception and always will be. The Maps JavaScript library runs
+   on the device and talks to Google itself, so its key cannot be hidden behind
+   anything. It is a different key, restricted to the Maps JavaScript API alone,
+   and the worst anyone can do with it is draw a map. */
+const PROXY = '';
+const viaProxy = () => PROXY !== '';
+
+async function proxy(path, body, timeoutMs = 12000){
+  const r = await chgFetch(PROXY + path, body ? {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body),
+  } : {}, timeoutMs);
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error || `service returned ${r.status}`);
+  return j;
+}
 
 /* What a failed service is allowed to say in front of a driver.
 
@@ -3036,6 +3070,25 @@ function decodePolyline(str){
 let GOOGLE_DUR = null;
 
 async function routeGoogle(a, b, key, departAt){
+  /* Behind the proxy the Worker holds the key and asks for this exact field
+     mask, so what comes back is the same road cut the same way — only the
+     polylines arrive still encoded, because decoding them is the client's job
+     and shipping the points expanded would triple the response. */
+  if(viaProxy()){
+    const j = await proxy('/route', {
+      from:{lat:a.lat, lng:a.lng}, to:{lat:b.lat, lng:b.lng},
+      departAt: departAt && departAt.getTime() > Date.now()+60000
+        ? new Date(departAt).toISOString() : null
+    }, 20000);
+    GOOGLE_DUR = j.seconds || null;
+    const steps = (j.steps||[]).map(st=>({
+      distance: st.distance||0, duration: st.duration||0,
+      geometry:{coordinates: decodePolyline(st.polyline)}
+    })).filter(st=>st.geometry.coordinates.length);
+    if(!steps.length) throw new Error('the route came back without a shape');
+    return {distance: j.distance||0, legs:[{steps}]};
+  }
+
   const r = await chgFetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
     method:'POST',
     headers:{
@@ -3114,6 +3167,15 @@ async function googleQuietDuration(a, b, key){
   const q=new Date();
   q.setDate(q.getDate() + (q.getHours()>=3 ? 1 : 0));
   q.setHours(3,0,0,0);
+  /* The Worker caches this across everybody, which is the whole argument for
+     it: one 3am lookup answers every driver who plans the same road that day,
+     where the local cache above only ever answers its own owner. */
+  if(viaProxy()){
+    const j = await proxy('/quiet', {
+      from:{lat:a.lat, lng:a.lng}, to:{lat:b.lat, lng:b.lng}, whenISO:q.toISOString()
+    }, 20000);
+    return j.seconds || 0;
+  }
   const r = await chgFetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
     method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,
@@ -3151,6 +3213,10 @@ const newSession = () =>
   : 'ev-'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
 
 async function placesAutocompleteGoogle(text, key, session){
+  if(viaProxy()){
+    const j = await proxy('/autocomplete', {input:text, sessionToken:session});
+    return (j.places||[]).map(p=>({id:p.id, name:p.name}));
+  }
   const r = await chgFetch('https://places.googleapis.com/v1/places:autocomplete', {
     method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':key},
@@ -3174,6 +3240,7 @@ async function placesAutocompleteGoogle(text, key, session){
    than Essentials. In India that is $5.10 per thousand against $1.50, with
    half the free allowance, for a string that was thrown away on arrival. */
 async function placeDetailsGoogle(placeId, key, session){
+  if(viaProxy()) return await proxy('/resolve', {id:placeId, sessionToken:session});
   const q = session ? '?sessionToken='+encodeURIComponent(session) : '';
   const r = await chgFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}${q}`, {
     headers:{'X-Goog-Api-Key':key, 'X-Goog-FieldMask':'location'}
@@ -3186,6 +3253,11 @@ async function placeDetailsGoogle(placeId, key, session){
 
 /* For text typed and submitted without picking from the menu. */
 async function searchTextGoogle(text, key){
+  if(viaProxy()){
+    const j = await proxy('/text', {query:text});
+    if(!j.places || !j.places.length) throw new Error(`No place found for "${text}". Try adding the state or country.`);
+    return j.places;
+  }
   const r = await chgFetch('https://places.googleapis.com/v1/places:searchText', {
     method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,
@@ -4471,6 +4543,12 @@ const PLUG = {EV_CONNECTOR_TYPE_CCS_COMBO_1:'CCS1', EV_CONNECTOR_TYPE_CCS_COMBO_
 /* Google is the only source with star ratings, and for some networks it also
    reports how many bays are free right now — the strongest signal there is. */
 async function chargersGoogle(center, km, key){
+  if(viaProxy()){
+    const j = await proxy('/nearby', {lat:center.lat, lng:center.lng, radiusKm:km});
+    /* The service returns chargers already read — same fields, same reader, one
+       copy of it — so there is nothing to parse here. */
+    return (j.chargers||[]).map(c=>({...c, working:true, membership:false, verified:null}));
+  }
   const r=await chgFetch('https://places.googleapis.com/v1/places:searchNearby',{
     method:'POST',
     headers:{
@@ -4565,6 +4643,10 @@ function readEV(evOpts){
    place by id, which is why the id is worth keeping. It answers what is true
    now rather than what was true when the plan was made. */
 async function recheckCharger(c){
+  if(viaProxy()){
+    if(!c.pid) throw new Error('This one was not found through Google, so there is nothing to ask.');
+    return await proxy('/place/' + encodeURIComponent(c.pid));
+  }
   const key=gmapKey();
   if(!key || !useGoogleChargers()) throw new Error('Live counts come from Google, which is switched off in Settings.');
   if(!c.pid) throw new Error('This one was not found through Google, so there is nothing to ask.');
@@ -6397,7 +6479,14 @@ async function plan(e){
        so the app remembers instead. */
     sset('pending', {from:S.from.name.split(',')[0], to:S.to.name.split(',')[0],
                      d:+sim.dist.toFixed(1), h:Math.round(sim.gain),
-                     pred:+sim.used.toFixed(1), cap:num('cap'), at:Date.now()});
+                     pred:+sim.used.toFixed(1), cap:num('cap'), at:Date.now(),
+                     /* The car and the weather it was planned in. Kept because
+                        a drive without them says the model was 8% out and
+                        nothing about why — and neither can be recovered later,
+                        by which time the forecast has moved on. */
+                     car:$('carpick').value,
+                     tempC:Math.round(marks.reduce((a,m)=>a+m.temp,0)/marks.length),
+                     kmh:sim.secs>60 ? Math.round(sim.dist/(sim.secs/3600)) : null});
     if(window.UI) UI.showResult(); else $('out').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(err){
     console.error(err);
@@ -7098,8 +7187,11 @@ async function askAboutLastDrive(){
       if(window.UI) UI.toast('That should be the percentage the drive used, between 1 and 100', true);
       return;
     }
-    S.trips.push({at:Date.now(), d:p.d, h:p.h, pred:p.pred, actual:a});
+    const t = {at:Date.now(), d:p.d, h:p.h, pred:p.pred, actual:a,
+               car:p.car, tempC:p.tempC, kmh:p.kmh};
+    S.trips.push(t);
     await sset('trips',S.trips);
+    shareTrip(t);
     relearn(); renderTrips(); calibrate();
     await done();
     if(window.UI) UI.toast(a>p.pred ? `Saved — it cost ${fmt(a-p.pred,1)} points more than expected, and the model now knows`
@@ -7178,6 +7270,29 @@ function paintKeyState(){
     : gSrcMode==='all'  ? `<strong style="color:var(--ok)">On</strong> — place search, routing, the map and chargers use the best source available, with the open ones behind them whenever it is slow or unavailable.`
     :                     `<strong style="color:var(--ok)">Chargers only</strong> — a setting from an older build. Switch it Off and On again to move to the current one.`;
 }
+/* One drive, offered to the pool.
+ *
+ * Three conditions, all of which have to hold: a backend to send it to, the
+ * driver having said yes, and the record actually carrying the car and the
+ * temperature — a hand-typed trip has neither, and a distance with no
+ * conditions attached cannot be told apart from a wrong model.
+ *
+ * Failure is silent and unretried. This is a gift to a dataset, not a
+ * transaction; a driver who has just logged a drive should never see an error
+ * about a server they did not ask about. */
+async function shareTrip(t){
+  if(!viaProxy() || !S.share) return;
+  if(!t.car || t.tempC == null) return;
+  try{
+    await proxy('/trip', {
+      car:t.car, km:t.d, climb:t.h, tempC:t.tempC, kmh:t.kmh || null,
+      people:num('people') || null, acPct:num('acpct'),
+      predictedPct:t.pred, actualPct:t.actual,
+      build:($('m-build')||{}).textContent || null
+    }, 8000);
+  }catch(_){ /* the pool can do without this one */ }
+}
+
 $('t_add').addEventListener('click',async()=>{
   const d=parseFloat($('t_d').value), pred=parseFloat($('t_p').value), actual=parseFloat($('t_a').value);
   if(!(d>0)||!(pred>0)||!(actual>0)){ $('t_msg').innerHTML='<span class="err">Distance, predicted and actual are all needed.</span>'; return; }
@@ -7189,6 +7304,22 @@ $('t_add').addEventListener('click',async()=>{
 
 (async function init(){
   S.trips=(await sget('trips'))||[];
+  /* The card only exists where there is somewhere to send to. In a build with
+     no backend it is not a switch turned off, it is a promise the app cannot
+     keep, so it is not shown at all. */
+  S.share = !!(await sget('share'));
+  const shareCard=$('c-share');
+  if(shareCard && viaProxy()){
+    shareCard.hidden=false;
+    $('t_share').checked=S.share;
+    $('t_share').addEventListener('change',async e=>{
+      S.share=e.target.checked;
+      await sset('share',S.share);
+      if(window.UI) UI.toast(S.share
+        ? 'Thank you — future drives you log will be sent, with no name on them'
+        : 'Off — nothing further will be sent');
+    });
+  }
   sweepChargerCache();          // stale circles, off the critical path
   /* Left over from when Settings had a key field. Nothing reads it now, and
      an abandoned API key sitting in local storage is not something to keep. */

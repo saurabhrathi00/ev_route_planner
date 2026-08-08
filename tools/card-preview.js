@@ -154,6 +154,46 @@ ${cardCSS}
   padding:14px 0 5px}
 .order li.grp::before{content:""}
 .demo{margin-top:16px;max-width:520px}
+.phone2{width:360px;max-width:100%;background:var(--paper);border-radius:var(--r-l);padding:14px}
+
+/* what ships today */
+.verdict-old{border:1px solid var(--rule);border-left:5px solid var(--ink);background:var(--sheet);
+  padding:20px;border-radius:var(--r-l);box-shadow:var(--shadow-1)}
+.lede-old{font:600 25px/1.14 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.025em;color:var(--ink)}
+.sub-old{color:var(--ink2);margin-top:9px;font-size:14px;line-height:1.5}
+.kpis-old{display:flex;flex-wrap:wrap;gap:1px;background:var(--rule2);border:1px solid var(--rule2);
+  margin-top:18px;border-radius:var(--r-m);overflow:hidden}
+.kpi-old{background:var(--sheet);padding:12px 13px;flex:1 1 112px;min-width:112px}
+.kpi-old .v{font:500 22px "IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.03em;color:var(--ink)}
+.kpi-old .l{font:10px "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink3);margin-top:3px}
+
+/* the proposal: one figure, and the charge drawn as charge */
+.hero{background:var(--sheet);border-radius:26px;padding:24px 22px 20px;
+  box-shadow:0 1px 2px rgba(20,40,32,.05), 0 18px 40px -28px rgba(20,40,32,.45)}
+@media (prefers-color-scheme:dark){.hero{box-shadow:0 1px 2px rgba(0,0,0,.5), 0 18px 40px -26px #000}}
+.hero-eyebrow{display:block;font:500 10px "IBM Plex Mono",ui-monospace,monospace;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+.hero-fig{display:flex;align-items:baseline;gap:2px;margin-top:10px}
+.hero-num{font:800 76px/0.85 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.055em;
+  color:var(--ink);font-variant-numeric:tabular-nums}
+.hero-pct{font:700 30px/1 "Bricolage Grotesque",system-ui,sans-serif;color:var(--ink3);letter-spacing:-.03em}
+.hero-cap{display:block;margin-top:6px;font-size:14.5px;color:var(--ink2)}
+/* the pack, drawn: everything below the mark is what you promised to keep */
+.arc{position:relative;height:10px;border-radius:100px;background:var(--rule2);margin-top:18px;overflow:hidden}
+.arc .fill{position:absolute;inset:0;width:calc(var(--soc)*1%);border-radius:100px;
+  background:linear-gradient(90deg,var(--ok),var(--brand-green))}
+.arc .mark{position:absolute;top:-3px;bottom:-3px;left:calc(var(--floor)*1%);width:2px;
+  background:var(--ink3);opacity:.65}
+.chip{display:inline-block;margin-top:14px;font:500 11.5px "Public Sans",system-ui,sans-serif;
+  padding:6px 11px;border-radius:100px}
+.chip.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.facts{display:flex;gap:22px;margin-top:18px;flex-wrap:wrap}
+.facts div{display:flex;flex-direction:column}
+.facts b{font:500 17px "IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.02em;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.facts span{font:10px "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink3);margin-top:3px}
 .phones{display:grid;gap:26px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:22px}
 .phone{width:360px;max-width:100%;background:var(--sheet);border:1px solid var(--rule);
   border-radius:var(--r-l);overflow:hidden;padding-bottom:8px}
@@ -217,6 +257,55 @@ ${cardCSS}
       </ol>
     </div>
   </div>
+
+  <div class="rule"></div>
+  <p class="eyebrow" style="margin-top:34px">a proposal · not in the app yet</p>
+  <h2 class="h2">The verdict, as one number</h2>
+  <p class="lede">Everything else on the results page is working. This is the one place the
+  design is losing to the content: the app's whole promise is a single figure — the charge
+  you will have left — and it currently arrives as a sentence followed by four equal tiles.
+  Left is what ships today. Right is the same information with a hierarchy.</p>
+  <div class="phones">
+    <div>
+      <p class="ohead was">today</p>
+      <div class="phone2">
+        <div class="verdict-old">
+          <div class="lede-old">You get there with charge in hand</div>
+          <div class="sub-old">Delhi to Manali, 498 km with 2,410 m of climbing and 690 m of descent.
+            Two stops, and you arrive on 41%.</div>
+          <div class="kpis-old">
+            <div class="kpi-old"><div class="v">9h 12m</div><div class="l">door to door</div></div>
+            <div class="kpi-old"><div class="v">1h 04m</div><div class="l">charging &amp; stops</div></div>
+            <div class="kpi-old"><div class="v">36–41%</div><div class="l">on arrival</div></div>
+            <div class="kpi-old"><div class="v">94.2%</div><div class="l">charge used</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="ohead is">proposed</p>
+      <div class="phone2">
+        <div class="hero">
+          <span class="hero-eyebrow">Delhi → Manali · 498 km</span>
+          <div class="hero-fig"><span class="hero-num">41</span><span class="hero-pct">%</span></div>
+          <span class="hero-cap">left when you arrive</span>
+          <div class="arc" style="--soc:41;--floor:15">
+            <i class="fill"></i><i class="mark"></i>
+          </div>
+          <span class="chip ok">holds your 35% target, even if the estimate is off</span>
+          <div class="facts">
+            <div><b>9h 12m</b><span>door to door</span></div>
+            <div><b>2</b><span>stops · 1h 04m</span></div>
+            <div><b>94.2%</b><span>charge used</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="foot" style="margin-top:14px">Same numbers, same words, same palette and type. What
+  changes is that one of them is the answer and the rest are support — and that the charge is
+  drawn as charge rather than typed as a figure. Nothing here is in the app; say the word and it
+  goes in.</p>
 
   <p class="eyebrow" style="margin-top:38px">under the map</p>
   <h2 class="h2">Three links, one action</h2>

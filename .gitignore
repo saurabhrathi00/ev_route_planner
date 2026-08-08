@@ -30,3 +30,6 @@ ios/Resources/index.html
 
 # built APKs — they carry the injected Google key
 apk/
+
+# Python bytecode
+__pycache__/

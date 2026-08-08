@@ -1,0 +1,22 @@
+# The Worker. Nothing here is deployed; see README.md.
+name = "safar-api"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Secrets, never in this file:
+#   wrangler secret put GOOGLE_KEY     Places API (New) + Routes API, nothing else
+#
+# The Maps JavaScript key stays in the app and is a *different* key, restricted
+# to the Maps JavaScript API. It cannot be hidden — the library runs on the
+# device — so the point is that it can do nothing but draw maps.
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "PUT_THE_ID_HERE"          # wrangler kv namespace create SAFAR_CACHE
+
+[[kv_namespaces]]
+binding = "TRIPS"
+id = "PUT_THE_ID_HERE"          # wrangler kv namespace create SAFAR_TRIPS
+
+[observability]
+enabled = true
