@@ -1,6 +1,6 @@
 {
-  "name": "EVRoute",
-  "short_name": "EVRoute",
+  "name": "Safar — EV Charging & Route",
+  "short_name": "Safar",
   "description": "Smart route, maximum range. Reads the road's cross-section and tells you the charge you'll have left on arrival.",
   "start_url": "./index.html",
   "scope": "./",

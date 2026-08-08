@@ -1,0 +1,147 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — Safar</title><style>
+:root{--paper:#F1F4F2;--sheet:#fff;--ink:#15201C;--ink2:#5C6B65;--ink3:#66726C;
+  --rule:#DDE4E0;--green:#1D8724;--charge:#26699F}
+@media (prefers-color-scheme:dark){:root{--paper:#0F1413;--sheet:#171D1B;--ink:#E7EDE8;
+  --ink2:#9DA9A3;--ink3:#798680;--rule:#2C3532;--green:#5FBF5A;--charge:#6DB4E4}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink2);
+  font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:68ch;margin:0 auto;padding:48px 22px 96px}
+.brand{display:block;font:800 20px/1 system-ui,sans-serif;letter-spacing:-.03em;
+  color:var(--ink);text-decoration:none;margin-bottom:34px}
+.brand span{color:var(--green)}
+h1{font:700 30px/1.2 system-ui,sans-serif;color:var(--ink);margin:0 0 6px;letter-spacing:-.02em}
+h2{font:600 17px/1.3 system-ui,sans-serif;color:var(--ink);margin:32px 0 8px}
+p{margin:0 0 12px} strong{color:var(--ink)} em{color:var(--ink3)}
+ul{padding-left:20px;margin:0 0 12px} li{margin:4px 0}
+a{color:var(--charge)}
+hr{border:0;border-top:1px solid var(--rule);margin:28px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{color:var(--ink);font-weight:600}
+.docwrap{overflow-x:auto}
+nav{margin-top:44px;padding-top:20px;border-top:1px solid var(--rule);font-size:14px}
+nav a{margin-right:16px}
+footer{margin-top:28px;font-size:13px;color:var(--ink3)}
+</style></head><body><div class="wrap">
+<a class="brand" href="index.html"><span>S</span>afar</a>
+<h1>Privacy Policy — Safar</h1>
+<p><strong>Last updated: 8 August 2026</strong></p>
+<p>Safar (&quot;the app&quot;) plans an electric-car journey: how much charge a</p>
+<p>drive will cost, where you drop to your reserve, and where you could charge.</p>
+<p>**There is no account and no login. We operate no server, so nothing you do in</p>
+<p>the app is sent to us and we hold no data about you.** The app does show ads,</p>
+<p>and it can ask for your location if you tap the button that needs it. Both are</p>
+<p>described below.</p>
+<h2>What stays on your device</h2>
+<p>Everything the app remembers is stored locally on the phone and never leaves it:</p>
+<ul>
+<li>Your trip log (distance, elevation gain, predicted and actual charge used)</li>
+<li>Cached terrain data, so a route you have planned before replans quickly</li>
+<li>Your car settings and calibration figures</li>
+<li>Your theme and data-source preferences</li>
+</ul>
+<p>Uninstalling the app deletes all of it. None of it is backed up to us, because</p>
+<p>there is no &quot;us&quot; to back it up to — we run no servers.</p>
+<h2>Your location</h2>
+<p>The Start field has a &quot;use my current location&quot; button. **Nothing happens until</p>
+<p>you tap it.** The app does not track you, does not read your location in the</p>
+<p>background, and does not read it at all unless you ask.</p>
+<p>When you do tap it:</p>
+<ul>
+<li>Android asks your permission first; you can refuse, and the app carries on</li>
+</ul>
+<p>  working from typed place names</p>
+<ul>
+<li>The coordinates are used to fill in the Start field and to plan the route</li>
+<li>They are sent to the same mapping services listed below — the same way a</li>
+</ul>
+<p>  place you typed would be — so that the point can be given a name and a road</p>
+<p>  can be found from it</p>
+<ul>
+<li>They are not stored anywhere except in the app&#x27;s own local storage on your</li>
+</ul>
+<p>  phone, and they are not sent to us</p>
+<p>You can withdraw the permission at any time in Android&#x27;s app settings.</p>
+<h2>What is sent to other services</h2>
+<p>To plan a drive, the app has to ask mapping services about the road. It sends</p>
+<p>the following, directly from your phone to those services:</p>
+<div class="docwrap"><table><thead><tr><th>Sent</th><th>To</th><th>Why</th></tr></thead><tbody>
+<tr><td>The place text you type</td><td>Google Places, or Photon (Komoot)</td><td>Turning &quot;Manali&quot; into a point</td></tr>
+<tr><td>Start and destination coordinates</td><td>Google Routes, or OpenRouteService / OSRM</td><td>Getting the road between them</td></tr>
+<tr><td>Coordinates along the route</td><td>Open-Meteo, AWS Open Data (terrain tiles)</td><td>Ground height and weather</td></tr>
+<tr><td>Coordinates along the route</td><td>Google Places, Open Charge Map, OpenStreetMap (Overpass)</td><td>Finding chargers</td></tr>
+<tr><td>Map viewport coordinates</td><td>Google Maps, or OpenStreetMap tile servers</td><td>Drawing the map</td></tr>
+</tbody></table></div>
+<p>Nothing is sent to these services that identifies you: no account, no name, no</p>
+<p>contact details. Your IP address is necessarily visible to them, as it is to any</p>
+<p>website you open.</p>
+<p>Which service answers depends on the <strong>Where data comes from</strong> setting. The</p>
+<p>default sends map, search, routing and charger requests to Google, with the free</p>
+<p>services used as fallbacks when Google fails. Setting it to <strong>Free</strong> stops the</p>
+<p>app contacting Google for any of them.</p>
+<p>Each service has its own privacy policy and its own logs, outside our control:</p>
+<ul>
+<li>Google Maps Platform — &lt;https://policies.google.com/privacy&gt;</li>
+<li>Photon / Komoot — &lt;https://photon.komoot.io&gt;</li>
+<li>OpenRouteService — &lt;https://openrouteservice.org/privacy-policy/&gt;</li>
+<li>OSRM demo server — &lt;https://project-osrm.org&gt;</li>
+<li>Open-Meteo — &lt;https://open-meteo.com/en/terms&gt;</li>
+<li>Open Charge Map — &lt;https://openchargemap.org/site/about/privacy&gt;</li>
+<li>OpenStreetMap / Overpass — &lt;https://osmfoundation.org/wiki/Privacy_Policy&gt;</li>
+</ul>
+<p>The Google API key used for those requests is built into the app. It is ours,</p>
+<p>not yours — you are never asked for a key and billing for it never reaches you.</p>
+<h2>Advertising</h2>
+<p>The app shows a banner ad from <strong>Google AdMob</strong>. To serve it, AdMob collects</p>
+<p>information from your device independently of anything the app does:</p>
+<ul>
+<li>Your device&#x27;s <strong>advertising ID</strong></li>
+<li>Your IP address, and device and network information</li>
+<li>Whether ads were shown, viewed or tapped</li>
+</ul>
+<p>This is handled by Google, not by us. We never see it, and we cannot connect it</p>
+<p>to your routes, your trips or anything else in the app — the ad and the planner</p>
+<p>do not share data.</p>
+<p>The Android build also carries the Privacy Sandbox permissions the ads SDK</p>
+<p>requires — `AD_ID`, and the Topics, Attribution and Ad ID access the Android</p>
+<p>advertising system uses. They arrive with the SDK; the app itself reads none of</p>
+<p>them.</p>
+<p><strong>Your choice about this.</strong> Before any advertisement is requested, the app asks</p>
+<p>through Google&#x27;s consent platform. Where the law gives you a say — the EEA, the</p>
+<p>UK, and the American states that grant a right to opt out of sharing for</p>
+<p>targeted advertising — you are asked before the first ad, and you can change</p>
+<p>your answer at any time: <strong>Settings → About Safar → Advertising choices</strong>. If</p>
+<p>you say no, or if we cannot reach the consent service at all, no advertisement</p>
+<p>is requested.</p>
+<ul>
+<li>How Google uses this data: &lt;https://policies.google.com/technologies/partner-sites&gt;</li>
+<li>You can reset or delete your advertising ID, and turn off ad personalisation,</li>
+</ul>
+<p>  in <strong>Android Settings → Privacy → Ads</strong></p>
+<p><strong>The iOS build carries no advertising</strong>, no ad SDK, and no advertising</p>
+<p>identifier.</p>
+<h2>Analytics</h2>
+<p>There are none. The app collects no usage statistics and reports no crashes to</p>
+<p>us. We do not know how many people use it or what they do in it.</p>
+<h2>Links out of the app</h2>
+<p>Buttons such as &quot;Navigate in Google Maps&quot;, &quot;Chargers on PlugShare&quot; and &quot;Open in</p>
+<p>OpenStreetMap&quot; hand a set of coordinates to another app or website. Once you tap</p>
+<p>one, you are in that app and its privacy policy applies, not this one.</p>
+<h2>Fonts</h2>
+<p>The app loads typefaces from Google Fonts (`fonts.googleapis.com`,</p>
+<p>`fonts.gstatic.com`), which means your IP address is visible to Google when the</p>
+<p>app first opens. No key or identifier is attached.</p>
+<h2>Children</h2>
+<p>The app is a driving tool and is not directed at children.</p>
+<h2>Changes</h2>
+<p>If this policy changes, the date at the top changes with it, and the new version</p>
+<p>appears at the same URL.</p>
+<h2>Contact</h2>
+<p>Questions about this policy: <strong>sbh7435@gmail.com</strong></p>
+<nav><a href="index.html">Safar</a><a href="terms.html">Terms of use</a>
+<a href="https://github.com/saurabhrathi00/ev_route_planner">Source</a></nav>
+<footer>© 2026 Saurabh Rathi · sbh7435@gmail.com</footer>
+</div></body></html>

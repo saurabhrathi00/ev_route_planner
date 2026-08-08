@@ -740,13 +740,34 @@ async function main() {
   check('the repository states its terms', fs.existsSync(path.join(__dirname,'..','LICENSE')),
     'no LICENSE');
 
+  /* Both stores want the policy at a URL, not in a repository. docs/ is
+     generated from the same markdown the app embeds, so a reviewer's page and
+     the phone's text are one set of words. */
+  for (const f of ['index.html', 'privacy.html', 'terms.html'])
+    check(`docs/${f} is published`, fs.existsSync(path.join(__dirname,'..','docs',f)), 'missing');
+  const pub = fs.readFileSync(path.join(__dirname,'..','docs','privacy.html'), 'utf8');
+  check('the published policy is the whole policy',
+    /advertising ID/i.test(pub) && /<h2>/.test(pub), 'truncated');
+  check('and carries no link that only works in git',
+    !/href="[^"]*\.md/.test(pub), 'a .md link survived');
+
+  /* The name, in every place a person sees it. */
+  const shells = [
+    ['app/src/main/res/values/strings.xml', /<string name="app_name">Safar<\/string>/],
+    ['ios/project.yml', /CFBundleDisplayName: Safar/],
+    ['web/manifest.webmanifest', /"short_name": "Safar"/],
+  ];
+  for (const [f, re_] of shells)
+    check(`${f} calls it Safar`,
+      re_.test(fs.readFileSync(path.join(__dirname,'..',f),'utf8')), 'still the old name');
+
   const builtApp = path.join(__dirname, '..', 'app', 'src', 'main', 'assets', 'index.html');
   if (fs.existsSync(builtApp)) {
     const b = fs.readFileSync(builtApp, 'utf8');
     check('the built app carries the terms in full',
-      /Terms of Use — EVRoute/.test(b) && /No warranty/i.test(b), 'terms did not render');
+      /Terms of Use — Safar/.test(b) && /No warranty/i.test(b), 'terms did not render');
     check('and the privacy policy in full',
-      /Privacy Policy — EVRoute/.test(b), 'privacy did not render');
+      /Privacy Policy — Safar/.test(b), 'privacy did not render');
     check('with no placeholder left behind',
       !/__(TERMS|PRIVACY)_HTML__/.test(b), 'unrendered');
     /* Links to other markdown files are useful in git and dead on a phone. */

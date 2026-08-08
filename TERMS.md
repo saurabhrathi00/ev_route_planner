@@ -1,13 +1,13 @@
-# Terms of Use — EVRoute
+# Terms of Use — Safar
 
 **Last updated: 7 August 2026**
 
-These terms cover your use of the EVRoute app on Android and iOS, and the web
+These terms cover your use of the Safar app on Android and iOS, and the web
 version. By using the app you accept them. If you do not, please do not use it.
 
 ## What the app is
 
-EVRoute plans an electric-car journey. It simulates a specific drive — the
+Safar plans an electric-car journey. It simulates a specific drive — the
 climb and descent of the road, the air you push through at the speed you hold,
 the forecast temperature and wind for the hour you will be at each point — and
 tells you the charge you would have left on arrival, where you would drop to

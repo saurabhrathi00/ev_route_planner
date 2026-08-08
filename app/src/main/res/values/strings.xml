@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">EVRoute</string>
+    <string name="app_name">Safar</string>
 
     <!--
       admob_app_id and admob_banner_id are NOT here. They are generated per

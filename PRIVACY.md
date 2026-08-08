@@ -1,8 +1,8 @@
-# Privacy Policy — EVRoute
+# Privacy Policy — Safar
 
 **Last updated: 8 August 2026**
 
-EVRoute ("the app") plans an electric-car journey: how much charge a
+Safar ("the app") plans an electric-car journey: how much charge a
 drive will cost, where you drop to your reserve, and where you could charge.
 
 **There is no account and no login. We operate no server, so nothing you do in
@@ -98,7 +98,7 @@ them.
 through Google's consent platform. Where the law gives you a say — the EEA, the
 UK, and the American states that grant a right to opt out of sharing for
 targeted advertising — you are asked before the first ad, and you can change
-your answer at any time: **Settings → About EVRoute → Advertising choices**. If
+your answer at any time: **Settings → About Safar → Advertising choices**. If
 you say no, or if we cannot reach the consent service at all, no advertisement
 is requested.
 
