@@ -24,11 +24,29 @@ cd "$(dirname "$0")/.."
 SRC=web/index.html
 [ -f "$SRC" ] || { echo "missing $SRC" >&2; exit 1; }
 
-# key from the environment, else from secrets.env (gitignored), else empty
-if [ -z "${GOOGLE_MAPS_KEY:-}" ] && [ -f secrets.env ]; then
+# Values from the environment, and secrets.env (gitignored) fills the gaps.
+#
+# The old version read the file only when GOOGLE_MAPS_KEY was unset, which tied
+# three unrelated settings together: asking for a keyless build on the command
+# line also silently dropped the backend URL and the routing key, because the
+# file was never opened. Each variable stands on its own now.
+if [ -f secrets.env ]; then
+  for v in GOOGLE_MAPS_KEY ORS_KEY PROXY_URL; do
+    eval "was_$v=\${$v-__unset__}"
+  done
   set -a; . ./secrets.env; set +a
+  for v in GOOGLE_MAPS_KEY ORS_KEY PROXY_URL; do
+    eval "prior=\$was_$v"
+    [ "$prior" = "__unset__" ] || eval "$v=\$prior"
+  done
 fi
 KEY="${GOOGLE_MAPS_KEY:-}"
+# `GOOGLE_MAPS_KEY=none` ships a build with no Google key inside it at all. Not
+# the same as leaving it unset: unset means "secrets.env has it", and an empty
+# string cannot say this either, because the loader above treats empty as unset
+# and reads the file. With a backend, this is the build where nothing extractable
+# remains — the cost is the map, which falls back to OpenStreetMap tiles.
+[ "$KEY" = "none" ] && KEY=""
 ORS="${ORS_KEY:-}"
 # The backend, if this build has one. Empty means every call goes straight to
 # Google with the bundled key, which is what every build did before backend/
@@ -36,7 +54,7 @@ ORS="${ORS_KEY:-}"
 PROXY="${PROXY_URL:-}"
 
 if [ -z "$KEY" ]; then
-  echo "!  no GOOGLE_MAPS_KEY found — building the free-sources version."
+  echo "!  no GOOGLE_MAPS_KEY — nothing Google is bundled."
   echo "   put GOOGLE_MAPS_KEY=... in secrets.env to bundle Google."
 else
   echo "✓  bundling Google key ...${KEY: -6}"

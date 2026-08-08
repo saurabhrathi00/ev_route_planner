@@ -2243,6 +2243,31 @@ const viaProxy = () => PROXY !== '';
 let SESSION = null;
 let ATTESTING = null;               // the in-flight attempt, so ten calls make one
 
+/* Counting free plans needs something that says which device, and there are no
+   accounts here. So: a random string, made once, kept on the phone, sent with
+   charger lookups — and only if the service says it is counting anything. While
+   billing is off there is nothing to count, and an identifier held for a
+   feature that does not exist yet is an identifier held for no reason.
+
+   PLAN_ID is what stops one drive costing six of them. A 500 km corridor is six
+   or seven separate lookups; they all carry the same id and the service counts
+   the first. */
+let INSTALL = null, PLAN_ID = null;
+async function billingOn(){
+  if(!viaProxy()) return false;
+  try{
+    const cfg = await proxy('/config', null, 8000);
+    if(cfg.billing !== 'on') return false;
+    INSTALL = (await sget('install')) || null;
+    if(!INSTALL){
+      INSTALL = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+              : 'i-' + Date.now().toString(36) + Math.random().toString(36).slice(2,12);
+      await sset('install', INSTALL);
+    }
+    return true;
+  }catch(_){ return false; }
+}
+
 const nativeToken = nonce => new Promise((resolve, reject) => {
   const shell = window.SafarNative;
   /* Reached through `window` rather than as a bare name. The shell attaches it
@@ -4699,7 +4724,8 @@ const PLUG = {EV_CONNECTOR_TYPE_CCS_COMBO_1:'CCS1', EV_CONNECTOR_TYPE_CCS_COMBO_
    reports how many bays are free right now — the strongest signal there is. */
 async function chargersGoogle(center, km, key){
   if(viaProxy()){
-    const j = await proxy('/nearby', {lat:center.lat, lng:center.lng, radiusKm:km});
+    const j = await proxy('/nearby', {lat:center.lat, lng:center.lng, radiusKm:km,
+                                      install:INSTALL || undefined, plan:PLAN_ID || undefined});
     /* Past its daily budget the service answers with an empty list and says so.
        That has to be raised as a failure, not returned as an answer: findChargers
        treats a source that replied with nothing as a source that looked and found
@@ -6458,6 +6484,12 @@ function render(o){
    ============================================================ */
 async function plan(e){
   e.preventDefault(); clearFail();
+  /* One id for this whole run. Every charger lookup it makes carries it, so
+     the service counts a drive rather than the six or seven calls a corridor
+     takes to sweep. Replanning around a different stop is a new drive and gets
+     a new id, which is the honest reading of it. */
+  PLAN_ID = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+          : 'p-' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
   const btn=$('go'); btn.disabled=true;
   if(window.UI) UI.sheet(true);
   try{
@@ -7490,6 +7522,7 @@ $('t_add').addEventListener('click',async()=>{
   /* Ahead of anything that needs it, and not waited on: a plan that starts
      before the pass arrives will 401 once and retry itself. */
   if(viaProxy() && window.SafarNative) attest();
+  billingOn();
 
   S.share = !!(await sget('share'));
   const shareCard=$('c-share');

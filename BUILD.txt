@@ -1,4 +1,4 @@
 EVRoute 4.4 (64) — built 2026-08-08
 
-planner sha256   8a3482f6ba9b0e74bad744342b1e7b26616cfb3d0da36c3d4de654a694bc7d20
-planner bytes    438778
+planner sha256   aab3054e214aa45fc965d65b0745dc104eb0c1bf4480e3b0fb851dc57d42751c
+planner bytes    440418

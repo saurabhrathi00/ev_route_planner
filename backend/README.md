@@ -77,6 +77,10 @@ numbers and quota internals, which is not something to hand to a client.
     POST /text        {query, lat?, lng?}
     POST /route       {from:{lat,lng}, to:{lat,lng}, departAt?}
     POST /quiet       {from:{lat,lng}, to:{lat,lng}, whenISO?}
+    GET  /auth/nonce                 → a number to answer, two minutes, one use
+    POST /auth/verify {token, nonce} → Play's word on this app, for a day pass
+    POST /billing/status  {install}  → subscribed, or free plans left
+    POST /billing/verify  {install, token} → a Play purchase, checked with Google
     GET  /trips                      → what the drive pool says so far
     POST /trip        {car, km, climb, tempC, predictedPct, actualPct, ...}
 
@@ -113,6 +117,42 @@ fifteen-minute life, so a cache hit six hours old still returns fresh bay counts
 if anyone has asked in the last quarter of an hour.
 
 ---
+
+## Two switches, and why neither is a flag
+
+**Attestation** turns on when `SERVICE_ACCOUNT` and `SESSION_SECRET` exist.
+**Billing** turns on when `SERVICE_ACCOUNT` and `BILLING_PRODUCT` exist. Neither
+has a boolean of its own, on purpose: a flag set to "enforce" with no
+credentials is a service that refuses everybody, and set the other way it is one
+that lets everybody through while the dashboard says it does not. Deriving the
+state from the credentials makes both of those impossible, and `/health` reports
+which state it is actually in — an attestation that quietly stopped being
+enforced looks exactly like one that works.
+
+    npx wrangler secret put SERVICE_ACCOUNT   # the JSON key file, whole
+    npx wrangler secret put SESSION_SECRET    # any long random string
+    npx wrangler secret put BILLING_PRODUCT   # e.g. safar_plus_monthly
+    npx wrangler secret put FREE_PLANS        # optional, defaults to 15
+
+**Attestation locks out debug builds**, which is the point — they are not from
+Play and Google says so. Set it after there is a build on a test track, not
+before.
+
+**Billing gates the Google charger lookup and nothing else.** Not the app, not
+planning: the physics runs on the phone and costs nothing, and charging for
+arithmetic is not a business. Past the free allowance the service answers
+`degraded`, which the app already turns into Open Charge Map and OpenStreetMap —
+so a driver out of free plans still gets a plan with chargers in it, without the
+ratings and live bay counts that cost about a rupee a call to provide.
+
+A *plan* is counted, not a call. One 500 km corridor is six or seven lookups;
+they all carry the same plan id and the first one is what counts.
+
+The install id is the only per-device thing this service sees, it is stored as a
+hash, and the app does not even create one until `/config` says billing is on.
+It identifies an installation and not a person: reinstalling resets the
+allowance. That is a known hole, and cheaper than the alternative, which is
+accounts.
 
 ## Abuse
 

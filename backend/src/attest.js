@@ -117,7 +117,7 @@ async function decode(env, token) {
  * expires. Signing a JWT here rather than pulling in a library: it is two
  * base64 segments and one RS256 signature, and a dependency that runs on every
  * cold start is worse than twenty lines. */
-async function googleToken(env) {
+export async function googleToken(env) {
   const hit = await env.CACHE.get('gtok');
   if (hit) return hit;
 
@@ -125,7 +125,10 @@ async function googleToken(env) {
   const now = Math.floor(Date.now() / 1000);
   const claim = {
     iss: sa.client_email,
-    scope: 'https://www.googleapis.com/auth/playintegrity',
+    /* Both scopes, always. A token minted for one and cached would be reused
+       for the other and refused, and the failure would look like a bad service
+       account rather than a missing scope. */
+    scope: 'https://www.googleapis.com/auth/playintegrity https://www.googleapis.com/auth/androidpublisher',
     aud: 'https://oauth2.googleapis.com/token',
     iat: now, exp: now + 3600,
   };

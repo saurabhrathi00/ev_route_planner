@@ -106,6 +106,10 @@ const SA = { client_email: 'safar@test.iam.gserviceaccount.com', private_key: TE
 /* What Google is currently willing to say about the caller. Each test sets this
    to the verdict it wants to see handled. */
 let verdict = { package: 'com.evroute.app', recognition: 'PLAY_RECOGNIZED', hash: null };
+
+/* What Google currently says about a purchase token. null is "no such
+   purchase", which is what a made-up token gets. */
+let purchase = null;
 let nextFree = 1;
 let upstreamStatus = 200;
 
@@ -134,6 +138,10 @@ globalThis.fetch = async (url, init) => {
   }
   if (u.includes('oauth2.googleapis.com/token')) {
     return reply({ access_token: 'stub-access-token', expires_in: 3600 });
+  }
+  if (u.includes('subscriptionsv2/tokens/')) {
+    if (!purchase) return { ok: false, status: 404, json: async () => ({ error: 'not found' }) };
+    return reply(purchase);
   }
   if (u.includes('decodeIntegrityToken')) {
     return reply({ tokenPayloadExternal: {
@@ -386,6 +394,79 @@ async function main() {
     check('an unconfigured service admits the door is open', h.attestation === 'open', h.attestation);
     const r = await call(e, 'POST', '/nearby', CIRCLE);
     check('and still answers, as it did before any of this', r.status === 200, `${r.status}`);
+  }
+
+  /* --- free plans, and what happens after them --- */
+  {
+    const e = { ...env(), SERVICE_ACCOUNT: JSON.stringify(SA), BILLING_PRODUCT: 'safar_plus',
+                FREE_PLANS: '3' };
+    const me = { install: 'install-abc' };
+
+    const h = await (await call(e, 'GET', '/health')).json();
+    check('health says billing is on', /^on, 3 free plans/.test(h.billing), h.billing);
+
+    /* One planning run is many charger calls. All of them carry the same plan
+       id, and the allowance must move by one. */
+    for (let i = 0; i < 6; i++) {
+      await call(e, 'POST', '/nearby', { ...CIRCLE, ...me, plan: 'plan-1' });
+    }
+    let st = await (await call(e, 'POST', '/billing/status', me)).json();
+    check('a plan of six lookups costs one free plan', st.used === 1, JSON.stringify(st));
+
+    await call(e, 'POST', '/nearby', { ...CIRCLE, ...me, plan: 'plan-2' });
+    await call(e, 'POST', '/nearby', { ...CIRCLE, ...me, plan: 'plan-3' });
+    st = await (await call(e, 'POST', '/billing/status', me)).json();
+    check('three plans use the three that are free', st.used === 3 && st.left === 0,
+      JSON.stringify(st));
+
+    /* And the fourth. Not an error, not an empty road — the same `degraded`
+       the daily budget uses, which the app already turns into Open Charge Map
+       and OpenStreetMap. */
+    const over = await (await call(e, 'POST', '/nearby', { ...CIRCLE, ...me, plan: 'plan-4' })).json();
+    check('the fourth falls back instead of failing',
+      over.degraded === true && over.chargers.length === 0, JSON.stringify(over).slice(0, 140));
+    check('and says why, so the app can offer the upgrade',
+      /free plans used up/.test(over.reason || ''), over.reason);
+
+    /* Somebody else's phone is somebody else's allowance. */
+    const other = await (await call(e, 'POST', '/billing/status', { install: 'install-xyz' })).json();
+    check('another install starts fresh', other.used === 0 && other.left === 3, JSON.stringify(other));
+
+    /* Subscribing lifts it. */
+    purchase = {
+      subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+      acknowledgementState: 'ACKNOWLEDGEMENT_STATE_PENDING',
+      lineItems: [{ productId: 'safar_plus', expiryTime: new Date(Date.now() + 30 * 86400e3).toISOString() }],
+    };
+    const v = await (await call(e, 'POST', '/billing/verify', { ...me, token: 'purchase-token' })).json();
+    check('a real purchase verifies', v.active === true, JSON.stringify(v));
+    check('and it says the purchase still needs acknowledging', v.needsAck === true,
+      'three days later Google refunds it');
+
+    const after = await (await call(e, 'POST', '/nearby', { ...CIRCLE, ...me, plan: 'plan-5' })).json();
+    check('a subscriber is past the wall', after.degraded !== true, JSON.stringify(after).slice(0, 120));
+    st = await (await call(e, 'POST', '/billing/status', me)).json();
+    check('and the screen says subscribed rather than counting', st.subscribed === true,
+      JSON.stringify(st));
+
+    /* A token nobody bought. */
+    purchase = null;
+    const fake = await call(e, 'POST', '/billing/verify', { ...me, token: 'made-up' });
+    check('an invented purchase token is refused', fake.status === 404, `${fake.status}`);
+
+    console.log(`  3 free plans, 6 lookups each; the fourth degrades to the open sources`);
+  }
+
+  /* --- with billing off, none of it exists --- */
+  {
+    const e = env();
+    const st = await (await call(e, 'POST', '/billing/status', { install: 'i' })).json();
+    check('billing off means no upgrade screen at all', st.billing === 'off', JSON.stringify(st));
+    for (let i = 0; i < 40; i++) {
+      await call(e, 'POST', '/nearby', { ...CIRCLE, install: 'i', plan: `p${i}` });
+    }
+    const r = await (await call(e, 'POST', '/nearby', { ...CIRCLE, install: 'i', plan: 'p99' })).json();
+    check('and forty plans cost nothing', r.degraded !== true, JSON.stringify(r).slice(0, 100));
   }
 
   /* --- the rate limiter counts without recording who --- */

@@ -11,6 +11,7 @@ import * as C from './cache.js';
 import * as L from './limits.js';
 import * as T from './trips.js';
 import * as A from './attest.js';
+import * as B from './billing.js';
 
 const VERSION = '1.0.0';
 
@@ -74,6 +75,7 @@ const ROUTES = {
        outside, because an attestation that quietly stopped being enforced looks
        exactly like one that works. */
     attestation: attesting(env) ? 'required' : 'open',
+    billing: B.billing(env) ? `on, ${B.freeAllowance(env)} free plans a month` : 'off',
     budget: await L.spentToday(env.CACHE),
   }),
 
@@ -89,7 +91,7 @@ const ROUTES = {
 
   /* What the client may rely on. The app asks once at start-up so that cache
    * ages and limits live in one place rather than being guessed at twice. */
-  'GET /config': async () => json({
+  'GET /config': async (req, env) => json({
     version: VERSION,
     siteTtl: C.SITE_TTL,
     availabilityTtl: C.AVAIL_TTL,
@@ -99,6 +101,12 @@ const ROUTES = {
      * would hide nothing. That key is restricted to the Maps JavaScript API and
      * can do nothing else. */
     mapsKeyIsClientSide: true,
+    /* Whether the app should carry an install id at all. It is the only
+       per-device thing this service ever sees, and there is no reason to hold
+       one while there is nothing to count — so the app asks first and creates
+       it only if the answer is yes. */
+    billing: B.billing(env) ? 'on' : 'off',
+    freePlans: B.billing(env) ? B.freeAllowance(env) : null,
   }),
 
   'POST /nearby': async (req, env) => {
@@ -107,15 +115,29 @@ const ROUTES = {
     const r = L.radius(b.radiusKm);
     const key = C.cell(centre.lat, centre.lng, r);
 
+    /* Free plans are counted before the cache is consulted, deliberately. A
+       cached answer is still Google's data, and letting popular corridors be
+       free while quiet ones are not would make the allowance depend on which
+       road somebody drives — impossible to explain and unfair to exactly the
+       people this app is for. */
+    const gate = await B.allowPlan(env, b.install, b.plan);
+    if (!gate.allowed) {
+      /* The same shape the daily budget uses, so the app's existing fallback
+         to Open Charge Map and OpenStreetMap handles it with no new code:
+         chargers still appear, without ratings or live bay counts. */
+      return json({ chargers: [], degraded: true, reason: 'free plans used up',
+                    used: gate.used, cap: gate.cap });
+    }
+
     const hit = await C.readCircle(env.CACHE, key);
-    if (hit) return json({ chargers: hit.sites, cached: true, at: hit.at });
+    if (hit) return json({ chargers: hit.sites, cached: true, at: hit.at, quota: gate });
 
     const fresh = await upstream(env, 'nearby',
       () => G.nearby(env.GOOGLE_KEY, centre, r));
     if (!fresh) return json({ chargers: [], cached: false, degraded: true });
 
     await C.writeCircle(env.CACHE, key, fresh);
-    return json({ chargers: fresh, cached: false, at: Date.now() });
+    return json({ chargers: fresh, cached: false, at: Date.now(), quota: gate });
   },
 
   /* One charger, asked about again — the app's "check now". Availability has
@@ -203,6 +225,26 @@ const ROUTES = {
     if (seconds == null) return json({ seconds: null, degraded: true });
     await env.CACHE.put(key, JSON.stringify({ seconds }), { expirationTtl: 86400 });
     return json({ seconds, cached: false });
+  },
+
+  /* What the upgrade screen shows: subscribed, or how many free plans are left.
+     Answers `{billing:'off'}` while this is switched off, which is the app's
+     cue to show no upgrade screen at all rather than an empty one. */
+  'POST /billing/status': async (req, env) => {
+    const b = await body(req);
+    return json(await B.status(env, b.install));
+  },
+
+  /* A purchase token from Play, checked with Google and remembered. The app
+     sends this after a purchase and again on every start, because a
+     subscription can lapse between one launch and the next. */
+  'POST /billing/verify': async (req, env) => {
+    const b = await body(req);
+    if (!B.billing(env)) return json({ billing: 'off' });
+    const token = L.text(b.token, 'token', 2000);
+    const verdict = await B.checkPurchase(env, token, A.googleToken);
+    await B.grant(env.CACHE, L.text(b.install, 'install', 100), verdict);
+    return json(verdict);
   },
 
   /* The drive log, pooled. No identity, no route, no coordinates — see
