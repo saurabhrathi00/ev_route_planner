@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -26,6 +27,7 @@ import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
+import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
@@ -89,7 +91,7 @@ class MainActivity : ComponentActivity() {
         consent = UserMessagingPlatform.getConsentInformation(this)
         consent.requestConsentInfoUpdate(
             this,
-            ConsentRequestParameters.Builder().build(),
+            consentParams(),
             {
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(this) { formError ->
                     if (formError != null) Log.w(ADS, "consent form: ${formError.message}")
@@ -222,6 +224,37 @@ class MainActivity : ComponentActivity() {
      * has, so fall back to it rather than give up.
      */
     /**
+     * Where the consent platform should think we are.
+     *
+     * The form only appears where the law asks for one, which from here is
+     * nowhere — so on a debug build the SDK is told to behave as though the
+     * phone were in the EEA. Without this the whole flow is untestable from
+     * India: it would go to review unseen, and the first person to find out
+     * whether it works would be a reviewer in Berlin.
+     *
+     * A release build gets none of it. The debug pathway is chosen from the
+     * package's own debuggable flag rather than a constant someone has to
+     * remember to flip.
+     *
+     * The device has to be named as a test device, and its id is a hash the SDK
+     * prints to logcat the first time it sees one it does not know:
+     *
+     *     adb logcat | grep "addTestDeviceHashedId"
+     *
+     * Paste that into TEST_DEVICE and the form comes up on this phone.
+     */
+    private fun consentParams(): ConsentRequestParameters {
+        val debuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (!debuggable) return ConsentRequestParameters.Builder().build()
+        val debug = ConsentDebugSettings.Builder(this)
+            .setDebugGeography(ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_EEA)
+            .apply { if (TEST_DEVICE.isNotEmpty()) addTestDeviceHashedId(TEST_DEVICE) }
+            .build()
+        Log.i(ADS, "debug build: asking for consent as though in the EEA")
+        return ConsentRequestParameters.Builder().setConsentDebugSettings(debug).build()
+    }
+
+    /**
      * Starts the ads SDK and asks for a banner, but only once consent allows it
      * and only once. Called from several places — the consent callbacks, the
      * returning-user path, and the moment the slot is laid out — because
@@ -279,7 +312,11 @@ class MainActivity : ComponentActivity() {
         view.loadAd(AdRequest.Builder().build())
     }
 
-    private companion object { const val ADS = "EVRouteAds" }
+    private companion object {
+        const val ADS = "SafarAds"
+        /** From logcat on the phone you want to test on; debug builds only. */
+        const val TEST_DEVICE = ""
+    }
 
     override fun onPause() {
         ad?.pause()

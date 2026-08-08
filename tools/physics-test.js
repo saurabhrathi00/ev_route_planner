@@ -818,6 +818,15 @@ async function main() {
     (actCode.match(/MobileAds\.initialize/g) || []).length === 1, 'more than one path in');
   check('the choice can be reopened later',
     /showPrivacyOptionsForm/.test(act), 'no way back to the form');
+  /* The form only appears where the law asks for one, which from India is
+     nowhere — so the debug build pretends to be in the EEA, or the flow goes
+     to review having never been seen working. The release build must not. */
+  check('a debug build can see the consent form',
+    /DEBUG_GEOGRAPHY_EEA/.test(act), 'untestable from here');
+  check('and a release build is not told where it is',
+    /FLAG_DEBUGGABLE/.test(actCode) &&
+    /if \(!debuggable\) return ConsentRequestParameters/.test(actCode),
+    'debug geography could ship');
   check('and without opening a JavaScript bridge to do it',
     !/@JavascriptInterface/.test(act) && /evroute" && url\.host == "privacy-options"/.test(act),
     'a bridge was added');
