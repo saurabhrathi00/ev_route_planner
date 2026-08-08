@@ -828,6 +828,22 @@ async function main() {
     /advertising ID/i.test(fs.readFileSync(path.join(__dirname,'..','PRIVACY.md'),'utf8')),
     'undisclosed');
 
+  /* An opened panel is a window, not a hole. The terms run to two thousand
+     words: opened at full height they pushed the page a length and a half down
+     and closing meant scrolling back to find the heading you had tapped. */
+  check('an opened panel is capped', /\.acc \.inner\{[^}]*max-height:/.test(src),
+    'it grows to whatever is in it');
+  check('and scrolls inside that cap', /\.acc \.inner\{[^}]*overflow-y:auto/.test(src),
+    'capped but clipped');
+  check('and does not hand the scroll back to the page at its end',
+    /\.acc \.inner\{[^}]*overscroll-behavior:contain/.test(src), 'the page takes over');
+  check('a panel whose content fits does not grow a scrollbar',
+    /\.acc \.inner\.fits\{max-height:none/.test(src), 'always scrolls');
+  check('and there is one scroll area inside it, not two',
+    /\.acc \.inner \.carbox\{max-height:none/.test(src), 'the car table still nests one');
+  check('opening one starts it at the top',
+    /inner\.scrollTop = 0/.test(src), 'reopens where it was left');
+
   /* The tab list and the views have to agree, or a tab switches to nothing. */
   const tabs = (src.match(/const TABS = \[([^\]]+)\]/)||[])[1] || '';
   const names = tabs.split(',').map(t => t.trim().replace(/'/g, '')).filter(Boolean);

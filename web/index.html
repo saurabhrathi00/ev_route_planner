@@ -1215,7 +1215,37 @@ details[open] summary::before{transform:rotate(90deg)}
 .acc .panelbody{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--t3) var(--e-out)}
 .acc[data-open=true] .panelbody{grid-template-rows:1fr}
 .acc .panelbody > div{overflow:hidden}
-.acc .inner{padding:0 16px 16px}
+
+/* An opened panel takes a fixed share of the screen and scrolls inside it.
+
+   The terms run to two thousand words and the privacy policy to more. Opened,
+   they pushed everything below them a page and a half down, and closing again
+   meant scrolling back up to find the heading you had tapped. The panel is a
+   window onto the document now, not a hole in the page.
+
+   overscroll-behavior stops the page taking over once the panel reaches its
+   end, which on a phone is the difference between reading a policy and being
+   thrown out of it. */
+.acc .inner{padding:0 16px 16px;max-height:clamp(220px, 52vh, 520px);
+  overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch}
+
+/* There is more below is worth saying without a scrollbar having to say it:
+   the panel fades out at its foot while anything remains. */
+.acc[data-open=true] > .panelbody{position:relative}
+.acc[data-open=true] > .panelbody::after{content:"";position:absolute;left:1px;right:1px;bottom:0;
+  height:26px;pointer-events:none;
+  background:linear-gradient(to top, var(--paper), transparent)}
+.acc[data-open=true].at-end > .panelbody::after{opacity:0;transition:opacity var(--t1)}
+
+/* A panel that fits does not need to scroll or to fade. */
+.acc .inner.fits{max-height:none;overflow:visible}
+
+/* One scroll area, not two. The car table carried its own 280px window, which
+   inside a scrolling panel means a finger has to find the right box before it
+   can move — and picks the wrong one about half the time. The panel scrolls;
+   the table just grows, and its sticky heading sticks to the panel instead. */
+.acc .inner .carbox{max-height:none;overflow:visible}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;
@@ -7348,9 +7378,33 @@ pair('soc0'); pair('reserve'); pair('arrive'); pair('acpct'); pair('margin');
 
 /* ---- accordions ------------------------------------------------ */
 document.querySelectorAll('.acc > button').forEach(b=>{
+  const acc = b.parentElement;
+  const inner = acc.querySelector('.inner');
+
+  /* The cap is a ceiling, not a target: a panel whose content fits should not
+     grow a scroll area, and should not wear the fade that says there is more
+     below when there is not. Measured after the open animation, because a
+     panel inside a collapsed grid row has no height to measure. */
+  const settle = () => {
+    if(!inner) return;
+    inner.classList.remove('fits');
+    if(inner.scrollHeight <= inner.clientHeight + 1) inner.classList.add('fits');
+    acc.classList.toggle('at-end', inner.scrollHeight <= inner.clientHeight + 1);
+  };
+
+  if(inner) inner.addEventListener('scroll', ()=>{
+    /* Drop the fade once the foot of the document is in view, so it does not
+       sit over the last line of the terms. */
+    acc.classList.toggle('at-end',
+      inner.scrollTop + inner.clientHeight >= inner.scrollHeight - 4);
+  }, {passive:true});
+
   b.addEventListener('click',()=>{
-    const acc=b.parentElement;
     acc.dataset.open = acc.dataset.open==='true' ? 'false' : 'true';
+    if(acc.dataset.open==='true'){
+      if(inner) inner.scrollTop = 0;          // open at the beginning, every time
+      setTimeout(settle, 420);                // after --t3
+    }
   });
 });
 
