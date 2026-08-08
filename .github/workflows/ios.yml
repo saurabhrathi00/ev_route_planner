@@ -28,7 +28,13 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    # macos-14 carries Xcode 15.4, and brew installs whatever xcodegen is
+    # current — which writes objectVersion 77, the Xcode 16 project format.
+    # Xcode 15.4 answers "Unable to read project", so every run failed from the
+    # day xcodegen moved on. Nobody noticed, because a red tick on a workflow
+    # for a target nobody is building is easy not to look at. Pinning the image
+    # to one with Xcode 16 keeps the generator and the compiler in the same era.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +43,13 @@ jobs:
 
       - name: xcodegen
         run: brew install xcodegen
+
+      # Both versions, in the log, because the failure they cause names
+      # neither: "Unable to read project" says nothing about who wrote it.
+      - name: Say which versions are about to disagree
+        run: |
+          xcodebuild -version | head -1
+          xcodegen --version
 
       # No GOOGLE_MAPS_KEY here on purpose. The build falls back to the
       # free-sources version, which is all a compile check needs, and it keeps
@@ -56,6 +69,9 @@ jobs:
         working-directory: ios
         run: xcodegen
 
+      # actool wants a simulator runtime even when the target is a device, so
+      # the destination stays the simulator and the runner's own runtime is
+      # what satisfies it.
       - name: Compile for the simulator
         working-directory: ios
         run: |
@@ -66,3 +82,13 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      # The app icon is the one thing that builds fine and stops an upload, so
+      # its absence is worth failing on here rather than at App Store Connect.
+      - name: Fail if the app icon did not come out
+        working-directory: ios
+        run: |
+          app=$(find ~/Library/Developer/Xcode/DerivedData -name 'EVRoutePlanner.app' -type d | head -1)
+          [ -n "$app" ] || { echo "::error::no built app found"; exit 1; }
+          ls "$app" | grep -q '^AppIcon' || { echo "::error::built without an app icon"; exit 1; }
+          echo "icon present in $(basename "$app")"

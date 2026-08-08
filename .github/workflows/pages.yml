@@ -5,8 +5,9 @@
 # to have one: GitHub Pages, from the same markdown the app embeds, so a
 # reviewer's page and the text on the phone cannot drift apart.
 #
-# `enablement: true` turns Pages on the first time this runs, using the token
-# the workflow already has — so there is nothing to click in Settings.
+# Pages is switched on and serves docs/ from main directly, so this job does not
+# deploy anything. It guards the thing that breaks quietly: docs/ is generated
+# from the markdown by tools/build.sh and committed, so the two can drift.
 name: Pages
 
 on:
@@ -21,8 +22,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One at a time, and let a newer push wait rather than cancel — a half-deployed
 # policy page is worse than a slightly stale one.
@@ -31,11 +30,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  check:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,13 +52,16 @@ jobs:
           print('docs/ is current')
           PY
 
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-      - id: deploy
-        uses: actions/deploy-pages@v4
+      # Pages serves docs/ from the branch directly, so there is nothing here to
+      # deploy — GitHub does it. What is left is the part that can go wrong
+      # silently: docs/ is generated and committed, so it can fall behind the
+      # markdown it came from, and the page a store reviewer reads to decide
+      # whether this app is honest is the last one that should be stale.
+      - name: Confirm the published pages are reachable
+        run: |
+          for p in "" privacy.html terms.html; do
+            url="https://saurabhrathi00.github.io/ev_route_planner/$p"
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
+            echo "$code  $url"
+            [ "$code" = "200" ] || echo "::warning::$url answered $code"
+          done
