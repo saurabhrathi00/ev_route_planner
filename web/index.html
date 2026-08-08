@@ -111,9 +111,13 @@ a{color:var(--charge)}
 }
 .topbar.stuck{border-bottom-color:var(--rule);box-shadow:var(--shadow-1)}
 .brand{display:flex;align-items:center;gap:9px;font-family:"Bricolage Grotesque",sans-serif;font-weight:800;font-size:17px;letter-spacing:-.03em}
-.brand .wm-ev{color:var(--brand-green)}
-.brand .wm-route{color:var(--ink)}
-.brand > span + span{margin-left:-1px}
+/* One element, not two. The wordmark used to be two spans and .brand is a
+   flex row, so its 9px gap fell between them — which read as a space between
+   "EV" and "Route" and as a hole in the middle of "Safar". The colour is on a
+   letter inside the word now, where a gap cannot get in. */
+.brand .wm{color:var(--ink)}
+.wm b{font-weight:inherit}
+.wm-ev{color:var(--brand-green)}
 .brand .mark{width:24px;height:24px;flex:none;border-radius:7px}
 .topbar .spacer{flex:1}
 .icon-btn{
@@ -828,8 +832,7 @@ input[type=datetime-local][value=""]:not(:focus)::-webkit-datetime-edit{color:va
 .art-chg,.art-learn{width:min(280px,76vw)}
 .art-shield{width:110px}
 .intro-page h2{font-size:clamp(25px,7vw,33px);font-weight:800;letter-spacing:-.03em;line-height:1.1}
-.wm-ev{color:var(--brand-green)}
-.wm-route{color:var(--ink)}
+.wm{color:var(--ink)}
 .intro-tag{margin:6px 0 0;font:500 13px "IBM Plex Mono",monospace;letter-spacing:.11em;
   text-transform:uppercase;color:var(--brand-green)}
 .intro-page p{margin:14px 0 0;color:var(--ink2);font-size:15.5px;line-height:1.55;max-width:34ch}
@@ -1264,7 +1267,7 @@ details[open] summary::before{transform:rotate(90deg)}
           <path d="M64 25 55 38h6l-1 9 8-13h-6z" fill="#3EA845"/>
         </svg>
       </div>
-      <h2><span class="wm-ev">S</span><span class="wm-route">afar</span></h2>
+      <h2><span class="wm"><b class="wm-ev">S</b>afar</span></h2>
       <p class="intro-tag">Your car. This road. Today’s weather.</p>
       <p>Tells you the one number that matters: <strong>the charge you'll have left when you arrive.</strong></p>
     </section>
@@ -1384,7 +1387,7 @@ details[open] summary::before{transform:rotate(90deg)}
         <path d="M62 18a17 17 0 0 1 17 17c0 12-17 27-17 27S45 47 45 35a17 17 0 0 1 17-17z" fill="#fff"/>
         <path d="M64 25 55 38h6l-1 9 8-13h-6z" fill="#3EA845"/>
       </svg>
-      <span class="wm-ev">S</span><span class="wm-route">afar</span>
+      <span class="wm"><b class="wm-ev">S</b>afar</span>
     </div>
     <div class="spacer"></div>
     <button type="button" class="icon-btn" id="themeBtn" aria-label="Switch between light and dark">
@@ -1834,9 +1837,9 @@ details[open] summary::before{transform:rotate(90deg)}
               Advertising choices</a>
           </div>
 
-          <p class="copyline">© 2026 Saurabh Rathi · All rights reserved<br>
+          <p class="copyline">__COPYRIGHT__ · All rights reserved<br>
             Map data © OpenStreetMap contributors · Charger data from Open Charge Map<br>
-            <a href="mailto:sbh7435@gmail.com">sbh7435@gmail.com</a></p>
+            <a href="mailto:__CONTACT__">__CONTACT__</a></p>
         </div>
       </section>
 

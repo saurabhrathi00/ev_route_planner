@@ -77,7 +77,7 @@ account of this.
 
 ## Our rights in the app
 
-The app, its design and its source are © 2026 Saurabh Rathi. All rights
+The app, its design and its source are © 2026 VoxHelper AI. All rights
 reserved. You may use the app; you may not sell it, pass it off as your own, or
 build a competing product out of it.
 
@@ -96,7 +96,7 @@ jurisdiction.
 ## Contact
 
 Questions about these terms, the app, or a figure it gave you that looked
-wrong: **sbh7435@gmail.com**
+wrong: **support@voxhelperai.com**
 
 ---
 

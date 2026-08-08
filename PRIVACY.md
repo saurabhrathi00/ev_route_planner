@@ -137,4 +137,4 @@ appears at the same URL.
 
 ## Contact
 
-Questions about this policy: **sbh7435@gmail.com**
+Questions about this policy: **support@voxhelperai.com**

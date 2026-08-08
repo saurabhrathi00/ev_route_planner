@@ -67,13 +67,21 @@ date = datetime.date.today().isoformat()
 # drift apart, and the text is then readable with no signal — which is where a
 # question about what the app promised is most likely to occur to someone.
 exec(open('tools/_mdhtml.py').read())
+exec(open('tools/brand.py').read())
 
 STAMPS = {'__GOOGLE_MAPS_KEY__': key, '__ORS_KEY__': ors,
           '__TERMS_HTML__': md_to_html('TERMS.md'),
           '__PRIVACY_HTML__': md_to_html('PRIVACY.md'),
           '__BUILD_VER__': ver, '__BUILD_CODE__': code, '__BUILD_DATE__': date,
+          '__PUBLISHER__': PUBLISHER, '__CONTACT__': CONTACT, '__COPYRIGHT__': COPYRIGHT,
           '__BUILD_ID__': 'v%s (%s)' % (ver, code)}
-for token in STAMPS:
+# Refusing to guess is the point of this: a missing key placeholder means
+# something rewrote the source, and a build that quietly ships an empty key is
+# worse than one that stops. But not every stamp has to appear — the publisher
+# is available to the page whether or not the page mentions it.
+REQUIRED = ('__GOOGLE_MAPS_KEY__', '__ORS_KEY__', '__BUILD_ID__',
+            '__TERMS_HTML__', '__PRIVACY_HTML__', '__CONTACT__')
+for token in REQUIRED:
     if token not in html:
         raise SystemExit('build: %s placeholder missing from the source — refusing to guess' % token)
 built = html
@@ -117,6 +125,7 @@ PY
 PAGES=1 python3 - <<'PY2'
 import os, re, pathlib, datetime
 exec(open('tools/_mdhtml.py').read())            # md_to_html, shared with the build
+exec(open('tools/brand.py').read())             # and who publishes it
 CSS = '''
 :root{--paper:#F1F4F2;--sheet:#fff;--ink:#15201C;--ink2:#5C6B65;--ink3:#66726C;
   --rule:#DDE4E0;--green:#1D8724;--charge:#26699F}
@@ -153,7 +162,7 @@ def page(title, body, here):
 {body}
 <nav><a href="index.html">Safar</a><a href="{other}">{label}</a>
 <a href="https://github.com/saurabhrathi00/ev_route_planner">Source</a></nav>
-<footer>© 2026 Saurabh Rathi · sbh7435@gmail.com</footer>
+<footer>{COPYRIGHT} · <a href="mailto:{CONTACT}">{CONTACT}</a></footer>
 </div></body></html>'''
 
 docs = pathlib.Path('docs'); docs.mkdir(exist_ok=True)
@@ -175,7 +184,7 @@ charging stop before you depend on it.</p>
 <ul><li><a href="privacy.html">Privacy policy</a> — no account, no server, nothing sent to us</li>
 <li><a href="terms.html">Terms of use</a></li></ul>
 <h2>Contact</h2>
-<p><a href="mailto:sbh7435@gmail.com">sbh7435@gmail.com</a></p>
+<p><a href="mailto:''' + CONTACT + '''">''' + CONTACT + '''</a></p>
 ''', 'index.html'), encoding='utf-8')
 (docs/'.nojekyll').write_text('', encoding='utf-8')
 print('   docs/index.html, privacy.html, terms.html written')

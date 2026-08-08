@@ -3,4 +3,6 @@
     <color name="paper">#E7EAE2</color>
     <color name="ink">#141A18</color>
     <color name="charge">#1C5C86</color>
+    <!-- the launcher icon's ground; the mark on it is white -->
+    <color name="brand_green">#1D8724</color>
 </resources>

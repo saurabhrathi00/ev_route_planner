@@ -733,8 +733,23 @@ async function main() {
   console.log('  ' + '-'.repeat(55));
   for (const t of ['__TERMS_HTML__', '__PRIVACY_HTML__'])
     check(`the source holds ${t} rather than a copy of the text`, src.includes(t), 'inlined');
-  check('the app names who made it', /© 2026 Saurabh Rathi/.test(src), 'no copyright line');
-  check('and how to reach them', /sbh7435@gmail\.com/.test(src), 'no contact');
+  /* The source holds placeholders; the build fills them. Checking the source
+     for the address itself would fail on a correct build and pass on one that
+     had the address typed in twice, which is the thing being prevented. */
+  check('the app leaves the publisher to the build',
+    /__COPYRIGHT__/.test(src) && /__CONTACT__/.test(src), 'typed in rather than stamped');
+  const brand = fs.readFileSync(path.join(__dirname,'..','tools','brand.py'), 'utf8');
+  check('there is one place that says who publishes it',
+    /VoxHelper AI/.test(brand) && /support@voxhelperai\.com/.test(brand), 'brand.py is wrong');
+  /* The old ones must be gone, not merely outnumbered — an app that still
+     shows a personal address after a company took it over is a support
+     channel nobody is reading. */
+  check('and the old contact is gone everywhere',
+    !['web/index.html','PRIVACY.md','TERMS.md','LICENSE','docs/privacy.html',
+      'docs/terms.html','docs/index.html']
+      .some(f => { const q = path.join(__dirname,'..',f);
+        return fs.existsSync(q) && /sbh7435@gmail\.com|Saurabh Rathi/.test(fs.readFileSync(q,'utf8')); }),
+    'an old contact or name survives');
   check('terms and privacy are both reachable in Settings',
     /id="acc-terms"/.test(src) && /id="acc-privacy"/.test(src), 'one of them is missing');
   check('the repository states its terms', fs.existsSync(path.join(__dirname,'..','LICENSE')),
@@ -774,6 +789,8 @@ async function main() {
     const about = b.slice(b.indexOf('id="acc-terms"'), b.indexOf('id="acc-privacy"'));
     check('and no link that goes nowhere on a phone',
       !/href="[^"]*\.md/.test(about), 'a .md link survived');
+    check('and the publisher was stamped into it',
+      /support@voxhelperai\.com/.test(b) && /© 2026 VoxHelper AI/.test(b), 'unstamped');
     console.log(`  terms and privacy add ${(
       (b.match(/<div class="doc">[\s\S]*?<\/div>\s*<\/div>/g)||['']).join('').length/1024
     ).toFixed(1)} KB to the bundle`);
