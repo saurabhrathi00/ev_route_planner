@@ -870,6 +870,12 @@ async function main() {
     .map(m => m.split(/\s+/).pop());
   check('the bridge exposes attestation and nothing else',
     exposed.length === 1 && exposed[0] === 'request', exposed.join(', ') || 'none');
+  /* R8 cannot see a method that only JavaScript calls. Without a keep rule the
+     release build ships a bridge with nothing behind it — and the debug build,
+     which is not shrunk, goes on working. */
+  const rules = fs.readFileSync(path.join(__dirname, '..', 'app', 'proguard-rules.pro'), 'utf8');
+  check('and the shrinker is told not to strip it',
+    /@android\.webkit\.JavascriptInterface <methods>;/.test(rules), 'R8 will remove it');
   check('and the page is the only thing that can reach it',
     /addJavascriptInterface\(Attest\(\), "SafarNative"\)/.test(actCode), 'wired differently');
   /* --- the day pass ------------------------------------------------------
