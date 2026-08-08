@@ -77,21 +77,24 @@ def load(path):
     return w, h, bpp, rows
 
 
-def _png(path, size, data, colour_type, chan):
-    raw = b''.join(b'\x00' + bytes(data[y*size*chan:(y+1)*size*chan]) for y in range(size))
+def _png(path, size, data, colour_type, chan, width=None, height=None):
+    w = width or size
+    hgt = height or size
+    raw = b''.join(b'\x00' + bytes(data[y*w*chan:(y+1)*w*chan]) for y in range(hgt))
     def chunk(t, d):
         return (struct.pack('>I', len(d)) + t + d
                 + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff))
     png = (b'\x89PNG\r\n\x1a\n'
-           + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, colour_type, 0, 0, 0))
+           + chunk(b'IHDR', struct.pack('>IIBBBBB', w, hgt, 8, colour_type, 0, 0, 0))
            + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
     p = pathlib.Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(png)
-    print(f'  {p}  {size}x{size}  {len(png)/1024:.1f} KB')
+    print(f'  {p}  {w}x{hgt}  {len(png)/1024:.1f} KB')
 
 
-def write_rgb(path, size, data):  _png(path, size, data, 2, 3)
+def write_rgb(path, size, data, width=None, height=None):
+    _png(path, size, data, 2, 3, width, height)
 def write_rgba(path, size, data): _png(path, size, data, 6, 4)
 
 
@@ -182,6 +185,42 @@ def compose(size, src, box, ground, fill, ss=3, drop_dashes=False, alpha=False):
                     out += bytes(int(ground[i]*(1-k) + grid[o+i]*k) for i in range(3))
             else:
                 out += bytes(ground + ((0,) if alpha else ()))
+    return out
+
+
+def banner(src, box, ground, W, H, fill=0.72, ss=2):
+    """The mark on a wide ground, for the Play listing's feature graphic."""
+    w, h, bpp, rows = src
+    L, T, R, B = box
+    span = max(R-L+1, B-T+1)
+    inner = max(1, int(round(H * fill)))
+    step = span / inner
+    cx, cy = (L+R)/2, (T+B)/2
+    x0, y0 = cx - span/2, cy - span/2
+    ox, oy = int(W * 0.13), (H - inner) // 2       # left of centre
+
+    out = bytearray()
+    for y in range(H):
+        for x in range(W):
+            gx, gy = x - ox, y - oy
+            if not (0 <= gx < inner and 0 <= gy < inner):
+                out += bytes(ground); continue
+            sx0, sx1 = x0 + gx*step, x0 + (gx+1)*step
+            sy0, sy1 = y0 + gy*step, y0 + (gy+1)*step
+            r = g = b = 0; hits = 0; ink = 0
+            for yy in range(max(0, int(sy0)), min(h, int(sy1)+1)):
+                row = rows[yy]
+                for xx in range(max(0, int(sx0)), min(w, int(sx1)+1)):
+                    o = xx*bpp
+                    pr, pg, pb = row[o], row[o+1], row[o+2]
+                    hits += 1
+                    if lum(pr, pg, pb) < INK_MAX_LUM:
+                        r += pr; g += pg; b += pb; ink += 1
+            if ink:
+                k = ink / max(1, hits)
+                out += bytes(int(ground[i]*(1-k) + (r,g,b)[i]/ink*k) for i in range(3))
+            else:
+                out += bytes(ground)
     return out
 
 
@@ -297,6 +336,13 @@ if __name__ == '__main__':
         write_rgba(root / f'app/src/main/res/{folder}/ic_launcher_foreground.png', size,
                    compose(size, src, box, ground, LAUNCH_FILL,
                            drop_dashes=True, alpha=True))
+
+    # Play wants a 1024x500 banner for the listing. The mark, off-centre so the
+    # store's own overlay of the app name has somewhere to sit, on the same
+    # ground as the icon. No lettering: there is no font to draw with here, and
+    # a wordmark rendered badly is worse than a wordmark left to the store.
+    write_rgb(root / 'web/icons/feature-1024x500.png', 0,
+              banner(src, box, ground, 1024, 500), width=1024, height=500)
 
     old = root / 'app/src/main/res/drawable/ic_launcher_foreground.xml'
     if old.exists():
