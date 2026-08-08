@@ -20,10 +20,27 @@ const BUDGET = { nearby: 8000, place: 4000, autocomplete: 6000, text: 2000, rout
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/* The counter is keyed on a hash of the address, not the address.
+ *
+ * Counting requests needs to tell two callers apart; it does not need to know
+ * who either of them is, and those are different requirements. A raw IP sitting
+ * in KV — even for two minutes — is a record of who used the app and when, kept
+ * for no reason beyond it being the obvious key to type. The hash counts just
+ * as well and cannot be read backwards into an address.
+ *
+ * The bucket number is salted in, so the same address hashes differently each
+ * minute and the entries cannot be lined up into a trail either. */
+async function fingerprint(ip, bucket) {
+  const bytes = new TextEncoder().encode(`${bucket}:${ip}`);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest).slice(0, 8)]
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export async function rateLimited(kv, ip) {
   if (!ip) return false;
   const bucket = Math.floor(Date.now() / 1000 / RATE.window);
-  const key = `rl:${ip}:${bucket}`;
+  const key = `rl:${await fingerprint(ip, bucket)}:${bucket}`;
   const n = parseInt(await kv.get(key) || '0', 10) + 1;
   /* Written back with a life of two windows: KV has no atomic increment, so a
    * burst can undercount, and the fix for that is a Durable Object rather than

@@ -31,10 +31,14 @@ footer{margin-top:28px;font-size:13px;color:var(--ink3)}
 <p><strong>Last updated: 8 August 2026</strong></p>
 <p>Safar (&quot;the app&quot;) plans an electric-car journey: how much charge a</p>
 <p>drive will cost, where you drop to your reserve, and where you could charge.</p>
-<p>**There is no account and no login. We operate no server, so nothing you do in</p>
-<p>the app is sent to us and we hold no data about you.** The app does show ads,</p>
-<p>and it can ask for your location if you tap the button that needs it. Both are</p>
-<p>described below.</p>
+<p><strong>There is no account and no login. We hold no data about you.</strong> The app does</p>
+<p>show ads, and it can ask for your location if you tap the button that needs it.</p>
+<p>Both are described below.</p>
+<p>We do now run one service, and it changed one sentence this policy used to</p>
+<p>carry. Map, charger and routing requests used to go from your phone straight to</p>
+<p>Google; they now go through a relay we operate, which asks Google on your</p>
+<p>behalf. It is described in full under <strong>The service we run</strong>. It exists to keep</p>
+<p>our API key off your phone, and it stores roads and chargers — not people.</p>
 <h2>What stays on your device</h2>
 <p>Everything the app remembers is stored locally on the phone and never leaves it:</p>
 <ul>
@@ -43,8 +47,9 @@ footer{margin-top:28px;font-size:13px;color:var(--ink3)}
 <li>Your car settings and calibration figures</li>
 <li>Your theme and data-source preferences</li>
 </ul>
-<p>Uninstalling the app deletes all of it. None of it is backed up to us, because</p>
-<p>there is no &quot;us&quot; to back it up to — we run no servers.</p>
+<p>Uninstalling the app deletes all of it. None of it is backed up to us, and none</p>
+<p>of it is ever sent to us — the trip log included, unless you switch on the</p>
+<p>sharing described below, which is off until you do.</p>
 <h2>Your location</h2>
 <p>The Start field has a &quot;use my current location&quot; button. **Nothing happens until</p>
 <p>you tap it.** The app does not track you, does not read your location in the</p>
@@ -69,10 +74,10 @@ footer{margin-top:28px;font-size:13px;color:var(--ink3)}
 <p>To plan a drive, the app has to ask mapping services about the road. It sends</p>
 <p>the following, directly from your phone to those services:</p>
 <div class="docwrap"><table><thead><tr><th>Sent</th><th>To</th><th>Why</th></tr></thead><tbody>
-<tr><td>The place text you type</td><td>Google Places, or Photon (Komoot)</td><td>Turning &quot;Manali&quot; into a point</td></tr>
-<tr><td>Start and destination coordinates</td><td>Google Routes, or OpenRouteService / OSRM</td><td>Getting the road between them</td></tr>
+<tr><td>The place text you type</td><td>Google Places (through our relay), or Photon (Komoot)</td><td>Turning &quot;Manali&quot; into a point</td></tr>
+<tr><td>Start and destination coordinates</td><td>Google Routes (through our relay), or OpenRouteService / OSRM</td><td>Getting the road between them</td></tr>
 <tr><td>Coordinates along the route</td><td>Open-Meteo, AWS Open Data (terrain tiles)</td><td>Ground height and weather</td></tr>
-<tr><td>Coordinates along the route</td><td>Google Places, Open Charge Map, OpenStreetMap (Overpass)</td><td>Finding chargers</td></tr>
+<tr><td>Coordinates along the route</td><td>Google Places (through our relay), Open Charge Map, OpenStreetMap (Overpass)</td><td>Finding chargers</td></tr>
 <tr><td>Map viewport coordinates</td><td>Google Maps, or OpenStreetMap tile servers</td><td>Drawing the map</td></tr>
 </tbody></table></div>
 <p>Nothing is sent to these services that identifies you: no account, no name, no</p>
@@ -92,8 +97,51 @@ footer{margin-top:28px;font-size:13px;color:var(--ink3)}
 <li>Open Charge Map — &lt;https://openchargemap.org/site/about/privacy&gt;</li>
 <li>OpenStreetMap / Overpass — &lt;https://osmfoundation.org/wiki/Privacy_Policy&gt;</li>
 </ul>
-<p>The Google API key used for those requests is built into the app. It is ours,</p>
-<p>not yours — you are never asked for a key and billing for it never reaches you.</p>
+<p>The Google API key used for those requests is ours, not yours — you are never</p>
+<p>asked for a key and billing for it never reaches you. The key for the map itself</p>
+<p>is built into the app, because the map library runs on your phone and talks to</p>
+<p>Google directly; it can do nothing but draw maps. The rest of the key lives on</p>
+<p>our relay, described next.</p>
+<h2>The service we run</h2>
+<p>Charger, place-search and routing requests go through a small service we</p>
+<p>operate, at `safar-api.safar-app.workers.dev`. It runs on Cloudflare Workers.</p>
+<p>Two reasons, and only two:</p>
+<p><strong>It holds the key.</strong> An app that calls Google directly has to carry the key</p>
+<p>inside it, where anyone can read it out and spend it. Ours now sits on the</p>
+<p>service instead.</p>
+<p><strong>It shares the answers.</strong> Chargers on a road are the same chargers whoever is</p>
+<p>driving it. One person&#x27;s lookup answers the next person&#x27;s, which is why the app</p>
+<p>can afford to ask Google for live free-bay counts at all.</p>
+<p>What reaches it, and what becomes of it:</p>
+<div class="docwrap"><table><thead><tr><th>Reaches the service</th><th>Kept</th><th>For how long</th></tr></thead><tbody>
+<tr><td>Coordinates of a stretch of road you are planning through</td><td>The chargers found there, under a location rounded to a few km — not under you</td><td>6 hours (bay counts, 15 minutes)</td></tr>
+<tr><td>Start and destination coordinates</td><td>The road between them, under those two points</td><td>7 days</td></tr>
+<tr><td>Place text you type in the search box</td><td>Nothing</td><td>—</td></tr>
+<tr><td>Your IP address, as with any web request</td><td>A request counter, under a one-way hash of the address that changes every minute</td><td>2 minutes</td></tr>
+</tbody></table></div>
+<p>There is no account, no identifier, no cookie and no log of who asked for what.</p>
+<p>The cache is keyed on places, not people: a stored entry says &quot;there are four</p>
+<p>chargers near here&quot;, and there is nothing in it, or beside it, to say who asked.</p>
+<p>Requests are not linked to each other, so the service cannot assemble a journey</p>
+<p>even in principle — it never learns that the person asking about one stretch of</p>
+<p>road is the person who asked about the next.</p>
+<p>Your IP address is visible to Cloudflare while a request is being handled, as it</p>
+<p>is to any website you open — &lt;https://www.cloudflare.com/privacypolicy/&gt;.</p>
+<h2>Sharing your drives (off by default)</h2>
+<p>The Log screen has a switch marked <strong>Help fix the model</strong>. It is off. Turned on,</p>
+<p>each drive you log is sent to the service above, and it carries: the car, the</p>
+<p>distance, the height climbed, the temperature, the average speed, how many</p>
+<p>people were aboard, the air-conditioning setting, and the two percentages — what</p>
+<p>the app predicted and what the drive actually cost.</p>
+<p>It does not carry where you started, where you went, when you drove, or anything</p>
+<p>that identifies you or your phone. Start and destination are the two facts about</p>
+<p>a journey that point at a person, and the physics has no use for either.</p>
+<p>Why ask at all: the model is anchored on two drives taken from a published range</p>
+<p>test, and real drives across many cars, roads and seasons are the only thing</p>
+<p>that can replace them. Switching it off stops anything further being sent.</p>
+<p>Records already sent cannot be traced back and removed, because nothing in them</p>
+<p>identifies who sent it — which is the same property that makes them safe to</p>
+<p>send.</p>
 <h2>Advertising</h2>
 <p>The app shows a banner ad from <strong>Google AdMob</strong>. To serve it, AdMob collects</p>
 <p>information from your device independently of anything the app does:</p>

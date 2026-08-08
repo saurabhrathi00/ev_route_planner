@@ -1389,7 +1389,7 @@ details[open] summary::before{transform:rotate(90deg)}
         </svg>
       </div>
       <h2>Free, and yours</h2>
-      <p>No account. No sign-up. No API key needed. <strong>There is no server</strong> — every calculation happens on this phone, and nothing about your drives leaves it.</p>
+      <p>No account. No sign-up. No API key needed. <strong>Your drive is planned on this phone</strong> — the physics, the stops, all of it. Where you are going is not stored anywhere else.</p>
     </section>
 
   </div>
@@ -1940,9 +1940,9 @@ details[open] summary::before{transform:rotate(90deg)}
             <div>
               <strong>Nothing about your drive leaves this device.</strong>
               <ul>
-                <li><b>There is no server.</b> This app has no backend of any kind and no account behind it. Every calculation happens on this device.</li>
+                <li id="trust-server"><b>There is no account.</b> Every calculation happens on this device.</li>
                 <li>Your trip log, calibration and cached terrain are written to this device's local storage and nowhere else. Uninstalling erases them.</li>
-                <li>Requests go to the mapping and charger services listed above and nowhere else. Your route is never sent to us, because there is no us to send it to.</li>
+                <li>Requests go to the mapping and charger services listed above and nowhere else.</li>
               </ul>
               <p>Do not take our word for it — the whole app is one readable file:
                  <a href="https://github.com/saurabhrathi00/ev_route_planner" target="_blank" rel="noopener">read the source</a>.</p>
@@ -2145,7 +2145,12 @@ const gmapKey = bundledGKey;
    on the device and talks to Google itself, so its key cannot be hidden behind
    anything. It is a different key, restricted to the Maps JavaScript API alone,
    and the worst anyone can do with it is draw a map. */
-const PROXY = '';
+const PROXY_URL = '__PROXY__';
+/* Same rule as the key above: an unsubstituted placeholder counts as absent.
+   Opening web/index.html straight off disk has to keep working, and a build
+   that forgot to stamp this must fall back to Google rather than send every
+   driver at a URL spelled `__PROXY__`. */
+const PROXY = (!PROXY_URL || PROXY_URL.slice(0,2) === '__') ? '' : PROXY_URL.replace(/\/$/, '');
 const viaProxy = () => PROXY !== '';
 
 async function proxy(path, body, timeoutMs = 12000){
@@ -7307,6 +7312,17 @@ $('t_add').addEventListener('click',async()=>{
   /* The card only exists where there is somewhere to send to. In a build with
      no backend it is not a switch turned off, it is a promise the app cannot
      keep, so it is not shown at all. */
+  /* This panel used to say "there is no server", which was true until there
+     was one. Rather than two versions of the sentence to keep in step, the one
+     that is true of this build is written here — a build with no PROXY still
+     talks to Google straight from the phone, and still has nothing behind it. */
+  const trust = $('trust-server');
+  if(trust && viaProxy()) trust.innerHTML =
+    '<b>There is no account, and no profile of you.</b> Your drive is planned on this device. '
+    + 'Charger and map lookups go through a small service of ours that holds the API key and '
+    + 'shares its answers between drivers — it stores roads and chargers, never people, and it '
+    + 'is not told who is asking.';
+
   S.share = !!(await sget('share'));
   const shareCard=$('c-share');
   if(shareCard && viaProxy()){

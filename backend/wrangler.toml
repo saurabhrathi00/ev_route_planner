@@ -10,13 +10,16 @@ compatibility_date = "2026-01-01"
 # to the Maps JavaScript API. It cannot be hidden — the library runs on the
 # device — so the point is that it can do nothing but draw maps.
 
+# The binding is the name the code uses; the title is what the dashboard shows.
+# They differ on purpose — a dashboard listing every project's "CACHE" would be
+# unreadable once there is more than one thing on this account.
 [[kv_namespaces]]
-binding = "CACHE"
-id = "PUT_THE_ID_HERE"          # wrangler kv namespace create SAFAR_CACHE
+binding = "CACHE"               # dashboard: SAFAR_CACHE
+id = "f628b54a4be14dffa4efc112e42bfcc6"
 
 [[kv_namespaces]]
-binding = "TRIPS"
-id = "PUT_THE_ID_HERE"          # wrangler kv namespace create SAFAR_TRIPS
+binding = "TRIPS"               # dashboard: SAFAR_TRIPS
+id = "0ae8a721698049398dfee6c228da40b7"
 
 [observability]
 enabled = true

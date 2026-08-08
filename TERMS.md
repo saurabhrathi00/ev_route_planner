@@ -70,10 +70,15 @@ no advertising.
 
 ## Your data
 
-There is no account and no login, and we run no server. What the app remembers
-— your trip log, your car settings, your saved plans — stays on your phone and
-is deleted when you uninstall it. The [privacy policy](PRIVACY.md) is the full
-account of this.
+There is no account and no login. What the app remembers — your trip log, your
+car settings, your saved plans — stays on your phone and is deleted when you
+uninstall it.
+
+We run one service, which relays charger, search and routing requests to Google
+and caches the answers. It stores roads and chargers, not people, and it holds
+nothing that identifies you. Your logged drives are sent to it only if you
+switch that on yourself; the switch is off until you do. The
+[privacy policy](PRIVACY.md) is the full account of both.
 
 ## Our rights in the app
 

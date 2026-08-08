@@ -26,6 +26,13 @@ const path = require('path');
    checkout, say — so two versions of the planner can be compared side by side
    without either of them being the one on disk. */
 const SRC = process.env.EVROUTE_SRC || path.join(__dirname, '..', 'web', 'index.html');
+/* Some checks below are about the *source* — that it still holds placeholders
+   rather than a stamped-in version or address. Pointed at a built bundle they
+   would fail for the one reason that means the build worked, so they are
+   skipped there and said so out loud. Everything else runs either way, which is
+   the point of being able to aim this at dist/ at all: a build behind the proxy
+   takes different code paths, and those have to be tested as shipped. */
+const BUILT = !SRC.endsWith(path.join('web', 'index.html'));
 
 /* ---- the stub DOM ------------------------------------------------------ */
 const FIELDS = {};                       // id -> value, set per scenario
@@ -429,8 +436,33 @@ async function main() {
       { type: 'EV_CONNECTOR_TYPE_CCS_COMBO_2', count: 2, availableCount: 0, maxChargeRateKw: 60 },
       { type: 'EV_CONNECTOR_TYPE_TYPE_2',      count: 2, availableCount: 2, maxChargeRateKw: 7.4 },
     ] } }] };
+  /* Two shapes, because there are now two paths. Straight to Google the app
+     reads the raw reply itself; behind the Worker the same reading has already
+     happened on the server, and what arrives is the finished charger. Which
+     one runs depends on whether this copy of the page was built with a PROXY —
+     so the stub answers whichever was asked for, and the assertions below hold
+     either way. backend/test/run.js makes the same three checks against the
+     server's own reader, because that logic exists in two places and a build
+     behind the proxy never runs this one. */
   const realFetch = env.chgFetch;
-  env.chgFetch = async () => ({ ok: true, status: 200, json: async () => SITE });
+  /* One stub, two shapes, because there are now two paths. Straight to Google
+     the app reads the raw reply itself; behind the Worker that reading has
+     already happened on the server and a finished charger arrives. Which one
+     runs depends on whether this copy of the page was built with a PROXY, so
+     the stub answers whichever was asked for and the assertions below hold
+     either way. backend/test/run.js makes these same checks against the
+     server's own reader — the logic exists in two places, and a build behind
+     the proxy never runs this one. */
+  const serve = site => async (url) => ({
+    ok: true, status: 200,
+    json: async () => String(url).includes('/nearby')
+      ? { chargers: site.places.map(p => ({
+          ...env.readEV(p.evChargeOptions), pid: p.id || null,
+          name: p.displayName.text, loc: { lat: p.location.latitude, lng: p.location.longitude },
+          src: 'google' })) }
+      : site,
+  });
+  env.chgFetch = serve(SITE);
   const [got] = await env.chargersGoogle({ lat: 28.6, lng: 77.2 }, 40, 'k');
   env.chgFetch = realFetch;
   console.log(`  mixed site: 2 DC guns busy, 2 AC sockets free -> free ${got.free}, bays ${got.points}`);
@@ -443,7 +475,7 @@ async function main() {
   const QUIET = { places: [{ displayName:{text:'Quiet'}, location:{latitude:28.6,longitude:77.2},
     evChargeOptions:{ connectorAggregation:[
       { type:'EV_CONNECTOR_TYPE_CCS_COMBO_2', count:2, maxChargeRateKw:60 }] } }] };
-  env.chgFetch = async () => ({ ok: true, status: 200, json: async () => QUIET });
+  env.chgFetch = serve(QUIET);
   const [quiet] = await env.chargersGoogle({ lat: 28.6, lng: 77.2 }, 40, 'k');
   env.chgFetch = realFetch;
   check('a site that reports nothing is unknown, not busy', quiet.free === null, `free ${quiet.free}`);
@@ -731,12 +763,13 @@ async function main() {
      time, so what a phone shows and what the file says cannot drift. */
   console.log('\n  about, terms and copyright');
   console.log('  ' + '-'.repeat(55));
+  if (BUILT) console.log('  (built bundle — the placeholder checks are about the source, skipped)');
   for (const t of ['__TERMS_HTML__', '__PRIVACY_HTML__'])
-    check(`the source holds ${t} rather than a copy of the text`, src.includes(t), 'inlined');
+    if (!BUILT) check(`the source holds ${t} rather than a copy of the text`, src.includes(t), 'inlined');
   /* The source holds placeholders; the build fills them. Checking the source
      for the address itself would fail on a correct build and pass on one that
      had the address typed in twice, which is the thing being prevented. */
-  check('the app leaves the publisher to the build',
+  if (!BUILT) check('the app leaves the publisher to the build',
     /__COPYRIGHT__/.test(src) && /__CONTACT__/.test(src), 'typed in rather than stamped');
   const brand = fs.readFileSync(path.join(__dirname,'..','tools','brand.py'), 'utf8');
   check('there is one place that says who publishes it',
@@ -916,7 +949,7 @@ async function main() {
   };
   console.log(`  gradle says ${want.__BUILD_VER__} (${want.__BUILD_CODE__})`);
   for(const token of ['__BUILD_ID__','__BUILD_VER__','__BUILD_CODE__','__BUILD_DATE__'])
-    check(`the source carries ${token} rather than a version`, page.includes(token), 'hard-coded');
+    if (!BUILT) check(`the source carries ${token} rather than a version`, page.includes(token), 'hard-coded');
   /* Two of these had been typed in by hand, in two different schemes, and both
      went stale silently — one said r53 for weeks, the other r22. The check has
      to ignore the comments that explain why, or it fails on its own epitaph. */

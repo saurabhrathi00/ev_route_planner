@@ -254,6 +254,18 @@ async function main() {
     console.log('  past budget: cache still served, empty answers flagged degraded');
   }
 
+  /* --- the rate limiter counts without recording who --- */
+  {
+    const e = env();
+    for (let i = 0; i < 3; i++) await call(e, 'POST', '/text', { query: 'Manali' });
+    const keys = (await e.CACHE.list({ prefix: 'rl:' })).keys.map(k => k.name);
+    check('the limiter kept a counter', keys.length > 0, `${keys.length}`);
+    /* call() sends CF-Connecting-IP: 10.0.0.<n>, so this is the real address
+       these counters were made from — and none of it may appear in the key. */
+    check('but no address is in it', !keys.some(k => /10\.0\.0\./.test(k)), keys.join(' '));
+    console.log(`  rate key: ${keys[0]}`);
+  }
+
   /* --- what it refuses --- */
   {
     const e = env();

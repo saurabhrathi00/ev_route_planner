@@ -30,6 +30,10 @@ if [ -z "${GOOGLE_MAPS_KEY:-}" ] && [ -f secrets.env ]; then
 fi
 KEY="${GOOGLE_MAPS_KEY:-}"
 ORS="${ORS_KEY:-}"
+# The backend, if this build has one. Empty means every call goes straight to
+# Google with the bundled key, which is what every build did before backend/
+# existed — so a build with no PROXY is a working build, just an exposed one.
+PROXY="${PROXY_URL:-}"
 
 if [ -z "$KEY" ]; then
   echo "!  no GOOGLE_MAPS_KEY found — building the free-sources version."
@@ -42,12 +46,13 @@ rm -rf dist && mkdir -p dist app/src/main/assets ios/Resources
 
 [ -n "$ORS" ] && echo "✓  bundling OpenRouteService key" || echo "!  no ORS_KEY — routing falls back to the OSRM demo server"
 
-KEY="$KEY" ORS="$ORS" python3 - "$SRC" <<'PY'
+KEY="$KEY" ORS="$ORS" PROXY="$PROXY" python3 - "$SRC" <<'PY'
 import os, re, sys, shutil, pathlib, datetime
 
 src = sys.argv[1]
 key = os.environ.get('KEY', '')
 ors = os.environ.get('ORS', '')
+proxy = os.environ.get('PROXY', '')
 html = open(src, encoding='utf-8').read()
 
 # The version the store listing carries, so the page and the listing cannot
@@ -69,7 +74,7 @@ date = datetime.date.today().isoformat()
 exec(open('tools/_mdhtml.py').read())
 exec(open('tools/brand.py').read())
 
-STAMPS = {'__GOOGLE_MAPS_KEY__': key, '__ORS_KEY__': ors,
+STAMPS = {'__GOOGLE_MAPS_KEY__': key, '__ORS_KEY__': ors, '__PROXY__': proxy,
           '__TERMS_HTML__': md_to_html('TERMS.md'),
           '__PRIVACY_HTML__': md_to_html('PRIVACY.md'),
           '__BUILD_VER__': ver, '__BUILD_CODE__': code, '__BUILD_DATE__': date,
@@ -79,7 +84,7 @@ STAMPS = {'__GOOGLE_MAPS_KEY__': key, '__ORS_KEY__': ors,
 # something rewrote the source, and a build that quietly ships an empty key is
 # worse than one that stops. But not every stamp has to appear — the publisher
 # is available to the page whether or not the page mentions it.
-REQUIRED = ('__GOOGLE_MAPS_KEY__', '__ORS_KEY__', '__BUILD_ID__',
+REQUIRED = ('__GOOGLE_MAPS_KEY__', '__ORS_KEY__', '__PROXY__', '__BUILD_ID__',
             '__TERMS_HTML__', '__PRIVACY_HTML__', '__CONTACT__')
 for token in REQUIRED:
     if token not in html:

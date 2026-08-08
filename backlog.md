@@ -1,8 +1,14 @@
 # Backlog — proxy backend, subscriptions, and paying for iOS
 
-Deferred work. The app ships today with the key bundled, a hard daily quota cap
-in Cloud Console, and ads. That costs nothing to run and needs no server. This
-file is what to build when ads stop being enough.
+Deferred work, minus the part that is now done.
+
+**Phase 1 shipped on 8 August 2026.** The Worker in `backend/` is deployed at
+`safar-api.safar-app.workers.dev`, holds its own Google key, and shares the
+charger cache between drivers. The app is built with `PROXY_URL` pointing at it,
+so Places and Routes calls no longer leave the device with a key attached. What
+remains below is Phase 2 onward.
+
+The rest of this file is what to build when ads stop being enough.
 
 ---
 
@@ -50,7 +56,20 @@ Any one of these:
 
 ---
 
-## Phase 1 — proxy and shared cache
+## Phase 1 — proxy and shared cache — **DONE, 8 Aug 2026**
+
+What actually got built, against what was planned here: the Worker, KV with the
+two-TTL split, per-IP rate limiting (keyed on a rotating hash of the address,
+not the address), a per-SKU daily budget that fails soft to cache, and the
+anonymous drive pool. 47 unit tests with Google stubbed, 20 smoke tests against
+the live service. Two designs in the plan below turned out wrong under test and
+were changed: the cache cell is snapped to a grid tied to the sweep radius
+rather than rounded to three decimals, and the routing endpoint returns the road
+cut into steps rather than one polyline, because the simulation walks it.
+
+Still open from this phase: the service runs on a `workers.dev` address, which
+is baked into the APK. Move it to Safar's own domain before production —
+see **Domain** below.
 
 Ship this on its own. It is worth doing even with no subscription attached: it
 takes the key off the device, and the shared cache cuts the bill by an order of
@@ -101,6 +120,37 @@ Strictly better than today.
 **Also unblocked by this.** Mappls answers a CORS preflight with 403 and cannot
 be called from a browser, which is why the credential slots in `secrets.env` sit
 unused. A server-side proxy is exactly what those slots were waiting for.
+
+## Accounts — settled: there will not be any
+
+Subscriptions do not need a login, and adding one would cost conversion for
+nothing. Play Billing ties the purchase to the Google account already on the
+phone: the app gets a purchase token, the Worker checks it against the Google
+Play Developer API, and entitlement follows the person to a new phone through
+`queryPurchases`. No email, no password, no reset flow, no PII to hold.
+
+An account only becomes necessary when one subscription has to span two stores
+(iOS and Android), or a web version, because Apple and Google do not know about
+each other and something in the middle has to be the identity. None of that is
+true yet. If iOS ships, add *optional* Google One Tap for the people who want
+two devices — optional, and never a screen anyone has to skip.
+
+Note what this changes when it lands: a purchase token is the first thing this
+service will hold that belongs to a specific person. Today's claim — "roads and
+chargers, not people" — stops being true, and PRIVACY.md has to be rewritten
+the same day, not afterwards.
+
+## Domain
+
+`safar-api.safar-app.workers.dev` is in the APK, and an address inside a
+shipped build cannot be changed without shipping again. Before production, put
+the service on Safar's own domain and point `PROXY_URL` at that; the Worker
+moves with a DNS record after that, and no install ever breaks. The same domain
+carries `app-ads.txt`, which AdMob wants at the root, and the privacy and terms
+pages, which are on `github.io` today. One purchase, three problems.
+
+Not `sastaspeech.in` — that is a different product, and tying the two together
+means one of them breaks when the other is sold or dropped.
 
 ## Phase 2 — billing
 
