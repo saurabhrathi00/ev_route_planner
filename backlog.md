@@ -1,4 +1,4 @@
-# Backlog — proxy backend and subscriptions
+# Backlog — proxy backend, subscriptions, and paying for iOS
 
 Deferred work. The app ships today with the key bundled, a hard daily quota cap
 in Cloud Console, and ads. That costs nothing to run and needs no server. This
@@ -44,6 +44,9 @@ Any one of these:
 - The daily cap is degrading the feature often enough that users notice
 - Someone extracts the bundled key and burns the quota (bill stays ₹0 because
   of the cap, but the feature dies for real users)
+- **Any marketing outside India.** Volume and the incentive to lift the key both
+  rise, and the cap turns a stolen key into an outage for everyone rather than a
+  bill. This is the trigger that arrives without warning.
 
 ---
 
@@ -101,8 +104,10 @@ unused. A server-side proxy is exactly what those slots were waiting for.
 
 ## Phase 2 — billing
 
-**Products.** `evroute_pro_monthly` ₹99, `evroute_pro_yearly` ₹799. The annual
-price is the one to push: lower churn, cash upfront.
+**Products.** `safar_pro_monthly` ₹99, `safar_pro_yearly` ₹799. The annual price
+is the one to push: lower churn, cash upfront. (Named for the app as it is now;
+the identifiers were written when it was called EVRoute and a product id cannot
+be renamed once Play has seen it, so these have to be right the first time.)
 
 **RevenueCat** rather than the Play Developer API directly. It handles receipt
 verification, renewals and webhooks, and is free below $2,500/month of revenue.
@@ -254,6 +259,52 @@ That is a better reason to build the proxy than the charger quota was.
 
 ---
 
+## iOS, and what it would cost to earn anything there
+
+The iOS app builds, runs, and carries no advertising — not by decision, by
+omission. Nobody added the ad SDK. Three ways out, and they are not equally
+priced.
+
+**Paid app.** Set a price in App Store Connect. That is the whole implementation:
+no StoreKit, no restore-purchases, no entitlement logic, not a line of code in
+the app. Apple takes 30% (15% under the small business programme). The cost is
+reach — nobody downloads a paid utility they have not seen, so it only works
+once the app has a reputation to trade on.
+
+**Free with ads.** Half a day of work and a permanent tax on the interface:
+
+- Google Mobile Ads SDK via SPM, in `ios/project.yml`
+- `Info.plist`: `GADApplicationIdentifier`, ~100 `SKAdNetworkItems`,
+  `NSUserTrackingUsageDescription`
+- `PrivacyInfo.xcprivacy` declaring the IDFA — an upload is refused without it
+- The same order as Android: UMP consent → ATT prompt → `MobileAds.start()` →
+  banner. ATT after consent, or two permission sheets arrive back to back and
+  people refuse both.
+- App Store Connect's privacy questionnaire, declaring the advertising ID
+
+iOS eCPM runs well above Android, especially in the US — but ATT opt-in is
+25-40%, and most of that advantage leaves with it.
+
+**Free with IAP.** Everything in Phase 2 again, in StoreKit. Only worth it if
+the Android subscription is already earning.
+
+Steps 1-6 of the ads route need no Apple account: the SDK, the plist, the code
+and a simulator run against Google's test unit ids are all free. The $99 buys a
+real device, TestFlight and the store — so it can be the last thing bought
+rather than the first.
+
+**Which one.** Ads sell attention; this app sells a correct number. A paid app
+is the honest match and costs nothing to build. But none of it is worth deciding
+until Android has real users, because that is the only thing that will say
+whether anyone values the number enough to pay for it.
+
+And the 4.2 risk sits under all three: a WKWebView around a bundled page is the
+shape Apple rejects as "minimum functionality". The defence is real — offline,
+the physics on-device, native CoreLocation — but it is a defence, not a
+guarantee, and it costs $99 to find out.
+
+---
+
 ## Order
 
 | Step | Effort | Result |
@@ -262,3 +313,5 @@ That is a better reason to build the proxy than the charger quota was.
 | Phase 1 | 2-3 days | key off-device, bill cut by 10-50× |
 | Phase 2 | 4-5 days | subscriptions live |
 | Phase 3 | parallel | Play paperwork |
+| iOS paid app | 0 days | a price, if the app has earned a reputation |
+| iOS ads | half a day + $99 | reach on the platform that pays better per user |
