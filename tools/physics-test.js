@@ -933,6 +933,59 @@ async function main() {
     env.chgFetch = realFetch;
   }
 
+  /* --- the wait ----------------------------------------------------------
+     The car is moved by hand-written keyframes because offset-path is younger
+     than the WebViews this ships to. Hand-written means it can drift off the
+     road it is meant to be driving on, and nobody would notice from reading
+     the CSS — so the curve is sampled here and the car checked against it. */
+  {
+    console.log('\n  the planning sheet');
+    console.log('  ' + '-'.repeat(55));
+    const road = (src.match(/class="road" d="([^"]+)"/) || [])[1] || '';
+    const frames = [...src.slice(src.indexOf('@keyframes drive'))
+      .matchAll(/(\d+)%\{transform:translate\(([\d.]+)px,([\d.]+)px\)/g)]
+      .map(m => ({ pct: +m[1], x: +m[2], y: +m[3] }));
+    check('the road is drawn and the car has a path along it',
+      /^M4 46 C/.test(road) && frames.length >= 5, `${frames.length} frames`);
+
+    /* The same two curves the `d` attribute describes, sampled densely. */
+    const bez = (p, t) => {
+      const u = 1 - t;
+      return [0, 1].map(i =>
+        u ** 3 * p[0][i] + 3 * u * u * t * p[1][i] + 3 * u * t * t * p[2][i] + t ** 3 * p[3][i]);
+    };
+    const segs = [
+      [[4, 46], [44, 46], [52, 22], [92, 22]],
+      /* S reflects the previous control point about the join: 2*(92,22)-(52,22) */
+      [[92, 22], [132, 22], [140, 46], [180, 46]],
+    ];
+    let worst = 0, at = null;
+    for (const f of frames) {
+      let best = Infinity;
+      for (let i = 0; i <= 1000; i++) for (const seg of segs) {
+        const [x, y] = bez(seg, i / 1000);
+        best = Math.min(best, Math.hypot(x - f.x, y - f.y));
+      }
+      if (f.x >= 180 && f.x <= 216) best = Math.min(best, Math.abs(f.y - 46));  // the straight tail
+      if (best > worst) { worst = best; at = f; }
+    }
+    console.log(`  car keeps within ${worst.toFixed(2)} px of the centre of a 6 px road`);
+    check('the car stays on the road', worst <= 1.5,
+      at ? `${worst.toFixed(2)} px off at ${at.pct}%` : '');
+
+    const facts = (src.match(/const FACTS = \[([\s\S]*?)\n\];/) || [])[1] || '';
+    const count = (facts.match(/^\s{2}'/gm) || []).length;
+    console.log(`  ${count} facts, longest ${Math.max(...facts.split('\n').map(l => l.length))} characters`);
+    check('there are enough facts not to repeat inside one wait', count >= 10, `${count}`);
+    check('and each is short enough to read in a glance',
+      facts.split('\n').every(l => l.length < 220), 'one runs long');
+    /* Motion is an option, not a requirement: everything here is inside a
+       no-preference query, and the fact rotation swaps text without a fade. */
+    check('none of it moves for someone who asked it not to',
+      /@media \(prefers-reduced-motion:no-preference\)\{\n  \.sheet\.on \.loadart/.test(src)
+      && /if\(REDUCED\.matches\)\{ show\(\); return; \}/.test(src), 'animation is unconditional');
+  }
+
   check('the page only offers the choice where there is one',
     /window\.__privacyOptions/.test(src) && /id="privacy-options"[^>]*hidden/.test(src),
     'the button is always there');
